@@ -20,3 +20,10 @@ codex.md
 
 # Plans
 /plans/
+
+# Swift and Xcode build output
+.build/
+DerivedData/
+*.xcuserstate
+xcuserdata/
+.build-artifacts/
