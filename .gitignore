@@ -1,0 +1,19 @@
+# Claude
+.claude/
+CLAUDE.md
+.claude.json
+
+# Codex
+.codex/
+AGENTS.md
+codex.md
+
+# Secrets and env files
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# macOS
+.DS_Store
