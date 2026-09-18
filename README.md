@@ -20,6 +20,17 @@ xcodebuild -project Routewell.xcodeproj -scheme 'Routewell (Mock)' \
   -destination 'platform=macOS' test
 ```
 
+## Acknowledgements
+
+Routewell is heavily inspired by [RouterPilot](https://github.com/TCDemo777/RouterPilot),
+created by TCDemo777 and its contributors. RouterPilot's functionality and
+architecture provide the foundation for this native macOS reimplementation.
+Thank you to the upstream project for making its work available as open source.
+
+Routewell is independently maintained and is not an official RouterPilot release.
+See [Third-party notices](THIRD_PARTY_NOTICES.md) for upstream licensing and
+attribution details.
+
 ## Disclaimer
 
 Routewell is an independent, unofficial project. It is not affiliated with,
