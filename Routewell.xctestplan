@@ -1,0 +1,21 @@
+{
+  "configurations": [
+    {
+      "id": "1440EB4C-EED5-43E3-888F-89BDC2533B9D",
+      "name": "Default",
+      "options": {}
+    }
+  ],
+  "defaultOptions": {},
+  "testTargets": [
+    {
+      "parallelizable": false,
+      "target": {
+        "containerPath": "container:Routewell.xcodeproj",
+        "identifier": "A00000000000000000000003",
+        "name": "RoutewellTests"
+      }
+    }
+  ],
+  "version": 1
+}
