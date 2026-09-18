@@ -19,3 +19,16 @@ Run app tests:
 xcodebuild -project Routewell.xcodeproj -scheme 'Routewell (Mock)' \
   -destination 'platform=macOS' test
 ```
+
+## Disclaimer
+
+Routewell is an independent, unofficial project. It is not affiliated with,
+endorsed, sponsored, or supported by GL.iNet. GL.iNet and its product names,
+logos, and trademarks belong to their respective owners. All other trademarks
+are the property of their respective owners.
+
+Use Routewell at your own risk. The software is provided "as is", without
+warranty of any kind. To the extent permitted by applicable law, the authors
+and contributors are not liable for any loss or damage arising from its use,
+including data loss, device damage, or network disruption. See [LICENSE](LICENSE)
+for the full warranty disclaimer and limitation of liability.
