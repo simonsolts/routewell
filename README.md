@@ -20,6 +20,14 @@ xcodebuild -project Routewell.xcodeproj -scheme 'Routewell (Mock)' \
   -destination 'platform=macOS' test
 ```
 
+## Copyright and license
+
+Copyright © 2026 Simon Solts.
+
+Routewell is licensed under the GNU General Public License v3.0. See
+[LICENSE](LICENSE) and [COPYRIGHT](COPYRIGHT). Third-party contributions retain
+their respective copyright notices; see [Third-party notices](THIRD_PARTY_NOTICES.md).
+
 ## Acknowledgements
 
 Routewell is heavily inspired by [RouterPilot](https://github.com/TCDemo777/RouterPilot),
