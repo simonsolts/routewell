@@ -14,11 +14,20 @@ final class AppModel {
     private(set) var refreshFailed = false
     let session = SessionController()
     var mockScenarioID = "healthy"
-    var showInMenuBar = true { didSet { refreshSettingsChanged?() } }
-    var refreshIntervalSeconds = 30 { didSet { refreshSettingsChanged?() } }
-    var pauseWhenHidden = true { didSet { refreshSettingsChanged?() } }
+    var showInMenuBar = true { didSet { refreshSettingsChanged?(); persistenceSettingsChanged?() } }
+    var refreshIntervalSeconds = 30 { didSet { refreshSettingsChanged?(); persistenceSettingsChanged?() } }
+    var pauseWhenHidden = true { didSet { refreshSettingsChanged?(); persistenceSettingsChanged?() } }
     @ObservationIgnored var refreshSettingsChanged: (() -> Void)?
-    var showStatusBar = true
+    @ObservationIgnored var persistenceSettingsChanged: (() -> Void)?
+    var showStatusBar = true { didSet { persistenceSettingsChanged?() } }
+    var persistedSettings: AppSettings {
+        var settings = AppSettings()
+        settings.showInMenuBar = showInMenuBar
+        settings.refreshIntervalSeconds = refreshIntervalSeconds
+        settings.pauseWhenHidden = pauseWhenHidden
+        settings.showStatusBar = showStatusBar
+        return settings
+    }
     let mode: BackendMode
 
     init(mode: BackendMode, snapshot: OverviewSnapshot? = nil, now: Date = .now) {

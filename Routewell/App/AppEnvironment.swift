@@ -8,6 +8,7 @@ import RoutewellMock
 final class AppEnvironment {
     let model: AppModel
     let refresh: RefreshController
+    let persistence: PersistenceController
     private var setup: Task<Void, Never>?
     #if DEBUG
     private var mockBackend: MockRouterBackend?
@@ -16,15 +17,31 @@ final class AppEnvironment {
     static let mockProfiles = ["Home mock", "Travel mock"]
     static let mockScenarios = ["healthy", "partial", "offline", "stale", "slow"]
 
-    init(model: AppModel, backend: (any RouterBackend)?) {
+    init(model: AppModel, backend: (any RouterBackend)?, store: AtomicJSONStore? = nil,
+         credentials: any CredentialStore = InMemoryCredentialStore()) {
         self.model = model
         self.refresh = RefreshController(model: model)
+        self.persistence = PersistenceController(model: model, store: store, credentials: credentials)
         #if DEBUG
         mockBackend = backend as? MockRouterBackend
         #endif
-        if let backend {
-            setup = model.session.switchProfile(Self.mockProfiles[0], model: model, refresh: refresh) {
-                SessionLease(token: $0, backend: backend)
+        setup = Task { [weak self] in
+            guard let self else { return }
+            await persistence.load()
+            if let backend, let profile = persistence.selectedProfile {
+                #if DEBUG
+                if store != nil, model.mode == .mock {
+                    let restored = MockRouterBackend(hostname: profile.endpoint == "mock://home" ? "flint-demo" : "travel-demo")
+                    mockBackend = restored
+                    await model.session.switchProfile(profile.name, model: model, refresh: refresh) {
+                        SessionLease(token: $0, backend: restored)
+                    }.value
+                    return
+                }
+                #endif
+                await model.session.switchProfile(profile.name, model: model, refresh: refresh) {
+                    SessionLease(token: $0, backend: backend)
+                }.value
             }
         }
     }
@@ -33,8 +50,36 @@ final class AppEnvironment {
 
     func switchMockProfile(_ profile: String) {
         #if DEBUG
-        guard model.mode == .mock, Self.mockProfiles.contains(profile) else { return }
+        guard model.mode == .mock,
+              let saved = persistence.profiles.profiles.first(where: { $0.name == profile }) else { return }
+        persistence.select(saved.id)
         installMock(profile: profile, scenarioID: model.mockScenarioID)
+        #endif
+    }
+
+    func selectMockProfile(_ id: UUID) {
+        guard !persistence.credentialBusy else { return }
+        persistence.select(id)
+        activateSelectedProfile()
+    }
+
+    func addMockProfile() {
+        persistence.addMockProfile()
+        activateSelectedProfile()
+    }
+
+    func deleteMockProfile() async {
+        if await persistence.deleteSelectedProfile() { activateSelectedProfile() }
+    }
+
+    private func activateSelectedProfile() {
+        #if DEBUG
+        guard model.mode == .mock else { return }
+        if let profile = persistence.selectedProfile {
+            installMock(profile: profile.name, scenarioID: model.mockScenarioID)
+        } else {
+            model.session.disconnect(model: model, refresh: refresh)
+        }
         #endif
     }
 
@@ -63,7 +108,11 @@ final class AppEnvironment {
     }
     #endif
 
-    static func configured(variables: [String: String] = ProcessInfo.processInfo.environment) -> AppEnvironment {
+    static func configured(variables: [String: String] = ProcessInfo.processInfo.environment,
+                           persist: Bool = false) -> AppEnvironment {
+        let store: AtomicJSONStore? = persist ? AtomicJSONStore(directory:
+            URL.applicationSupportDirectory.appendingPathComponent("Routewell", isDirectory: true)) : nil
+        let credentials: any CredentialStore = persist ? KeychainCredentialStore() : InMemoryCredentialStore()
         #if DEBUG
         let allowsMock = true
         #else
@@ -72,9 +121,9 @@ final class AppEnvironment {
         let mode = BackendMode.resolve(variables["ROUTEWELL_BACKEND"], allowsMock: allowsMock)
         #if DEBUG
         if mode == .mock {
-            return AppEnvironment(model: AppModel(mode: mode), backend: MockRouterBackend())
+            return AppEnvironment(model: AppModel(mode: mode), backend: MockRouterBackend(), store: store, credentials: credentials)
         }
         #endif
-        return AppEnvironment(model: AppModel(mode: mode), backend: nil)
+        return AppEnvironment(model: AppModel(mode: mode), backend: nil, store: store, credentials: credentials)
     }
 }

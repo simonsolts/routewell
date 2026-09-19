@@ -1,8 +1,11 @@
 import SwiftUI
+import RoutewellKit
 
 struct SettingsView: View {
     let environment: AppEnvironment
     @Environment(AppModel.self) private var model
+    @State private var mockSecret = ""
+    @State private var confirmingDelete = false
     var body: some View {
         @Bindable var model = model
         TabView {
@@ -12,7 +15,7 @@ struct SettingsView: View {
                     Toggle("Show Dock icon", isOn: .constant(true)).disabled(true)
                     Toggle("Open at login", isOn: .constant(false)).disabled(true)
                 } footer: {
-                    Text("Menu bar visibility applies for this session. Login items and Dock visibility are not available yet.")
+                    Text("Menu bar visibility is saved on this Mac. Login items and Dock visibility are not available yet.")
                 }
                 Section {
                     Picker("Refresh every", selection: $model.refreshIntervalSeconds) {
@@ -23,7 +26,7 @@ struct SettingsView: View {
                     Toggle("Pause refreshing when hidden", isOn: $model.pauseWhenHidden)
                     Picker("Appearance", selection: .constant("System")) { Text("System").tag("System") }.disabled(true)
                 } footer: {
-                    Text("Refresh settings apply for this session. When paused with the window hidden, the menu bar refreshes every 60 seconds. Appearance follows macOS.")
+                    Text("Refresh settings are saved on this Mac. When paused with the window hidden, the menu bar refreshes every 60 seconds. Appearance follows macOS.")
                 }
                 Section {
                     LabeledContent("Version", value: "0.1 (1)")
@@ -36,10 +39,15 @@ struct SettingsView: View {
                 if model.mode == .mock {
                     Section("Mock routers") {
                         Picker("Profile", selection: Binding(
-                            get: { model.session.expectedToken?.profileID ?? AppEnvironment.mockProfiles[0] },
-                            set: { environment.switchMockProfile($0) }
+                            get: { environment.persistence.profiles.selectedID },
+                            set: { if let id = $0 { environment.selectMockProfile(id) } }
                         )) {
-                            ForEach(AppEnvironment.mockProfiles, id: \.self) { Text($0).tag($0) }
+                            ForEach(environment.persistence.profiles.profiles) { Text($0.name).tag(Optional($0.id)) }
+                        }
+                        HStack {
+                            Button("Add Mock Profile") { environment.addMockProfile() }
+                            Button("Delete Mock Profile…", role: .destructive) { confirmingDelete = true }
+                                .disabled(environment.persistence.selectedProfile == nil)
                         }
                         Picker("Scenario", selection: Binding(
                             get: { model.mockScenarioID },
@@ -53,6 +61,25 @@ struct SettingsView: View {
                             .foregroundStyle(.secondary)
                     }
                 }
+                if model.mode == .mock, let profile = environment.persistence.selectedProfile {
+                    Section("Mock credential · Keychain") {
+                        LabeledContent("Endpoint", value: profile.endpoint)
+                        SecureField("Mock password", text: $mockSecret)
+                        HStack {
+                            Button("Save Mock Credential") {
+                                let secret = Data(mockSecret.utf8)
+                                mockSecret = ""
+                                Task { await environment.persistence.credential(.save(secret)) }
+                            }.disabled(mockSecret.isEmpty)
+                            Button("Check") { Task { await environment.persistence.credential(.check) } }
+                            Button("Delete Credential", role: .destructive) {
+                                Task { await environment.persistence.credential(.delete) }
+                            }
+                        }
+                        Text(environment.persistence.credentialMessage ?? "Use a made-up password. Only this mock profile’s Routewell Keychain item is accessed. No network connection is made.")
+                            .font(.callout).foregroundStyle(.secondary)
+                    }
+                }
                 Section {
                     TextField("Address", text: .constant(""), prompt: Text("Router hostname or IP address"))
                     TextField("Username", text: .constant(""))
@@ -60,7 +87,7 @@ struct SettingsView: View {
                     Button("Test Connection") {}
                 }.disabled(true)
                 Section {
-                    Text("Connection setup will be available in a later build. No credentials are collected here.")
+                    Text("Live connection setup will be available in a later build.")
                         .foregroundStyle(.secondary)
                 }
             }.tabItem { Label("Router", systemImage: "wifi.router") }
@@ -92,10 +119,32 @@ struct SettingsView: View {
                     Button("Choose Export Folder…") {}.disabled(true)
                     Button("Reset Settings…") {}.disabled(true)
                 }
-                Text("Diagnostics and persistent settings are not available yet.").foregroundStyle(.secondary)
+                Text("Diagnostic export is not available yet.").foregroundStyle(.secondary)
             }.tabItem { Label("Advanced", systemImage: "wrench.and.screwdriver") }
         }
+        .disabled(environment.persistence.isLoading || environment.persistence.credentialBusy)
+        .safeAreaInset(edge: .bottom) {
+            VStack(alignment: .leading, spacing: 4) {
+                HStack {
+                    Text(environment.persistence.status)
+                        .foregroundStyle(environment.persistence.errors.isEmpty ? Color.secondary : Color.red)
+                    Spacer()
+                    if !environment.persistence.errors.isEmpty {
+                        Button("Retry Save") { Task { await environment.persistence.flush() } }
+                    }
+                }
+                if let notice = environment.persistence.recoveryNotice { Text(notice).foregroundStyle(.orange) }
+            }.font(.caption).padding(12)
+        }
+        .onChange(of: environment.persistence.profiles.selectedID) { mockSecret = "" }
+        .confirmationDialog("Delete \(environment.persistence.selectedProfile?.name ?? "mock profile")?", isPresented: $confirmingDelete) {
+            Button("Delete Mock Profile", role: .destructive) {
+                Task { await environment.deleteMockProfile() }
+            }
+        } message: {
+            Text("Removes this saved mock profile and its exact Routewell mock credential from Keychain. Other Keychain items are not touched.")
+        }
         .formStyle(.grouped)
-        .frame(width: 600, height: 420)
+        .frame(width: 640, height: 560)
     }
 }
