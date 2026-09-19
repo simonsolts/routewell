@@ -51,11 +51,19 @@ private actor TestRefreshClock: RefreshClock {
     }
 }
 
+private final class TestWallClock: WallClock, @unchecked Sendable {
+    private let lock = NSLock()
+    private var value: Date
+    init(_ value: Date) { self.value = value }
+    func now() -> Date { lock.withLock { value } }
+    func advance(_ interval: TimeInterval) { lock.withLock { value = value.addingTimeInterval(interval) } }
+}
+
 private actor CountingRefreshBackend: RouterBackend {
     private(set) var calls = 0
-    func overview() async throws -> OverviewSnapshot {
+    func overview() async throws -> OverviewRefreshResult {
         calls += 1
-        return OverviewSnapshot(observedAt: .distantPast)
+        return successfulResult()
     }
 }
 
@@ -135,17 +143,26 @@ private actor CountingRefreshBackend: RouterBackend {
 
 private actor HeldRefreshBackend: RouterBackend {
     private(set) var calls = 0
-    private var completion: CheckedContinuation<OverviewSnapshot, any Error>?
-    func overview() async throws -> OverviewSnapshot {
+    private let resultDate: Date
+    private var completion: CheckedContinuation<OverviewRefreshResult, any Error>?
+    init(resultDate: Date = .distantPast) { self.resultDate = resultDate }
+    func overview() async throws -> OverviewRefreshResult {
         calls += 1
         return try await withCheckedThrowingContinuation { completion = $0 }
     }
     struct Failure: Error {}
     func finish(fails: Bool = false) {
         if fails { completion?.resume(throwing: Failure()) }
-        else { completion?.resume(returning: OverviewSnapshot(observedAt: .distantPast)) }
+        else { completion?.resume(returning: successfulResult(at: resultDate)) }
         completion = nil
     }
+}
+
+private func successfulResult(at date: Date = .distantPast) -> OverviewRefreshResult {
+    .init(router: .success(.init(), observedAt: date, source: .mock),
+          internet: .success(.init(), observedAt: date, source: .mock),
+          adGuard: .success(.init(), observedAt: date, source: .mock),
+          clients: .success(.init(), observedAt: date, source: .mock))
 }
 
 @MainActor @Test func ticksAndManualRequestsShareOnePendingRead() async {
@@ -192,6 +209,30 @@ private actor HeldRefreshBackend: RouterBackend {
     await backend.finish()
     await refresh.waitForRefresh()
     #expect(await backend.calls == 2)
+}
+
+@MainActor @Test func wakeRecomputesFreshnessBeforeRefreshCompletes() async {
+    let date = Date(timeIntervalSince1970: 10_000)
+    let wallClock = TestWallClock(date)
+    let backend = HeldRefreshBackend(resultDate: date)
+    let model = AppModel(mode: .mock, now: date)
+    let refresh = RefreshController(model: model, wallClock: wallClock)
+    await model.session.switchProfile("test", model: model, refresh: refresh) {
+        SessionLease(token: $0, backend: backend)
+    }.value
+    await eventually { await backend.calls == 1 }
+    await backend.finish()
+    await refresh.waitForRefresh()
+    #expect(model.healthChecks.contains { $0.kind == .freshness(.clients) && $0.state == .fresh })
+
+    refresh.setSleeping(true)
+    wallClock.advance(60 * 60 + 1)
+    refresh.setSleeping(false)
+    await eventually { await backend.calls == 2 }
+    #expect(model.healthChecks.contains { $0.kind == .freshness(.clients) && $0.state == .stale })
+    #expect(model.healthChecks.contains { $0.kind == .refreshing(.clients) })
+    await backend.finish()
+    await refresh.waitForRefresh()
 }
 
 @MainActor @Test func controllerTeardownStopsProducer() async {

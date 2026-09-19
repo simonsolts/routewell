@@ -1,3 +1,3 @@
 public protocol RouterBackend: Sendable {
-    func overview() async throws -> OverviewSnapshot
+    func overview() async throws -> OverviewRefreshResult
 }

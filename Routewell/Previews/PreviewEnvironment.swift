@@ -1,11 +1,12 @@
 #if DEBUG
 import SwiftUI
+import RoutewellKit
 import RoutewellMock
 
 @MainActor
 private func previewEnvironment(scenario: MockRouterBackend.Scenario = .healthy) -> AppEnvironment {
     AppEnvironment(
-        model: AppModel(mode: .mock, snapshot: MockRouterBackend.snapshot(scenario: scenario, at: .now)),
+        model: AppModel(mode: .mock, snapshot: MockRouterBackend.snapshot(at: .now)),
         backend: MockRouterBackend(scenario: scenario)
     )
 }
@@ -17,7 +18,7 @@ private func previewEnvironment(scenario: MockRouterBackend.Scenario = .healthy)
 
 #Preview("Unknown observations") {
     OverviewScreen()
-        .environment(AppModel(mode: .mock, snapshot: MockRouterBackend.snapshot(scenario: .unknown, at: .now)))
+        .environment(AppModel(mode: .mock, snapshot: OverviewSnapshot(observedAt: .now)))
         .frame(width: 980, height: 700)
 }
 

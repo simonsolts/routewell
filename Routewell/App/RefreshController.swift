@@ -6,6 +6,7 @@ import RoutewellKit
 final class RefreshController {
     private let model: AppModel
     private let schedule: RefreshSchedule
+    private let wallClock: any WallClock
     private var task: Task<Void, Never>?
     private var pending = false
     private var pollingEnabled = false
@@ -14,8 +15,13 @@ final class RefreshController {
 
     var isAvailable: Bool { model.session.isReady && !sleeping }
 
-    init(model: AppModel, clock: any RefreshClock = ContinuousRefreshClock()) {
+    init(
+        model: AppModel,
+        clock: any RefreshClock = ContinuousRefreshClock(),
+        wallClock: any WallClock = SystemWallClock()
+    ) {
         self.model = model
+        self.wallClock = wallClock
         schedule = RefreshSchedule(clock: clock)
         model.refreshSettingsChanged = { [weak self] in self?.updateSchedule() }
     }
@@ -31,7 +37,10 @@ final class RefreshController {
         sleeping = value
         if value { pending = false }
         updateSchedule()
-        if !value { refreshNow() }
+        if !value {
+            model.evaluateFreshness(at: wallClock.now())
+            refreshNow()
+        }
     }
 
     func sessionReady() {
@@ -45,7 +54,11 @@ final class RefreshController {
             ? policy.cadence(windowVisible: windowVisible, menuBarVisible: model.showInMenuBar, sleeping: sleeping)
             : nil
         if pollingEnabled && interval == nil { pending = false }
-        schedule.update(interval: interval) { [weak self] in self?.refreshNow() }
+        schedule.update(interval: interval) { [weak self] in
+            guard let self else { return }
+            if self.windowVisible { self.model.evaluateFreshness(at: self.wallClock.now()) }
+            self.refreshNow()
+        }
     }
 
     func cancelForSwitch() {
@@ -58,7 +71,7 @@ final class RefreshController {
     func stop() {
         pollingEnabled = false
         cancelForSwitch()
-        if let token = model.session.expectedToken { model.accept(.busy(false), token: token) }
+        if let token = model.session.expectedToken { model.accept(.busy(false, wallClock.now()), token: token) }
     }
 
     @discardableResult
@@ -68,25 +81,27 @@ final class RefreshController {
             pending = true
             return task
         }
-        model.accept(.busy(true), token: lease.token)
+        model.accept(.busy(true, wallClock.now()), token: lease.token)
         let model = model
+        let wallClock = wallClock
         task = Task { [weak self] in
             repeat {
                 do {
-                    if model.slowMockRefresh { try await Task.sleep(for: .seconds(5)) }
-                    let snapshot = try await model.session.routerSession.overview(using: lease)
+                    let result = try await model.session.routerSession.overview(using: lease)
                     guard !Task.isCancelled else { return }
-                    model.accept(.snapshot(snapshot), token: lease.token)
+                    model.accept(.result(result, wallClock.now()), token: lease.token)
                 } catch {
                     guard !Task.isCancelled else { return }
-                    if !(error is CancellationError) { model.accept(.failure, token: lease.token) }
+                    if !(error is CancellationError) {
+                        model.accept(.failure(.unavailable, wallClock.now()), token: lease.token)
+                    }
                 }
                 guard model.session.expectedToken == lease.token else { return }
                 if self?.takePending() == true {
-                    model.accept(.busy(true), token: lease.token)
+                    model.accept(.busy(true, wallClock.now()), token: lease.token)
                 } else {
                     self?.task = nil
-                    model.accept(.busy(false), token: lease.token)
+                    model.accept(.busy(false, wallClock.now()), token: lease.token)
                     return
                 }
             } while !Task.isCancelled

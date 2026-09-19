@@ -1,8 +1,7 @@
 import SwiftUI
 import RoutewellKit
 
-enum StatusTone {
-    case healthy, attention, degraded, error, unknown
+extension StatusTone {
     var color: Color {
         switch self {
         case .healthy: .green
@@ -10,6 +9,7 @@ enum StatusTone {
         case .degraded: .orange
         case .error: .red
         case .unknown: .secondary
+        case .inProgress: .blue
         }
     }
 }

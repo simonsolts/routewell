@@ -1,8 +1,16 @@
+import Foundation
 import Testing
 @testable import RoutewellKit
 
 private struct Backend: RouterBackend {
-    func overview() async throws -> OverviewSnapshot { OverviewSnapshot(observedAt: .distantPast) }
+    func overview() async throws -> OverviewRefreshResult { result() }
+}
+
+private func result(at date: Date = .distantPast) -> OverviewRefreshResult {
+    .init(router: .success(.init(), observedAt: date, source: .mock),
+          internet: .success(.init(), observedAt: date, source: .mock),
+          adGuard: .success(.init(), observedAt: date, source: .mock),
+          clients: .success(.init(), observedAt: date, source: .mock))
 }
 
 private func lease(_ revision: UInt64) -> SessionLease {
@@ -59,22 +67,22 @@ func allLateCompletionsAreStaleBeforeNewResult(_ event: String) async throws {
 }
 
 private actor HeldBackend: RouterBackend {
-    private var result: CheckedContinuation<OverviewSnapshot, any Error>?
+    private var completion: CheckedContinuation<OverviewRefreshResult, any Error>?
     private var started: CheckedContinuation<Void, Never>?
-    func overview() async throws -> OverviewSnapshot {
+    func overview() async throws -> OverviewRefreshResult {
         try await withCheckedThrowingContinuation {
-            result = $0
+            completion = $0
             started?.resume()
             started = nil
         }
     }
     func waitForStart() async {
-        if result != nil { return }
+        if completion != nil { return }
         await withCheckedContinuation { started = $0 }
     }
     func finish(fails: Bool) {
-        if fails { result?.resume(throwing: SessionError.switching) }
-        else { result?.resume(returning: OverviewSnapshot(observedAt: .distantPast)) }
-        result = nil
+        if fails { completion?.resume(throwing: SessionError.switching) }
+        else { completion?.resume(returning: result()) }
+        completion = nil
     }
 }

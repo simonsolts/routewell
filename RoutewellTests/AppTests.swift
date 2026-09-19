@@ -43,6 +43,57 @@ import RoutewellKit
     #expect(!model.isRefreshing)
 }
 
+@MainActor @Test func partialRefreshPreservesFailedAreaAndUpdatesOthers() async {
+    let model = AppModel(mode: .mock)
+    let environment = AppEnvironment(model: model, backend: FailingBackend())
+    await environment.waitUntilReady()
+    await environment.refresh.waitForRefresh()
+    let token = model.session.expectedToken!
+    let firstDate = Date(timeIntervalSince1970: 1_000)
+    var router = RouterStatus()
+    router.hostname = "before"
+    var clients = ClientStatus()
+    clients.activeCount = .value(7)
+    model.accept(.result(.init(
+        router: .success(router, observedAt: firstDate, source: .mock),
+        internet: .success(.init(), observedAt: firstDate, source: .mock),
+        adGuard: .success(.init(), observedAt: firstDate, source: .mock),
+        clients: .success(clients, observedAt: firstDate, source: .mock)
+    ), firstDate), token: token)
+
+    let secondDate = firstDate.addingTimeInterval(30)
+    router.hostname = "after"
+    model.accept(.result(.init(
+        router: .success(router, observedAt: secondDate, source: .mock),
+        internet: .success(.init(), observedAt: secondDate, source: .mock),
+        adGuard: .success(.init(), observedAt: secondDate, source: .mock),
+        clients: .failure(.timeout, attemptedAt: secondDate)
+    ), secondDate), token: token)
+
+    #expect(model.snapshot?.router.hostname == "after")
+    #expect(model.snapshot?.clients == clients)
+    #expect(model.freshness[.clients]?.lastSuccess == firstDate)
+    #expect(model.freshness[.clients]?.failure == .timeout)
+    #expect(model.freshness[.router]?.failure == nil)
+}
+
+@MainActor @Test func mockScenarioChangesReuseSessionData() async {
+    let environment = AppEnvironment.configured(variables: ["ROUTEWELL_BACKEND": "mock"])
+    await environment.waitUntilReady()
+    await environment.refresh.waitForRefresh()
+    let token = environment.model.session.expectedToken
+    let clients = environment.model.snapshot?.clients
+
+    environment.switchMockScenario("partial")
+    await environment.waitUntilReady()
+    await environment.refresh.waitForRefresh()
+
+    #expect(environment.model.session.expectedToken == token)
+    #expect(environment.model.snapshot?.clients == clients)
+    #expect(environment.model.freshness[.clients]?.failure == .timeout)
+    #expect(environment.model.freshness[.router]?.failure == nil)
+}
+
 @MainActor @Test func repeatedRefreshesShareOneInFlightRead() async {
     let backend = SuspendedBackend()
     let model = AppModel(mode: .mock)
@@ -75,16 +126,16 @@ import RoutewellKit
     #expect(model.session.switching)
     #expect(model.snapshot == nil)
     model.accept(.snapshot(OverviewSnapshot(observedAt: .distantPast)), token: old)
-    model.accept(.failure, token: model.session.expectedToken!)
-    model.accept(.busy(true), token: model.session.expectedToken!)
+    model.accept(.failure(.unavailable, .distantPast), token: model.session.expectedToken!)
+    model.accept(.busy(true, .distantPast), token: model.session.expectedToken!)
     #expect(model.snapshot == nil)
     #expect(!model.refreshFailed)
     #expect(!model.isRefreshing)
     await switchTask.value
     await backend.waitUntilStarted()
     model.accept(.snapshot(OverviewSnapshot(observedAt: .distantPast)), token: old)
-    model.accept(.failure, token: old)
-    model.accept(.busy(false), token: old)
+    model.accept(.failure(.unavailable, .distantPast), token: old)
+    model.accept(.busy(false, .distantPast), token: old)
     #expect(model.snapshot == nil)
     #expect(!model.refreshFailed)
     #expect(model.isRefreshing)
@@ -168,15 +219,15 @@ private actor HeldConstruction {
 
 private struct FailingBackend: RouterBackend {
     struct Failure: Error {}
-    func overview() async throws -> OverviewSnapshot { throw Failure() }
+    func overview() async throws -> OverviewRefreshResult { throw Failure() }
 }
 
 private actor SuspendedBackend: RouterBackend {
     var calls = 0
-    private var continuation: CheckedContinuation<OverviewSnapshot, any Error>?
+    private var continuation: CheckedContinuation<OverviewRefreshResult, any Error>?
     private var started: CheckedContinuation<Void, Never>?
 
-    func overview() async throws -> OverviewSnapshot {
+    func overview() async throws -> OverviewRefreshResult {
         calls += 1
         return try await withCheckedThrowingContinuation { continuation in
             self.continuation = continuation
@@ -190,7 +241,14 @@ private actor SuspendedBackend: RouterBackend {
     }
     func finish(fails: Bool = false) {
         if fails { continuation?.resume(throwing: FailingBackend.Failure()) }
-        else { continuation?.resume(returning: OverviewSnapshot(observedAt: .distantPast)) }
+        else { continuation?.resume(returning: successfulResult()) }
         continuation = nil
     }
+}
+
+private func successfulResult(at date: Date = .distantPast) -> OverviewRefreshResult {
+    .init(router: .success(.init(), observedAt: date, source: .mock),
+          internet: .success(.init(), observedAt: date, source: .mock),
+          adGuard: .success(.init(), observedAt: date, source: .mock),
+          clients: .success(.init(), observedAt: date, source: .mock))
 }

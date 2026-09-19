@@ -53,9 +53,9 @@ public actor RouterSession {
         try validateBefore(lease)
     }
 
-    public func overview(using lease: SessionLease) async throws -> OverviewSnapshot {
+    public func overview(using lease: SessionLease) async throws -> OverviewRefreshResult {
         try validateBefore(lease)
-        let result: Result<OverviewSnapshot, any Error>
+        let result: Result<OverviewRefreshResult, any Error>
         do { result = .success(try await lease.backend.overview()) }
         catch { result = .failure(error) }
         try validateAfter(lease)

@@ -3,12 +3,13 @@ import Testing
 import RoutewellKit
 import RoutewellMock
 
-@Test func unknownSnapshotDoesNotInventObservations() {
-    let snapshot = MockRouterBackend.snapshot(scenario: .unknown, at: .distantPast)
-    #expect(snapshot.router.reachability == .unknown)
-    #expect(snapshot.router.temperatureCelsius == .unknown)
-    #expect(snapshot.internet.publicAddress == nil)
-    #expect(snapshot.adGuard.protection == .unknown)
+@Test func partialResultFailsOnlyClients() {
+    let result = MockRouterBackend.result(scenario: .partial, at: .distantPast)
+    guard case .success = result.router, case .success = result.internet,
+          case .success = result.adGuard, case .failure(.timeout, _) = result.clients else {
+        Issue.record("Expected only Clients to fail")
+        return
+    }
 }
 
 @Test func fixturesAreDeterministicAndIndependent() async throws {
@@ -19,8 +20,12 @@ import RoutewellMock
     first.router.hostname = "changed"
     #expect(second.router.hostname == "flint-demo")
     #expect(second.adGuard.protection == .paused(until: date.addingTimeInterval(1800)))
-    let unknown = try await MockRouterBackend(scenario: .unknown).overview()
-    #expect(unknown.router.reachability == .unknown)
+    let stale = MockRouterBackend.result(scenario: .stale, at: date)
+    guard case .success(_, let observedAt, _) = stale.clients else {
+        Issue.record("Expected stale Clients data")
+        return
+    }
+    #expect(observedAt == date.addingTimeInterval(-65 * 60))
 }
 
 @Test func cancelledReadDoesNotReturnData() async {

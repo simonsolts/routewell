@@ -2,25 +2,57 @@ import Foundation
 import RoutewellKit
 
 /// Synthetic data only. This backend has no transport or credential dependencies.
-public struct MockRouterBackend: RouterBackend {
-    public enum Scenario: Sendable { case healthy, unknown }
-    public let scenario: Scenario
-    public let hostname: String
+public actor MockRouterBackend: RouterBackend {
+    public enum Scenario: String, CaseIterable, Sendable {
+        case healthy, partial, offline, stale, slow
+    }
+    private var scenario: Scenario
+    public nonisolated let hostname: String
 
     public init(scenario: Scenario = .healthy, hostname: String = "flint-demo") {
         self.scenario = scenario
         self.hostname = hostname
     }
 
-    public func overview() async throws -> OverviewSnapshot {
+    public func overview() async throws -> OverviewRefreshResult {
         try Task.checkCancellation()
-        var snapshot = Self.snapshot(scenario: scenario, at: .now)
-        if scenario == .healthy { snapshot.router.hostname = hostname }
-        return snapshot
+        let scenario = scenario
+        if scenario == .slow { try await Task.sleep(for: .seconds(5)) }
+        return Self.result(scenario: scenario, hostname: hostname, at: .now)
     }
 
-    public static func snapshot(scenario: Scenario = .healthy, at date: Date) -> OverviewSnapshot {
-        guard scenario == .healthy else { return OverviewSnapshot(observedAt: date) }
+    public func setScenario(_ scenario: Scenario) { self.scenario = scenario }
+
+    public static func result(
+        scenario: Scenario = .healthy,
+        hostname: String = "flint-demo",
+        at date: Date
+    ) -> OverviewRefreshResult {
+        var snapshot = snapshot(at: date)
+        snapshot.router.hostname = hostname
+        let clients: AreaRefreshResult<ClientStatus> = switch scenario {
+        case .partial: .failure(.timeout, attemptedAt: date)
+        case .stale: .success(snapshot.clients, observedAt: date.addingTimeInterval(-65 * 60), source: .mock)
+        case .offline: .failure(.network, attemptedAt: date)
+        case .healthy, .slow: .success(snapshot.clients, observedAt: date, source: .mock)
+        }
+        if scenario == .offline {
+            return OverviewRefreshResult(
+                router: .failure(.network, attemptedAt: date),
+                internet: .failure(.network, attemptedAt: date),
+                adGuard: .failure(.network, attemptedAt: date),
+                clients: clients
+            )
+        }
+        return OverviewRefreshResult(
+            router: .success(snapshot.router, observedAt: date, source: .mock),
+            internet: .success(snapshot.internet, observedAt: date, source: .mock),
+            adGuard: .success(snapshot.adGuard, observedAt: date, source: .mock),
+            clients: clients
+        )
+    }
+
+    public static func snapshot(at date: Date) -> OverviewSnapshot {
         var router = RouterStatus()
         router.reachability = .connected
         router.hostname = "flint-demo"
@@ -48,6 +80,10 @@ public struct MockRouterBackend: RouterBackend {
         adGuard.protection = .paused(until: date.addingTimeInterval(1800))
         adGuard.queriesToday = 45_852
         adGuard.blockedToday = 6_438
-        return OverviewSnapshot(router: router, internet: internet, adGuard: adGuard, observedAt: date)
+
+        var clients = ClientStatus()
+        clients.activeCount = .value(18)
+        return OverviewSnapshot(router: router, internet: internet, adGuard: adGuard,
+                                clients: clients, observedAt: date)
     }
 }

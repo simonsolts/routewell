@@ -5,10 +5,11 @@ struct OverviewScreen: View {
     @Environment(AppModel.self) private var model
 
     var body: some View {
-        if let snapshot = model.snapshot {
+        if let snapshot = displayedSnapshot {
             ScrollView {
                 VStack(alignment: .leading, spacing: 22) {
                     statStrip(snapshot)
+                    freshnessGroup
                     ViewThatFits(in: .horizontal) {
                         HStack(alignment: .top, spacing: 22) {
                             leftColumn(snapshot).frame(minWidth: 330)
@@ -17,13 +18,7 @@ struct OverviewScreen: View {
                         VStack(spacing: 22) { leftColumn(snapshot); rightColumn(snapshot) }
                     }
                     HStack {
-                        if model.refreshFailed {
-                            Label("Refresh failed. Showing the last sample.", systemImage: "exclamationmark.triangle")
-                        } else if model.isRefreshing {
-                            Text("Refreshing sample data…")
-                        } else {
-                            Text("Sample updated \(snapshot.observedAt, style: .relative) ago")
-                        }
+                        Text(model.refreshFailed ? "One or more areas could not refresh." : "Each area keeps its last successful observation.")
                         Spacer()
                     }.font(.subheadline).foregroundStyle(.secondary)
                 }.padding(20)
@@ -46,6 +41,12 @@ struct OverviewScreen: View {
         }
     }
 
+    private var displayedSnapshot: OverviewSnapshot? {
+        if let snapshot = model.snapshot { return snapshot }
+        guard !model.freshness.isEmpty else { return nil }
+        return OverviewSnapshot(observedAt: model.evaluatedAt)
+    }
+
     private func statStrip(_ snapshot: OverviewSnapshot) -> some View {
         LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 0), count: 4), spacing: 0) {
             StatCell(title: "Router", status: snapshot.router.reachability.label,
@@ -57,7 +58,8 @@ struct OverviewScreen: View {
             StatCell(title: "AdGuard Home", status: snapshot.adGuard.reachability == .connected ? "Active" : snapshot.adGuard.reachability.label,
                      tone: snapshot.adGuard.reachability.tone,
                      detail: "\(number(snapshot.adGuard.queriesToday)) queries today")
-            StatCell(title: "VPN", status: "Unknown", tone: .unknown, detail: "No tunnel data loaded")
+            StatCell(title: "Clients", status: clientCount(snapshot.clients),
+                     tone: clientTone(snapshot.clients), detail: "Active devices observed")
         }
         .background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: 10))
         .overlay(RoundedRectangle(cornerRadius: 10).stroke(.separator, lineWidth: 0.5))
@@ -65,7 +67,7 @@ struct OverviewScreen: View {
 
     private func leftColumn(_ snapshot: OverviewSnapshot) -> some View {
         VStack(spacing: 22) {
-            InsetGroup(title: "Health", footnote: "Sample observations only. Live health checks and freshness warnings are not available yet.") {
+            InsetGroup(title: "Health", footnote: "Unknown observations remain unknown. Load averages are not CPU utilization.") {
                 healthRow("Internet", value: snapshot.internet.reachability.label,
                           tone: snapshot.internet.reachability.tone, destination: .network)
                 Divider()
@@ -96,6 +98,26 @@ struct OverviewScreen: View {
                     .buttonStyle(.link).padding(12).frame(maxWidth: .infinity, alignment: .trailing)
             }
         }.frame(maxWidth: .infinity)
+    }
+
+    private var freshnessGroup: some View {
+        InsetGroup(title: "Data freshness") {
+            ForEach(DataArea.allCases, id: \.self) { area in
+                if area != .router { Divider() }
+                let freshness = model.freshness[area] ?? Freshness()
+                HStack(alignment: .firstTextBaseline, spacing: 12) {
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(areaLabel(area))
+                        Text(sourceLabel(freshness.source)).font(.caption).foregroundStyle(.secondary)
+                    }
+                    Spacer()
+                    Text(freshnessSubtitle(freshness))
+                        .foregroundStyle(freshness.failure == nil ? Color.secondary : Color.orange)
+                        .multilineTextAlignment(.trailing)
+                }
+                .padding(.horizontal, 12).padding(.vertical, 9)
+            }
+        }
     }
 
     private func rightColumn(_ snapshot: OverviewSnapshot) -> some View {
@@ -144,6 +166,38 @@ struct OverviewScreen: View {
     }
 
     private func number(_ value: Int?) -> String { value?.formatted() ?? "Unknown" }
+    private func clientCount(_ status: ClientStatus) -> String {
+        switch status.activeCount {
+        case .value(let count): count.formatted()
+        case .unavailable: "Unavailable"
+        case .unknown: "Unknown"
+        }
+    }
+    private func clientTone(_ status: ClientStatus) -> StatusTone {
+        if case .value = status.activeCount { return .healthy }
+        return .unknown
+    }
+    private func areaLabel(_ area: DataArea) -> String {
+        switch area { case .router: "Router"; case .internet: "Internet"; case .adGuard: "AdGuard Home"; case .clients: "Clients" }
+    }
+    private func sourceLabel(_ source: ObservationSource?) -> String {
+        switch source { case .mock: "Mock source"; case .routerRPC: "Router RPC"; case .adGuardAPI: "AdGuard API"; case nil: "No source" }
+    }
+    private func freshnessSubtitle(_ freshness: Freshness) -> String {
+        if freshness.isRefreshing { return String(localized: "Refreshing…") }
+        if freshness.failure != nil {
+            guard let lastSuccess = freshness.lastSuccess else { return String(localized: "Refresh failed · no data loaded") }
+            return String(localized: "Refresh failed · last data \(relative(lastSuccess))")
+        }
+        guard let lastSuccess = freshness.lastSuccess else { return String(localized: "Never loaded") }
+        return relative(lastSuccess)
+    }
+    private func relative(_ date: Date) -> String {
+        if abs(model.evaluatedAt.timeIntervalSince(date)) < 1 { return String(localized: "Just now") }
+        let formatter = RelativeDateTimeFormatter()
+        formatter.unitsStyle = .full
+        return formatter.localizedString(for: date, relativeTo: model.evaluatedAt)
+    }
     private func protection(_ value: ProtectionState) -> String {
         switch value {
         case .enabled: "Enabled"

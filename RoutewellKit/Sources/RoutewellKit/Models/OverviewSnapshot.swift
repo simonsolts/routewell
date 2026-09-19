@@ -48,21 +48,29 @@ public struct AdGuardStatus: Sendable, Equatable {
     public init() {}
 }
 
+public struct ClientStatus: Sendable, Equatable {
+    public var activeCount: Observed<Int> = .unknown
+    public init() {}
+}
+
 public struct OverviewSnapshot: Sendable, Equatable {
     public var router: RouterStatus
     public var internet: InternetStatus
     public var adGuard: AdGuardStatus
+    public var clients: ClientStatus
     public var observedAt: Date
 
     public init(
         router: RouterStatus = .init(),
         internet: InternetStatus = .init(),
         adGuard: AdGuardStatus = .init(),
+        clients: ClientStatus = .init(),
         observedAt: Date
     ) {
         self.router = router
         self.internet = internet
         self.adGuard = adGuard
+        self.clients = clients
         self.observedAt = observedAt
     }
 }

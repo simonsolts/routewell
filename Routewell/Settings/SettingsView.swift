@@ -41,8 +41,15 @@ struct SettingsView: View {
                         )) {
                             ForEach(AppEnvironment.mockProfiles, id: \.self) { Text($0).tag($0) }
                         }
-                        Toggle("Delay refresh by 5 seconds", isOn: $model.slowMockRefresh)
-                        Text("In-memory samples only. Use ⌘R, then switch profiles to try a refresh in progress.")
+                        Picker("Scenario", selection: Binding(
+                            get: { model.mockScenarioID },
+                            set: { environment.switchMockScenario($0) }
+                        )) {
+                            ForEach(AppEnvironment.mockScenarios, id: \.self) { scenario in
+                                Text(scenario.capitalized).tag(scenario)
+                            }
+                        }
+                        Text("Healthy, partial, offline, stale, and slow samples stay in memory. The slow scenario takes five seconds.")
                             .foregroundStyle(.secondary)
                     }
                 }
