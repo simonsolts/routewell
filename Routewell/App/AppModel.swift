@@ -11,7 +11,10 @@ final class AppModel {
     private(set) var refreshFailed = false
     let session = SessionController()
     var slowMockRefresh = false
-    var showInMenuBar = true
+    var showInMenuBar = true { didSet { refreshSettingsChanged?() } }
+    var refreshIntervalSeconds = 30 { didSet { refreshSettingsChanged?() } }
+    var pauseWhenHidden = true { didSet { refreshSettingsChanged?() } }
+    @ObservationIgnored var refreshSettingsChanged: (() -> Void)?
     var showStatusBar = true
     let mode: BackendMode
 

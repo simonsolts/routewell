@@ -49,10 +49,12 @@ import RoutewellKit
     let environment = AppEnvironment(model: model, backend: backend)
     await environment.waitUntilReady()
     let controller = environment.refresh
-    controller.refreshNow()
-    controller.refreshNow()
+    for _ in 0..<100 { controller.refreshNow() }
     await backend.waitUntilStarted()
     #expect(await backend.calls == 1)
+    await backend.finish()
+    await backend.waitUntilStarted()
+    #expect(await backend.calls == 2)
     await backend.finish()
     await controller.waitForRefresh()
     #expect(model.snapshot != nil)
@@ -111,6 +113,8 @@ import RoutewellKit
     #expect(model.isRefreshing)
     environment.refresh.refreshNow()
     #expect(await newBackend.calls == 1)
+    await newBackend.finish()
+    await newBackend.waitUntilStarted()
     await newBackend.finish()
     await environment.refresh.waitForRefresh()
     #expect(model.snapshot != nil)

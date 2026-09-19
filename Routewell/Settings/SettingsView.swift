@@ -15,11 +15,15 @@ struct SettingsView: View {
                     Text("Menu bar visibility applies for this session. Login items and Dock visibility are not available yet.")
                 }
                 Section {
-                    Picker("Refresh every", selection: .constant(30)) { Text("30 seconds").tag(30) }.disabled(true)
-                    Toggle("Pause refreshing when hidden", isOn: .constant(true)).disabled(true)
+                    Picker("Refresh every", selection: $model.refreshIntervalSeconds) {
+                        Text("15 seconds").tag(15)
+                        Text("30 seconds").tag(30)
+                        Text("60 seconds").tag(60)
+                    }
+                    Toggle("Pause refreshing when hidden", isOn: $model.pauseWhenHidden)
                     Picker("Appearance", selection: .constant("System")) { Text("System").tag("System") }.disabled(true)
                 } footer: {
-                    Text("Refresh is manual in this build (⌘R). Appearance follows macOS.")
+                    Text("Refresh settings apply for this session. When paused with the window hidden, the menu bar refreshes every 60 seconds. Appearance follows macOS.")
                 }
                 Section {
                     LabeledContent("Version", value: "0.1 (1)")

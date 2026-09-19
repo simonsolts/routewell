@@ -51,9 +51,9 @@ struct MainWindow: View {
             .toolbar { toolbar }
         }
         .frame(minWidth: 900, minHeight: 600)
+        .background(MainWindowLifecycle(delegate: delegate, refresh: environment.refresh))
         .onAppear {
             delegate?.reopenMainWindow = { openWindow(id: "main") }
-            environment.refresh.loadIfNeeded()
         }
     }
 

@@ -35,7 +35,7 @@ final class SessionController {
                 guard expectedToken == token else { return }
                 lease = candidate
                 switching = false
-                refresh.refreshNow()
+                refresh.sessionReady()
             } catch {
                 guard expectedToken == token else { return }
                 switching = false
