@@ -6,9 +6,11 @@ import RoutewellKit
 final class AppModel {
     var selection: SidebarDestination = .overview
     var subpages: [SidebarDestination: String] = [:]
-    var snapshot: OverviewSnapshot?
-    var isRefreshing = false
-    var refreshFailed = false
+    private(set) var snapshot: OverviewSnapshot?
+    private(set) var isRefreshing = false
+    private(set) var refreshFailed = false
+    let session = SessionController()
+    var slowMockRefresh = false
     var showInMenuBar = true
     var showStatusBar = true
     let mode: BackendMode
@@ -16,6 +18,27 @@ final class AppModel {
     init(mode: BackendMode, snapshot: OverviewSnapshot? = nil) {
         self.mode = mode
         self.snapshot = snapshot
+    }
+
+    func clearSession() {
+        snapshot = nil
+        isRefreshing = false
+        refreshFailed = false
+    }
+
+    enum Completion {
+        case snapshot(OverviewSnapshot), failure, busy(Bool)
+    }
+
+    func accept(_ completion: Completion, token: SessionToken) {
+        guard session.isReady, token == session.expectedToken else { return }
+        switch completion {
+        case .snapshot(let value): snapshot = value
+        case .failure: refreshFailed = true
+        case .busy(let value):
+            isRefreshing = value
+            if value { refreshFailed = false }
+        }
     }
 }
 

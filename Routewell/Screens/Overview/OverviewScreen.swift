@@ -29,7 +29,12 @@ struct OverviewScreen: View {
                 }.padding(20)
             }
         } else if model.mode == .mock {
-            ProgressView("Loading sample data…")
+            if model.session.setupFailed || model.refreshFailed {
+                ContentUnavailableView("Sample unavailable", systemImage: "exclamationmark.triangle",
+                                       description: Text("Choose a mock profile in Settings to try again."))
+            } else {
+                ProgressView(model.session.switching ? "Switching mock router…" : "Loading sample data…")
+            }
         } else {
             ContentUnavailableView {
                 Label(model.mode == .invalid ? "Backend unavailable" : "Welcome to Routewell", systemImage: "wifi.router")

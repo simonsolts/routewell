@@ -29,7 +29,7 @@ struct MainWindow: View {
                 if model.mode == .mock {
                     HStack {
                         Label("Mock data", systemImage: "testtube.2").fontWeight(.medium)
-                        Text("Sample router · no network connection").foregroundStyle(.secondary)
+                        Text("\(model.session.expectedToken?.profileID ?? "Sample router") · no network connection").foregroundStyle(.secondary)
                         Spacer()
                     }
                     .font(.subheadline).padding(.horizontal, 20).padding(.vertical, 9)
@@ -47,7 +47,7 @@ struct MainWindow: View {
             }
             .background(Color(nsColor: .windowBackgroundColor))
             .navigationTitle(model.selection.title)
-            .navigationSubtitle(model.mode == .mock ? "Sample router" : "Not connected")
+            .navigationSubtitle(model.mode == .mock ? (model.session.expectedToken?.profileID ?? "Sample router") : "Not connected")
             .toolbar { toolbar }
         }
         .frame(minWidth: 900, minHeight: 600)

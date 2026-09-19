@@ -5,14 +5,18 @@ import RoutewellKit
 public struct MockRouterBackend: RouterBackend {
     public enum Scenario: Sendable { case healthy, unknown }
     public let scenario: Scenario
+    public let hostname: String
 
-    public init(scenario: Scenario = .healthy) {
+    public init(scenario: Scenario = .healthy, hostname: String = "flint-demo") {
         self.scenario = scenario
+        self.hostname = hostname
     }
 
     public func overview() async throws -> OverviewSnapshot {
         try Task.checkCancellation()
-        return Self.snapshot(scenario: scenario, at: .now)
+        var snapshot = Self.snapshot(scenario: scenario, at: .now)
+        if scenario == .healthy { snapshot.router.hostname = hostname }
+        return snapshot
     }
 
     public static func snapshot(scenario: Scenario = .healthy, at date: Date) -> OverviewSnapshot {

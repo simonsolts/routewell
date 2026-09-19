@@ -16,7 +16,7 @@ struct RoutewellApp: App {
         .commands { RoutewellCommands(environment: environment) }
 
         Settings {
-            SettingsView().environment(model)
+            SettingsView(environment: environment).environment(model)
         }
 
         MenuBarExtra("Routewell", systemImage: "wifi.router", isInserted: $model.showInMenuBar) {

@@ -8,10 +8,30 @@ import RoutewellMock
 final class AppEnvironment {
     let model: AppModel
     let refresh: RefreshController
+    private var setup: Task<Void, Never>?
+
+    static let mockProfiles = ["Home mock", "Travel mock"]
 
     init(model: AppModel, backend: (any RouterBackend)?) {
         self.model = model
-        self.refresh = RefreshController(model: model, backend: backend)
+        self.refresh = RefreshController(model: model)
+        if let backend {
+            setup = model.session.switchProfile(Self.mockProfiles[0], model: model, refresh: refresh) {
+                SessionLease(token: $0, backend: backend)
+            }
+        }
+    }
+
+    func waitUntilReady() async { await setup?.value }
+
+    func switchMockProfile(_ profile: String) {
+        #if DEBUG
+        guard model.mode == .mock, Self.mockProfiles.contains(profile) else { return }
+        let hostname = profile == Self.mockProfiles[0] ? "flint-demo" : "travel-demo"
+        setup = model.session.switchProfile(profile, model: model, refresh: refresh) {
+            SessionLease(token: $0, backend: MockRouterBackend(hostname: hostname))
+        }
+        #endif
     }
 
     static func configured(variables: [String: String] = ProcessInfo.processInfo.environment) -> AppEnvironment {
@@ -34,39 +54,45 @@ final class AppEnvironment {
 @MainActor
 final class RefreshController {
     private let model: AppModel
-    private let backend: (any RouterBackend)?
     private var task: Task<Void, Never>?
 
-    var isAvailable: Bool { backend != nil }
+    var isAvailable: Bool { model.session.isReady }
 
-    init(model: AppModel, backend: (any RouterBackend)?) {
+    init(model: AppModel) {
         self.model = model
-        self.backend = backend
+    }
+
+    func cancelForSwitch() {
+        task?.cancel()
+        task = nil
     }
 
     func loadIfNeeded() {
         if model.snapshot == nil { refreshNow() }
     }
 
-    func refreshNow() {
-        guard task == nil, let backend else { return }
-        model.isRefreshing = true
-        model.refreshFailed = false
+    @discardableResult
+    func refreshNow() -> Task<Void, Never>? {
+        if let task { return task }
+        guard isAvailable, let lease = model.session.lease else { return nil }
+        let delay = model.slowMockRefresh
+        model.accept(.busy(true), token: lease.token)
         task = Task {
             defer {
-                model.isRefreshing = false
-                task = nil
+                model.accept(.busy(false), token: lease.token)
+                if model.session.expectedToken == lease.token { task = nil }
             }
             do {
-                let snapshot = try await backend.overview()
-                try Task.checkCancellation()
-                model.snapshot = snapshot
+                if delay { try await Task.sleep(for: .seconds(5)) }
+                let snapshot = try await model.session.routerSession.overview(using: lease)
+                model.accept(.snapshot(snapshot), token: lease.token)
             } catch is CancellationError {
                 // Cancellation isn't a connection failure.
             } catch {
-                model.refreshFailed = true
+                model.accept(.failure, token: lease.token)
             }
         }
+        return task
     }
 
     func waitForRefresh() async { await task?.value }

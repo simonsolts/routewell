@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct SettingsView: View {
+    let environment: AppEnvironment
     @Environment(AppModel.self) private var model
     var body: some View {
         @Bindable var model = model
@@ -22,12 +23,25 @@ struct SettingsView: View {
                 }
                 Section {
                     LabeledContent("Version", value: "0.1 (1)")
-                    LabeledContent("Router", value: model.mode == .mock ? "Sample router" : "Not connected")
+                    LabeledContent("Router", value: model.session.expectedToken?.profileID ?? "Not connected")
                 }
             }
             .tabItem { Label("General", systemImage: "gearshape") }
 
             Form {
+                if model.mode == .mock {
+                    Section("Mock routers") {
+                        Picker("Profile", selection: Binding(
+                            get: { model.session.expectedToken?.profileID ?? AppEnvironment.mockProfiles[0] },
+                            set: { environment.switchMockProfile($0) }
+                        )) {
+                            ForEach(AppEnvironment.mockProfiles, id: \.self) { Text($0).tag($0) }
+                        }
+                        Toggle("Delay refresh by 5 seconds", isOn: $model.slowMockRefresh)
+                        Text("In-memory samples only. Use ⌘R, then switch profiles to try a refresh in progress.")
+                            .foregroundStyle(.secondary)
+                    }
+                }
                 Section {
                     TextField("Address", text: .constant(""), prompt: Text("Router hostname or IP address"))
                     TextField("Username", text: .constant(""))

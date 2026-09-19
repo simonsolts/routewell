@@ -16,11 +16,13 @@ private func previewEnvironment(scenario: MockRouterBackend.Scenario = .healthy)
 }
 
 #Preview("Unknown observations") {
-    let environment = previewEnvironment(scenario: .unknown)
-    OverviewScreen().environment(environment.model).frame(width: 980, height: 700)
+    OverviewScreen()
+        .environment(AppModel(mode: .mock, snapshot: MockRouterBackend.snapshot(scenario: .unknown, at: .now)))
+        .frame(width: 980, height: 700)
 }
 
 #Preview("Settings") {
-    SettingsView().environment(AppModel(mode: .mock))
+    let environment = previewEnvironment()
+    SettingsView(environment: environment).environment(environment.model)
 }
 #endif
