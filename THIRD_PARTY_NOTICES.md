@@ -3,7 +3,7 @@
 ## RouterPilot
 
 - Project: [RouterPilot](https://github.com/TCDemo777/RouterPilot)
-- Creator: [TCDemo777](https://github.com/TCDemo777) and contributors
+- Creator: [Tristan](https://github.com/TCDemo777) (TCDemo777) and contributors
 - Upstream copyright notice: Copyright © Tristan
 - License: GNU General Public License v3.0 only (`GPL-3.0-only`)
 - Reference revision: [`499613a5fa725a8d246f4fd80009e9a3eaeb1a8b`](https://github.com/TCDemo777/RouterPilot/tree/499613a5fa725a8d246f4fd80009e9a3eaeb1a8b)

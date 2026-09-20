@@ -31,12 +31,12 @@ their respective copyright notices; see [Third-party notices](THIRD_PARTY_NOTICE
 ## Acknowledgements
 
 Routewell is heavily inspired by [RouterPilot](https://github.com/TCDemo777/RouterPilot),
-created by TCDemo777 and its contributors. RouterPilot is the reference for
+created by [Tristan](https://github.com/TCDemo777) and its contributors. RouterPilot is the reference for
 this native macOS app's feature set and how it is organised.
-Thank you to the upstream project for making its work available as open source.
+Thanks to Tristan for releasing it as open source.
 
 Routewell is independently maintained and is not an official RouterPilot release.
-See [Third-party notices](THIRD_PARTY_NOTICES.md) for upstream licensing and
+See [Third-party notices](THIRD_PARTY_NOTICES.md) for RouterPilot's licence and
 attribution details.
 
 ## Disclaimer
