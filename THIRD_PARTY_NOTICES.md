@@ -10,8 +10,8 @@
 - Upstream [license](https://github.com/TCDemo777/RouterPilot/blob/499613a5fa725a8d246f4fd80009e9a3eaeb1a8b/LICENSE)
   and [third-party notices](https://github.com/TCDemo777/RouterPilot/blob/499613a5fa725a8d246f4fd80009e9a3eaeb1a8b/RouterPilot/THIRD_PARTY_NOTICES.txt)
 
-Routewell is heavily inspired by RouterPilot. Its functionality and architecture
-inform Routewell's native macOS reimplementation. Routewell is independently
+Routewell is heavily inspired by RouterPilot. It is the reference for Routewell's
+feature set and how it is organised. Routewell is independently
 maintained and is not an official RouterPilot release.
 
 The reference revision identifies the local RouterPilot checkout consulted for

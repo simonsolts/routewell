@@ -24,15 +24,15 @@ xcodebuild -project Routewell.xcodeproj -scheme 'Routewell (Mock)' \
 
 Copyright © 2026 Simon Solts.
 
-Routewell is licensed under the GNU General Public License v3.0. See
+Routewell is licensed under the GNU General Public License v3.0 only. See
 [LICENSE](LICENSE) and [COPYRIGHT](COPYRIGHT). Third-party contributions retain
 their respective copyright notices; see [Third-party notices](THIRD_PARTY_NOTICES.md).
 
 ## Acknowledgements
 
 Routewell is heavily inspired by [RouterPilot](https://github.com/TCDemo777/RouterPilot),
-created by TCDemo777 and its contributors. RouterPilot's functionality and
-architecture provide the foundation for this native macOS reimplementation.
+created by TCDemo777 and its contributors. RouterPilot is the reference for
+this native macOS app's feature set and how it is organised.
 Thank you to the upstream project for making its work available as open source.
 
 Routewell is independently maintained and is not an official RouterPilot release.
