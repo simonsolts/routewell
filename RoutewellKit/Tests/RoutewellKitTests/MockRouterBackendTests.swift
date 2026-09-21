@@ -28,6 +28,98 @@ import RoutewellMock
     #expect(observedAt == date.addingTimeInterval(-65 * 60))
 }
 
+@Test func succeedsBehaviorAppliesAndOverviewReflectsIt() async throws {
+    let backend = MockRouterBackend()
+    await backend.setProtectionBehavior(.succeeds)
+    guard let service = backend.protection else {
+        Issue.record("expected a protection service"); return
+    }
+    let report = await service.setProtection(.disable, allowRecovery: false)
+    #expect(report.outcome == .verifiedSuccess(.disabled))
+    #expect(report.dispatched == true)
+
+    let overview = try await backend.overview()
+    guard case .success(let adGuard, _, _) = overview.adGuard else {
+        Issue.record("expected adGuard success"); return
+    }
+    #expect(adGuard.protection == .disabled)
+}
+
+@Test func mismatchThenRecoversBehaviorRestoresPreviousStateWhenAllowed() async throws {
+    let backend = MockRouterBackend()
+    await backend.setProtectionBehavior(.mismatchThenRecovers)
+    let report = await backend.protection!.setProtection(.disable, allowRecovery: true)
+    guard case .verifiedRecovery(let restored) = report.outcome else {
+        Issue.record("expected verifiedRecovery, got \(report.outcome)"); return
+    }
+    #expect(restored == .enabled)
+
+    let overview = try await backend.overview()
+    guard case .success(let adGuard, _, _) = overview.adGuard else {
+        Issue.record("expected adGuard success"); return
+    }
+    #expect(adGuard.protection == .enabled)
+}
+
+@Test func mismatchThenRecoversBehaviorLeavesMismatchWhenRecoveryNotAllowed() async throws {
+    let backend = MockRouterBackend()
+    await backend.setProtectionBehavior(.mismatchThenRecovers)
+    let report = await backend.protection!.setProtection(.disable, allowRecovery: false)
+    #expect(report.outcome == .verifiedMismatch(expected: .disabled, actual: .enabled))
+}
+
+@Test func lostResponseThenAppliedBehaviorStillApplies() async throws {
+    let backend = MockRouterBackend()
+    await backend.setProtectionBehavior(.lostResponseThenApplied)
+    let report = await backend.protection!.setProtection(.enable, allowRecovery: false)
+    #expect(report.outcome == .verifiedSuccess(.enabled))
+    #expect(report.dispatched == true)
+
+    let overview = try await backend.overview()
+    guard case .success(let adGuard, _, _) = overview.adGuard else {
+        Issue.record("expected adGuard success"); return
+    }
+    #expect(adGuard.protection == .enabled)
+}
+
+@Test func externalEditBehaviorReportsConflictAndOverviewReflectsIt() async throws {
+    let backend = MockRouterBackend()
+    await backend.setProtectionBehavior(.externalEdit)
+    let report = await backend.protection!.setProtection(.enable, allowRecovery: false)
+    guard case .conflictingExternalEdit(let actual) = report.outcome else {
+        Issue.record("expected conflictingExternalEdit, got \(report.outcome)"); return
+    }
+    guard case .paused = actual else {
+        Issue.record("expected a paused actual state"); return
+    }
+
+    let overview = try await backend.overview()
+    guard case .success(let adGuard, _, _) = overview.adGuard else {
+        Issue.record("expected adGuard success"); return
+    }
+    #expect(adGuard.protection == actual)
+}
+
+@Test func unauthorizedBehaviorRejectsWithoutDispatching() async throws {
+    let backend = MockRouterBackend()
+    await backend.setProtectionBehavior(.unauthorized)
+    let report = await backend.protection!.setProtection(.enable, allowRecovery: false)
+    #expect(report.dispatched == false)
+    guard case .rejected = report.outcome else {
+        Issue.record("expected rejected, got \(report.outcome)"); return
+    }
+}
+
+@Test func invalidIntentIsRejectedRegardlessOfBehavior() async throws {
+    let backend = MockRouterBackend()
+    await backend.setProtectionBehavior(.succeeds)
+    let report = await backend.protection!.setProtection(.pause(.seconds(10)), allowRecovery: false)
+    #expect(report.dispatched == false)
+    guard case .rejected(.invalidIntent) = report.outcome else {
+        Issue.record("expected rejected(.invalidIntent), got \(report.outcome)"); return
+    }
+}
+
 @Test func cancelledReadDoesNotReturnData() async {
     let task = Task {
         withUnsafeCurrentTask { $0?.cancel() }
