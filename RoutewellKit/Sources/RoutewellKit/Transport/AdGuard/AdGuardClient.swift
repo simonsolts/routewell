@@ -91,14 +91,25 @@ public actor AdGuardClient {
     /// (the mutation executor) treats that as "dispatched, outcome
     /// unknown" rather than replaying the write.
     public func setProtection(enabled: Bool, durationMilliseconds: Int) async throws {
-        try await setProtection(enabled: enabled, durationMilliseconds: durationMilliseconds, retried: false)
+        try await setProtection(enabled: enabled, durationMilliseconds: durationMilliseconds, previousUnauthorizedStatus: nil)
     }
 
-    private func setProtection(enabled: Bool, durationMilliseconds: Int, retried: Bool) async throws {
+    /// `previousUnauthorizedStatus` is non-nil only on the single retry
+    /// after a 401/403: at that point a POST has already reached the
+    /// server and was rejected. If re-authenticating (or just re-reading
+    /// the credential for the retry's headers) fails here, that is not the
+    /// same as "nothing was ever sent" — surface `.unauthorized` (the
+    /// original rejection status) rather than `.credentialUnavailable`, so
+    /// callers know a dispatch already happened.
+    private func setProtection(enabled: Bool, durationMilliseconds: Int, previousUnauthorizedStatus: Int?) async throws {
         let headers: [String: String]
         do {
             headers = try await credentials.authorizationHeaders()
         } catch {
+            if let previousUnauthorizedStatus {
+                await log?.record(LogEvent(level: .warning, kind: .refresh, message: "adguard setProtection retry credential fetch failed"))
+                throw AdGuardClientError.unauthorized(previousUnauthorizedStatus)
+            }
             await log?.record(LogEvent(level: .warning, kind: .refresh, message: "adguard setProtection failed credentialUnavailable"))
             throw AdGuardClientError.credentialUnavailable
         }
@@ -126,8 +137,8 @@ public actor AdGuardClient {
         _ = data
 
         if response.statusCode == 401 || response.statusCode == 403 {
-            if !retried, await credentials.handleUnauthorized() {
-                return try await setProtection(enabled: enabled, durationMilliseconds: durationMilliseconds, retried: true)
+            if previousUnauthorizedStatus == nil, await credentials.handleUnauthorized() {
+                return try await setProtection(enabled: enabled, durationMilliseconds: durationMilliseconds, previousUnauthorizedStatus: response.statusCode)
             }
             await log?.record(LogEvent(level: .warning, kind: .refresh, message: "adguard setProtection failed unauthorized"))
             throw AdGuardClientError.unauthorized(response.statusCode)

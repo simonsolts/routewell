@@ -114,11 +114,44 @@ private func makeTransport(_ script: Script) -> StubHTTPTransport {
 }
 
 private func makeClient(_ transport: StubHTTPTransport) -> AdGuardClient {
+    makeClient(transport, credentials: BasicAdGuardCredentials(username: "admin", password: { "secret" }))
+}
+
+private func makeClient(_ transport: StubHTTPTransport, credentials: any AdGuardCredentialProvider) -> AdGuardClient {
     AdGuardClient(
         baseURL: URL(string: "http://192.168.8.1:3000/")!,
-        credentials: BasicAdGuardCredentials(username: "admin", password: { "secret" }),
+        credentials: credentials,
         transport: transport
     )
+}
+
+/// Succeeds for the first two `authorizationHeaders()` calls (the
+/// before-state read and the initial POST) and throws on every call after
+/// that (the retry after 401/403).
+private actor SucceedsTwiceThenFailsCredentials: AdGuardCredentialProvider {
+    private var callCount = 0
+
+    func authorizationHeaders() async throws -> [String: String] {
+        callCount += 1
+        if callCount <= 2 { return ["Authorization": "Basic xyz"] }
+        throw CredentialError.missing
+    }
+
+    func handleUnauthorized() async -> Bool { true }
+}
+
+/// Throws on the second `authorizationHeaders()` call: the before-state
+/// read succeeds, but `setProtection`'s own initial header fetch fails.
+private actor FailsOnSecondCallCredentials: AdGuardCredentialProvider {
+    private var callCount = 0
+
+    func authorizationHeaders() async throws -> [String: String] {
+        callCount += 1
+        if callCount == 1 { return ["Authorization": "Basic xyz"] }
+        throw CredentialError.missing
+    }
+
+    func handleUnauthorized() async -> Bool { false }
 }
 
 /// The "reach the deadline after exactly one read" policy: a 1ms deadline
@@ -182,6 +215,25 @@ private var oneShotPolicy: ProtectionVerifyPolicy {
         #expect(report.outcome == .verifiedMismatch(expected: .disabled, actual: .enabled))
         let recorded = await transport.recorded()
         #expect(recorded.filter { $0.request.httpMethod == "POST" }.count == 1)
+    }
+
+    @Test func disableMatchesWhenDurationFieldIsMissingEntirely() async throws {
+        // AdGuard Home may omit `protection_disabled_duration` altogether
+        // when protection is disabled indefinitely, rather than sending 0.
+        let script = Script(reads: [
+            .ok(enabled: true, durationMs: nil), // before-state
+            .ok(enabled: false, durationMs: nil), // verify: disabled, no duration field at all
+        ])
+        let transport = makeTransport(script)
+        let clock = VirtualClock()
+        let executor = ProtectionMutationExecutor(
+            adGuard: makeClient(transport), gate: MutationGate(),
+            clock: { clock.now() }, sleep: { try await clock.sleep($0) }
+        )
+        let report = await executor.run(.disable, allowRecovery: false)
+        #expect(report.outcome == .verifiedSuccess(.disabled))
+        let recorded = await transport.recorded()
+        #expect(recorded.filter { $0.request.httpMethod == "GET" }.count == 2)
     }
 
     @Test func disableMismatchWithRecoveryRestoresAndVerifies() async throws {
@@ -289,6 +341,44 @@ private var oneShotPolicy: ProtectionVerifyPolicy {
         #expect(report.dispatched == true)
         let postCount = await script.postCount
         #expect(postCount == 1)
+    }
+
+    @Test func retryCredentialFailureAfter401IsRejectedWithDispatchedTrueAndOnePOST() async throws {
+        let transport = StubHTTPTransport { request in
+            if request.httpMethod == "GET" {
+                return (statusBody(enabled: true, disabledDurationMs: nil), StubHTTPTransport.response(200, url: request.url!))
+            }
+            return (Data(), StubHTTPTransport.response(401, url: request.url!))
+        }
+        let clock = VirtualClock()
+        let executor = ProtectionMutationExecutor(
+            adGuard: makeClient(transport, credentials: SucceedsTwiceThenFailsCredentials()), gate: MutationGate(),
+            clock: { clock.now() }, sleep: { try await clock.sleep($0) }
+        )
+        let report = await executor.run(.enable, allowRecovery: false)
+        #expect(report.outcome == .rejected(.preconditionFailed("AdGuard Home refused the login")))
+        #expect(report.dispatched == true)
+        let recorded = await transport.recorded()
+        #expect(recorded.filter { $0.request.httpMethod == "POST" }.count == 1)
+    }
+
+    @Test func credentialFailureBeforeAnyPOSTIsRejectedWithDispatchedFalse() async throws {
+        let transport = StubHTTPTransport { request in
+            if request.httpMethod == "GET" {
+                return (statusBody(enabled: true, disabledDurationMs: nil), StubHTTPTransport.response(200, url: request.url!))
+            }
+            return (Data(), StubHTTPTransport.response(200, url: request.url!))
+        }
+        let clock = VirtualClock()
+        let executor = ProtectionMutationExecutor(
+            adGuard: makeClient(transport, credentials: FailsOnSecondCallCredentials()), gate: MutationGate(),
+            clock: { clock.now() }, sleep: { try await clock.sleep($0) }
+        )
+        let report = await executor.run(.enable, allowRecovery: false)
+        #expect(report.outcome == .rejected(.preconditionFailed("credential unavailable")))
+        #expect(report.dispatched == false)
+        let recorded = await transport.recorded()
+        #expect(recorded.filter { $0.request.httpMethod == "POST" }.isEmpty)
     }
 
     @Test func pauseOutOfRangeIsRejectedAsInvalidIntent() async throws {

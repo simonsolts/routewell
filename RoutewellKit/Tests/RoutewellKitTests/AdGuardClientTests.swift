@@ -194,6 +194,22 @@ private actor StubSessionProvider: RouterSessionTokenProvider {
         #expect(body == "{\"duration\":60000,\"enabled\":false}")
     }
 
+    @Test func setProtectionRetryCredentialFetchFailureThrowsUnauthorizedWithExactlyOnePOST() async throws {
+        // The first POST is rejected 401; re-authenticating for the retry
+        // is what fails this time. That must surface as `.unauthorized`
+        // (a POST really did reach the server), not `.credentialUnavailable`
+        // (which means nothing was ever sent).
+        let transport = StubHTTPTransport { request in
+            (Data(), StubHTTPTransport.response(401, url: request.url!))
+        }
+        let client = AdGuardClient(baseURL: Self.baseURL, credentials: FlakyAfterFirstCallCredentials(), transport: transport)
+        await #expect(throws: AdGuardClientError.unauthorized(401)) {
+            try await client.setProtection(enabled: true, durationMilliseconds: 0)
+        }
+        let recorded = await transport.recorded()
+        #expect(recorded.count == 1)
+    }
+
     @Test func setProtectionRetriesOnceAfter401ThenSucceeds() async throws {
         let counter = Counter()
         let transport = StubHTTPTransport { request in
@@ -245,4 +261,20 @@ private actor Counter {
         value += 1
         return value
     }
+}
+
+/// Succeeds on the first `authorizationHeaders()` call (the initial POST)
+/// and throws on every call after that (the retry after 401/403).
+/// `handleUnauthorized()` always says "retry" so the second header fetch
+/// actually happens and fails.
+private actor FlakyAfterFirstCallCredentials: AdGuardCredentialProvider {
+    private var callCount = 0
+
+    func authorizationHeaders() async throws -> [String: String] {
+        callCount += 1
+        if callCount == 1 { return ["Authorization": "Basic xyz"] }
+        throw CredentialError.missing
+    }
+
+    func handleUnauthorized() async -> Bool { true }
 }

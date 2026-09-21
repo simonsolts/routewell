@@ -133,6 +133,14 @@ public struct ProtectionMutationExecutor: Sendable {
         } catch AdGuardClientError.credentialUnavailable {
             // No request was ever sent; nothing ambiguous happened.
             return (.rejected(.preconditionFailed("credential unavailable")), false, .authentication)
+        } catch AdGuardClientError.unauthorized {
+            // A POST reached the server and was rejected as unauthorized
+            // (including the single re-dispatch after a 401/403, if that
+            // also failed). AdGuard Home never applies a write it rejects
+            // with 401/403, so this is not ambiguous the way a timeout or
+            // lost response is: there is nothing to verify. Report it as
+            // dispatched (a request was sent) but not applied.
+            return (.rejected(.preconditionFailed("AdGuard Home refused the login")), true, .authentication)
         } catch {
             // Timeout, lost response, non-2xx after the retry, etc: we
             // cannot tell whether the router applied the write. Treat the
@@ -170,6 +178,11 @@ public struct ProtectionMutationExecutor: Sendable {
         let wire = recoveryIntent.wire
         do {
             try await adGuard.setProtection(enabled: wire.enabled, durationMilliseconds: wire.durationMilliseconds)
+        } catch AdGuardClientError.unauthorized {
+            // Same reasoning as the primary write's unauthorized case: a
+            // 401/403 is a definitive rejection, not an ambiguous outcome,
+            // so there is nothing to verify.
+            return (.recoveryFailed(expected: beforeState, actual: nil), true, .authentication)
         } catch {
             // Same ambiguity as the primary write: still verify.
         }
@@ -245,7 +258,10 @@ public struct ProtectionMutationExecutor: Sendable {
         case .enable:
             return response.protectionEnabled == true
         case .disable:
-            return response.protectionEnabled == false && (response.protectionDisabledDurationMilliseconds ?? -1) == 0
+            // AdGuard Home may omit `protection_disabled_duration` entirely
+            // when protection is disabled indefinitely; treat a missing
+            // field the same as 0, not as "still has a duration".
+            return response.protectionEnabled == false && (response.protectionDisabledDurationMilliseconds ?? 0) == 0
         case .pause(let duration):
             guard response.protectionEnabled == false,
                   let observedMs = response.protectionDisabledDurationMilliseconds, observedMs > 0 else {
