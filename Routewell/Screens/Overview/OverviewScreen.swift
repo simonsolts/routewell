@@ -10,6 +10,9 @@ struct OverviewScreen: View {
                 VStack(alignment: .leading, spacing: 22) {
                     statStrip(snapshot)
                     freshnessGroup
+                    if model.mode == .live, showsLocalNetworkGuidance {
+                        LocalNetworkGuidanceView()
+                    }
                     ViewThatFits(in: .horizontal) {
                         HStack(alignment: .top, spacing: 22) {
                             leftColumn(snapshot).frame(minWidth: 330)
@@ -39,6 +42,11 @@ struct OverviewScreen: View {
                      : "Router connections are coming in a later build. Explore the interface with the Routewell (Mock) scheme in Xcode.")
             }
         }
+    }
+
+    private var showsLocalNetworkGuidance: Bool {
+        guard let category = model.freshness.values.compactMap(\.failure).first?.failureCategory else { return false }
+        return category == .unreachable || category == .timeout
     }
 
     private var displayedSnapshot: OverviewSnapshot? {
