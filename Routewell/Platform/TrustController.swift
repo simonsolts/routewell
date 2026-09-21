@@ -17,6 +17,11 @@ final class TrustController {
     /// decisions made against mock scenarios never leak onto disk.
     private(set) var isPersistent = false
 
+    /// The live `EndpointTrustStore` backing this controller, for
+    /// `LiveRouterBackend` and `URLSessionTransport` to read and write
+    /// through directly. Always the same instance `approve`/`revoke` use.
+    var store: any EndpointTrustStore { backing }
+
     init(atomicStore: AtomicJSONStore?, mode: BackendMode) {
         self.atomicStore = atomicStore
         self.mode = mode

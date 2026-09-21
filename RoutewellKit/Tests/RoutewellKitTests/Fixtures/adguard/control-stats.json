@@ -1,0 +1,9 @@
+{
+  "time_units": "days",
+  "num_dns_queries": 1234,
+  "num_blocked_filtering": 56,
+  "num_replaced_safebrowsing": 0,
+  "num_replaced_safesearch": 0,
+  "num_replaced_parental": 0,
+  "avg_processing_time": 0.5
+}

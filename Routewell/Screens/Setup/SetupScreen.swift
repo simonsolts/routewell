@@ -68,6 +68,13 @@ struct SetupScreen: View {
     @State private var form = SetupFormState()
     @State private var isSaving = false
     @State private var saveError: String?
+    @State private var isTestingConnection = false
+    @State private var connectionTestResult: String?
+    @State private var connectionTestTask: Task<Void, Never>?
+    /// Owned by this screen, not shared with `MainWindow`'s `trustPrompt`:
+    /// a certificate prompt from a probe started here must show on this
+    /// window, never pop up behind or on top of a different one.
+    @State private var testConnectionTrustPrompt = TrustPromptController()
 
     var body: some View {
         let validation = form.validate()
@@ -101,10 +108,22 @@ struct SetupScreen: View {
                     Text(saveError).font(.callout).foregroundStyle(.red)
                 }
 
-                Button("Save router") {
-                    Task { await save(validation: validation) }
+                if let connectionTestResult {
+                    Text(connectionTestResult).font(.callout).foregroundStyle(.secondary)
                 }
-                .disabled(!validation.canSave || isSaving)
+
+                HStack {
+                    Button("Test Connection") {
+                        connectionTestTask?.cancel()
+                        connectionTestTask = Task { await testConnection(validation: validation) }
+                    }
+                    .disabled(!validation.canSave || isSaving || isTestingConnection)
+
+                    Button("Save router") {
+                        Task { await save(validation: validation) }
+                    }
+                    .disabled(!validation.canSave || isSaving)
+                }
 
                 Text("SSH uses key files or the SSH agent only. Routewell never asks for an SSH password.")
                     .font(.footnote).foregroundStyle(.secondary)
@@ -113,6 +132,31 @@ struct SetupScreen: View {
             .frame(maxWidth: 420, alignment: .leading)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .onDisappear { connectionTestTask?.cancel() }
+        .sheet(isPresented: Binding(
+            get: { testConnectionTrustPrompt.pending != nil },
+            set: { if !$0 { testConnectionTrustPrompt.resolve(false) } }
+        )) {
+            if let request = testConnectionTrustPrompt.pending {
+                TrustPromptView(
+                    request: request,
+                    onCancel: { testConnectionTrustPrompt.resolve(false) },
+                    onApprove: { testConnectionTrustPrompt.resolve(true) }
+                )
+            }
+        }
+    }
+
+    private func testConnection(validation: SetupFormState.SetupValidation) async {
+        guard case .success(let endpoint) = validation.endpoint else { return }
+        isTestingConnection = true
+        defer { isTestingConnection = false }
+        connectionTestResult = await environment.testRouterConnection(
+            endpoint: endpoint,
+            username: form.username.trimmingCharacters(in: .whitespaces),
+            password: .literal(form.password),
+            trustPromptController: testConnectionTrustPrompt
+        )
     }
 
     private func save(validation: SetupFormState.SetupValidation) async {

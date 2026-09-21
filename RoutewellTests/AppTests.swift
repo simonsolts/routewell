@@ -23,10 +23,11 @@ import RoutewellKit
 }
 
 @MainActor @Test func mockModeNeverConstructsALiveTransport() async {
-    let environment = AppEnvironment.configured(variables: ["ROUTEWELL_BACKEND": "mock"], persist: false) {
+    let environment = AppEnvironment.configured(variables: ["ROUTEWELL_BACKEND": "mock"], persist: false) { _ in
         Issue.record("mock mode must never build a transport")
         return StubHTTPTransportForTest()
     }
+    await environment.waitUntilReady()
     #expect(!environment.transportFactoryWasUsed)
 }
 
@@ -44,12 +45,54 @@ import RoutewellKit
 
 @MainActor @Test func liveModeBuildsATransportThroughTheInjectedFactory() async {
     var calls = 0
-    let environment = AppEnvironment.configured(variables: [:], persist: false) {
+    let environment = AppEnvironment.configured(variables: [:], persist: false) { _ in
         calls += 1
         return StubHTTPTransportForTest()
     }
+    await environment.waitUntilReady()
+    // No saved live profile yet: the factory is built lazily per lease, not
+    // eagerly at startup, so nothing has been built until a router is saved.
+    #expect(!environment.transportFactoryWasUsed)
+    #expect(calls == 0)
+
+    let endpoint = try! RouterEndpoint.parse("192.0.2.1")
+    let saved = await environment.saveLiveRouterProfile(
+        endpoint: endpoint, username: "root", password: Data("secret".utf8), plainHTTPAcknowledged: false
+    )
+    #expect(saved)
     #expect(environment.transportFactoryWasUsed)
     #expect(calls == 1)
+}
+
+@MainActor @Test func updateLiveAddressReconnectsTheLiveSessionWithANewRevision() async {
+    var calls = 0
+    let environment = AppEnvironment.configured(variables: [:], persist: false) { _ in
+        calls += 1
+        return StubHTTPTransportForTest()
+    }
+    await environment.waitUntilReady()
+
+    let endpoint = try! RouterEndpoint.parse("192.0.2.1")
+    let saved = await environment.saveLiveRouterProfile(
+        endpoint: endpoint, username: "root", password: Data("secret".utf8), plainHTTPAcknowledged: false
+    )
+    #expect(saved)
+    await environment.waitUntilReady()
+    let firstToken = environment.model.session.expectedToken
+    #expect(calls == 1)
+
+    let newEndpoint = try! RouterEndpoint.parse("192.0.2.2")
+    let addressSaved = await environment.updateLiveAddress(newEndpoint)
+    #expect(addressSaved)
+    await environment.waitUntilReady()
+
+    let secondToken = environment.model.session.expectedToken
+    #expect(secondToken != nil)
+    #expect(secondToken?.revision != firstToken?.revision)
+    // The old lease's backend (and its now-deleted-Keychain-reference
+    // password closure) must not linger: a fresh backend is built for the
+    // new address, through the same factory hook.
+    #expect(calls == 2)
 }
 
 private struct StubHTTPTransportForTest: HTTPTransport {

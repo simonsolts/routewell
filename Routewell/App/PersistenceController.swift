@@ -212,6 +212,24 @@ final class PersistenceController {
         }
     }
 
+    /// Saves a separate AdGuard Home account password, keyed apart from the
+    /// router's own password by `CredentialReference.Kind.adGuardPassword`.
+    @discardableResult
+    func saveAdGuardPassword(_ password: Data) async -> Bool {
+        guard let profile = selectedProfile, profile.liveEndpoint != nil, !credentialBusy else { return false }
+        credentialBusy = true
+        defer { credentialBusy = false }
+        let reference = CredentialReference(profileID: profile.id, endpoint: profile.endpoint, kind: .adGuardPassword)
+        do {
+            try await credentials.save(password, for: reference)
+            credentialMessage = "AdGuard Home password saved in Keychain."
+            return true
+        } catch {
+            credentialMessage = credentialError(error)
+            return false
+        }
+    }
+
     func scheduleSave() {
         guard !isLoading else { return }
         pending?.cancel()
