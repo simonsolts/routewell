@@ -61,4 +61,28 @@ public actor RouterSession {
         try validateAfter(lease)
         return try result.get()
     }
+
+    /// Runs one Protection mutation against `lease.backend`. `validateBefore`
+    /// fences it against a lease that's already stale or mid-switch;
+    /// `validateAfter` fences the result. If `validateAfter` throws
+    /// `.stale`, the write may still have reached the router — the caller
+    /// must treat the outcome as unknown and refresh rather than re-send,
+    /// since a `MutationReport` is never returned in that case.
+    public func setProtection(
+        using lease: SessionLease, intent: ProtectionIntent, allowRecovery: Bool
+    ) async throws -> MutationReport<ProtectionState> {
+        try validateBefore(lease)
+        let startedAt = Date()
+        let report: MutationReport<ProtectionState>
+        if let protection = lease.backend.protection {
+            report = await protection.setProtection(intent, allowRecovery: allowRecovery)
+        } else {
+            report = MutationReport(
+                outcome: .rejected(.capabilityUnavailable),
+                dispatched: false, startedAt: startedAt, finishedAt: startedAt, failure: nil
+            )
+        }
+        try validateAfter(lease)
+        return report
+    }
 }
