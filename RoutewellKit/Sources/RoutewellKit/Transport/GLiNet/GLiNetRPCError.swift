@@ -4,7 +4,7 @@ import Foundation
 /// hashing it depends on. `.rpcError`'s message is truncated to 120 chars
 /// and never includes `params` (which may carry a session id or similar).
 public enum GLiNetRPCError: Error, Equatable, Sendable {
-    // TODO(task5b): case transport(TransportError)
+    case transport(TransportError)
     case httpStatus(Int)
     case malformedResponse
     case accessDenied

@@ -30,7 +30,7 @@ public extension RefreshFailureCategory {
 
 public struct LogEvent: Sendable, Equatable, Codable, Identifiable {
     public enum Level: String, Sendable, Equatable, Codable { case info, warning, error }
-    public enum Kind: String, Sendable, Equatable, Codable { case session, refresh, persistence }
+    public enum Kind: String, Sendable, Equatable, Codable { case session, refresh, persistence, transport }
 
     public let id: UUID
     public let occurredAt: Date
