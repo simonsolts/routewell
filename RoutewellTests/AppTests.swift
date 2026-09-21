@@ -23,10 +23,11 @@ import RoutewellKit
 }
 
 @MainActor @Test func mockModeNeverConstructsALiveTransport() async {
-    let environment = AppEnvironment.configured(variables: ["ROUTEWELL_BACKEND": "mock"], persist: false) {
+    let environment = AppEnvironment.configured(variables: ["ROUTEWELL_BACKEND": "mock"], persist: false) { _ in
         Issue.record("mock mode must never build a transport")
         return StubHTTPTransportForTest()
     }
+    await environment.waitUntilReady()
     #expect(!environment.transportFactoryWasUsed)
 }
 
@@ -44,10 +45,21 @@ import RoutewellKit
 
 @MainActor @Test func liveModeBuildsATransportThroughTheInjectedFactory() async {
     var calls = 0
-    let environment = AppEnvironment.configured(variables: [:], persist: false) {
+    let environment = AppEnvironment.configured(variables: [:], persist: false) { _ in
         calls += 1
         return StubHTTPTransportForTest()
     }
+    await environment.waitUntilReady()
+    // No saved live profile yet: the factory is built lazily per lease, not
+    // eagerly at startup, so nothing has been built until a router is saved.
+    #expect(!environment.transportFactoryWasUsed)
+    #expect(calls == 0)
+
+    let endpoint = try! RouterEndpoint.parse("192.0.2.1")
+    let saved = await environment.saveLiveRouterProfile(
+        endpoint: endpoint, username: "root", password: Data("secret".utf8), plainHTTPAcknowledged: false
+    )
+    #expect(saved)
     #expect(environment.transportFactoryWasUsed)
     #expect(calls == 1)
 }
