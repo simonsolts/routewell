@@ -6,6 +6,12 @@ struct SettingsView: View {
     @Environment(AppModel.self) private var model
     @State private var mockSecret = ""
     @State private var confirmingDelete = false
+    @State private var addressText = ""
+    @State private var addressError: String?
+    @State private var usernameText = ""
+    @State private var newPassword = ""
+    @State private var adGuardPort = 3000
+    @State private var adGuardUseRouterCredentials = true
     var body: some View {
         @Bindable var model = model
         TabView {
@@ -80,25 +86,54 @@ struct SettingsView: View {
                             .font(.callout).foregroundStyle(.secondary)
                     }
                 }
-                Section {
-                    TextField("Address", text: .constant(""), prompt: Text("Router hostname or IP address"))
-                    TextField("Username", text: .constant(""))
-                    Picker("SSH authentication", selection: .constant("Key")) { Text("SSH key").tag("Key") }
-                    Button("Test Connection") {}
-                }.disabled(true)
-                Section {
-                    Text("Live connection setup will be available in a later build.")
-                        .foregroundStyle(.secondary)
+                if model.mode == .live, let profile = environment.persistence.selectedProfile, profile.liveEndpoint != nil {
+                    Section("Router") {
+                        TextField("Address", text: $addressText, prompt: Text("Router hostname or IP address"))
+                            .onSubmit { Task { await saveAddress() } }
+                        if let addressError { Text(addressError).font(.caption).foregroundStyle(.red) }
+                        TextField("Username", text: $usernameText)
+                            .onSubmit { environment.persistence.updateLiveUsername(usernameText) }
+                        Picker("SSH authentication", selection: .constant("Key")) { Text("SSH key").tag("Key") }.disabled(true)
+                        Button("Test Connection") {}.disabled(true)
+                            .help("Available after live status is added")
+                    }
+                    Section("Change password") {
+                        SecureField("New password", text: $newPassword)
+                        Button("Save Password") {
+                            let secret = Data(newPassword.utf8)
+                            newPassword = ""
+                            Task { await environment.persistence.changeLivePassword(secret) }
+                        }.disabled(newPassword.isEmpty)
+                    }
+                    .onAppear {
+                        addressText = profile.liveEndpoint?.displayString ?? profile.endpoint
+                        usernameText = profile.username
+                    }
+                } else {
+                    Section {
+                        Text("Set up a router in the Setup screen to edit its address and username here.")
+                            .foregroundStyle(.secondary)
+                    }
                 }
             }.tabItem { Label("Router", systemImage: "wifi.router") }
 
             Form {
-                Section {
-                    TextField("URL", text: .constant(""), prompt: Text("https://router.local"))
-                    Picker("Authentication", selection: .constant("Router")) { Text("Router credentials").tag("Router") }
-                    Toggle("Verify server identity", isOn: .constant(true))
-                }.disabled(true)
-                Text("AdGuard Home connection settings are not available yet.").foregroundStyle(.secondary)
+                if model.mode == .live, let profile = environment.persistence.selectedProfile, profile.liveEndpoint != nil {
+                    Section("AdGuard Home") {
+                        Stepper("Port: \(adGuardPort)", value: $adGuardPort, in: 1...65535)
+                            .onChange(of: adGuardPort) { _, newValue in saveAdGuardSettings(port: newValue) }
+                        Toggle("Use router login for AdGuard Home", isOn: $adGuardUseRouterCredentials)
+                            .onChange(of: adGuardUseRouterCredentials) { _, newValue in saveAdGuardSettings(useRouterCredentials: newValue) }
+                        Button("Test Connection") {}.disabled(true)
+                            .help("Available after live status is added")
+                    }
+                    .onAppear {
+                        adGuardPort = profile.adGuard?.port ?? 3000
+                        adGuardUseRouterCredentials = profile.adGuard?.useRouterCredentials ?? true
+                    }
+                } else {
+                    Text("AdGuard Home connection settings are not available yet.").foregroundStyle(.secondary)
+                }
             }.tabItem { Label("AdGuard Home", systemImage: "shield") }
 
             Form {
@@ -120,6 +155,26 @@ struct SettingsView: View {
                     Button("Reset Settings…") {}.disabled(true)
                 }
                 Text("Diagnostic export is not available yet.").foregroundStyle(.secondary)
+                Section("Trusted certificates") {
+                    if environment.trust.trusted.isEmpty {
+                        Text("No certificates are trusted yet.").foregroundStyle(.secondary)
+                    } else {
+                        ForEach(environment.trust.trusted, id: \.self) { entry in
+                            HStack {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text("\(entry.host):\(entry.port)")
+                                    Text(entry.fingerprint.display).font(.caption).foregroundStyle(.secondary)
+                                }
+                                Spacer()
+                                Button("Remove", role: .destructive) {
+                                    Task { await environment.trust.revoke(host: entry.host, port: entry.port) }
+                                }
+                            }
+                        }
+                    }
+                    Text("Trust is approved per router address, not for a whole certificate authority.")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
             }.tabItem { Label("Advanced", systemImage: "wrench.and.screwdriver") }
         }
         .disabled(environment.persistence.isLoading || environment.persistence.credentialBusy)
@@ -146,5 +201,24 @@ struct SettingsView: View {
         }
         .formStyle(.grouped)
         .frame(width: 640, height: 560)
+    }
+
+    private func saveAddress() async {
+        do {
+            let endpoint = try RouterEndpoint.parse(addressText)
+            addressError = nil
+            let saved = await environment.persistence.updateLiveAddress(endpoint)
+            if !saved { addressError = "Could not save the new address. Try again." }
+        } catch {
+            addressError = error.message
+        }
+    }
+
+    private func saveAdGuardSettings(port: Int? = nil, useRouterCredentials: Bool? = nil) {
+        guard let profile = environment.persistence.selectedProfile else { return }
+        var settings = profile.adGuard ?? AdGuardSettings()
+        if let port { settings.port = port }
+        if let useRouterCredentials { settings.useRouterCredentials = useRouterCredentials }
+        environment.persistence.updateAdGuardSettings(settings)
     }
 }

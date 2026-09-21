@@ -11,10 +11,18 @@ final class AppEnvironment {
     let refresh: RefreshController
     let persistence: PersistenceController
     let logging: LoggingController
+    let trust: TrustController
+    let trustPrompt = TrustPromptController()
     private var setup: Task<Void, Never>?
     #if DEBUG
     private var mockBackend: MockRouterBackend?
     #endif
+    /// Set by `configured` when `transportFactory` was actually called. Tests
+    /// use this to prove mock mode never constructs a live transport.
+    private(set) var transportFactoryWasUsed = false
+    /// The transport built for `.live` mode, kept for chunk 09's
+    /// `LiveRouterBackend` to use. Never built in `.mock` mode.
+    private(set) var liveTransport: (any HTTPTransport)?
 
     static let mockProfiles = ["Home mock", "Travel mock"]
     static let mockScenarios = ["healthy", "partial", "offline", "stale", "slow"]
@@ -25,12 +33,20 @@ final class AppEnvironment {
         self.logging = LoggingController(model: model)
         self.refresh = RefreshController(model: model, logging: logging)
         self.persistence = PersistenceController(model: model, store: store, credentials: credentials)
+        self.trust = TrustController(atomicStore: store, mode: model.mode)
         #if DEBUG
         mockBackend = backend as? MockRouterBackend
         #endif
         setup = Task { [weak self] in
             guard let self else { return }
             await persistence.load()
+            await trust.load()
+            // `liveEndpoint != nil` alone is enough here: `PersistenceController
+            // .addLiveProfile` now saves the Keychain secret before it ever
+            // appends or persists the profile, so a saved live profile always
+            // has a password. A defensive `credentials.read(...)` on every
+            // launch was considered and skipped as unnecessary Keychain I/O.
+            model.setHasLiveEndpoint(persistence.selectedProfile?.liveEndpoint != nil)
             logging.record(kind: .session, message: "Application session started")
             if let backend, let profile = persistence.selectedProfile {
                 #if DEBUG
@@ -112,8 +128,35 @@ final class AppEnvironment {
     }
     #endif
 
-    static func configured(variables: [String: String] = ProcessInfo.processInfo.environment,
-                           persist: Bool = false) -> AppEnvironment {
+    /// Saves a live router profile from `SetupScreen`, stores its password in
+    /// the credential store, and selects it. Returns false if either step fails.
+    func saveLiveRouterProfile(endpoint: RouterEndpoint, username: String, password: Data, plainHTTPAcknowledged: Bool) async -> Bool {
+        let profile = RouterProfile(
+            name: endpoint.displayString,
+            liveEndpoint: endpoint,
+            username: username,
+            plainHTTPAcknowledged: plainHTTPAcknowledged
+        )
+        let saved = await persistence.addLiveProfile(profile, password: password)
+        if saved {
+            model.setHasLiveEndpoint(true)
+        }
+        return saved
+    }
+
+    /// The construction point for a live backend. Returns nil in this chunk:
+    /// `.live` mode has no backend yet, so the refresh path stays a no-op and
+    /// the UI shows setup guidance instead of an error. Chunk 09 fills this in
+    /// with a real `LiveRouterBackend` built from `profile` and a transport.
+    static func makeLiveBackend(for profile: RouterProfile) -> (any RouterBackend)? {
+        nil
+    }
+
+    static func configured(
+        variables: [String: String] = ProcessInfo.processInfo.environment,
+        persist: Bool = false,
+        transportFactory: @escaping () -> any HTTPTransport = { URLSessionTransport(trustStore: InMemoryEndpointTrustStore()) }
+    ) -> AppEnvironment {
         let store: AtomicJSONStore? = persist ? AtomicJSONStore(directory:
             URL.applicationSupportDirectory.appendingPathComponent("Routewell", isDirectory: true)) : nil
         let credentials: any CredentialStore = persist ? KeychainCredentialStore() : InMemoryCredentialStore()
@@ -128,6 +171,14 @@ final class AppEnvironment {
             return AppEnvironment(model: AppModel(mode: mode), backend: MockRouterBackend(), store: store, credentials: credentials)
         }
         #endif
-        return AppEnvironment(model: AppModel(mode: mode), backend: nil, store: store, credentials: credentials)
+        let environment = AppEnvironment(model: AppModel(mode: mode), backend: nil, store: store, credentials: credentials)
+        if mode == .live {
+            // Built once here and kept on `environment.liveTransport` so
+            // chunk 09's `LiveRouterBackend` can reuse it instead of building
+            // its own; mock mode never reaches this branch.
+            environment.liveTransport = transportFactory()
+            environment.transportFactoryWasUsed = true
+        }
+        return environment
     }
 }

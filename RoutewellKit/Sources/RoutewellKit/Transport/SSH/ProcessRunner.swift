@@ -151,7 +151,11 @@ public actor ProcessRunner {
                 stdoutEOF.resolve(())
                 return
             }
-            if !stdoutCollector.append(chunk) { first.resolve(.limitExceeded) }
+            if !stdoutCollector.append(chunk) {
+                handle.readabilityHandler = nil
+                stdoutEOF.resolve(())
+                first.resolve(.limitExceeded)
+            }
         }
         stderrPipe.fileHandleForReading.readabilityHandler = { handle in
             let chunk = handle.availableData
@@ -160,7 +164,11 @@ public actor ProcessRunner {
                 stderrEOF.resolve(())
                 return
             }
-            if !stderrCollector.append(chunk) { first.resolve(.limitExceeded) }
+            if !stderrCollector.append(chunk) {
+                handle.readabilityHandler = nil
+                stderrEOF.resolve(())
+                first.resolve(.limitExceeded)
+            }
         }
         process.terminationHandler = { proc in
             exitStatus.resolve(proc.terminationStatus)

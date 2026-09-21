@@ -2,13 +2,13 @@ import Darwin
 import Foundation
 
 /// Hostname/IP-literal validation shared with `RouterEndpoint` (chunk 08, task 1).
-/// Kept here as a small private-to-the-package validator so the two can be merged
-/// once both land: hostname labels are `[A-Za-z0-9-]`, no leading or trailing hyphen,
-/// and a bracket-free literal must parse as IPv4 or IPv6 via `inet_pton`.
+/// Delegates to `RouterEndpoint.isValidHostLiteralOrName` so SSH targets accept
+/// exactly the same hosts as HTTP endpoints, including rejecting all-numeric
+/// non-IP hosts like "999.999.999.999".
 enum SSHHostValidation {
     static func isValidHost(_ host: String) -> Bool {
         guard !host.isEmpty, host.utf8.count <= 253 else { return false }
-        return isValidIPv4Literal(host) || isValidIPv6Literal(host) || isValidHostname(host)
+        return RouterEndpoint.isValidHostLiteralOrName(host)
     }
 
     static func isValidUser(_ user: String) -> Bool {
@@ -20,31 +20,7 @@ enum SSHHostValidation {
         return true
     }
 
-    private static func isValidHostname(_ host: String) -> Bool {
-        let labels = host.split(separator: ".", omittingEmptySubsequences: false)
-        guard !labels.isEmpty else { return false }
-        for label in labels {
-            guard !label.isEmpty, label.count <= 63 else { return false }
-            guard label.first != "-", label.last != "-" else { return false }
-            for scalar in label.unicodeScalars {
-                guard isASCIILowerLetter(scalar) || isASCIIUpperLetter(scalar) || isASCIIDigit(scalar) || scalar == "-" else { return false }
-            }
-        }
-        return true
-    }
-
-    private static func isValidIPv4Literal(_ host: String) -> Bool {
-        var address = in_addr()
-        return host.withCString { inet_pton(AF_INET, $0, &address) } == 1
-    }
-
-    private static func isValidIPv6Literal(_ host: String) -> Bool {
-        var address = in6_addr()
-        return host.withCString { inet_pton(AF_INET6, $0, &address) } == 1
-    }
-
     private static func isASCIILowerLetter(_ scalar: Unicode.Scalar) -> Bool { scalar.value >= 97 && scalar.value <= 122 }
-    private static func isASCIIUpperLetter(_ scalar: Unicode.Scalar) -> Bool { scalar.value >= 65 && scalar.value <= 90 }
     private static func isASCIIDigit(_ scalar: Unicode.Scalar) -> Bool { scalar.value >= 48 && scalar.value <= 57 }
 }
 

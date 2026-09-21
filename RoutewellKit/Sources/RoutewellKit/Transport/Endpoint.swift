@@ -163,6 +163,14 @@ public struct RouterEndpoint: Sendable, Hashable, Codable {
         return host.withCString { inet_pton(AF_INET6, $0, &addr) } == 1
     }
 
+    /// Shared with `SSHHostValidation`: SSH targets accept exactly the same
+    /// literal-or-hostname rules as HTTP endpoints, including rejecting
+    /// all-numeric, dot-separated hosts (e.g. "999.999.999.999") that are not
+    /// a valid IPv4 literal.
+    internal static func isValidHostLiteralOrName(_ host: String) -> Bool {
+        isIPv4Literal(host) || isIPv6Literal(host) || isValidHostname(host)
+    }
+
     private static func isValidHostname(_ host: String) -> Bool {
         guard host.count <= 253 else { return false }
         let allowed = CharacterSet(charactersIn: "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789.-")
