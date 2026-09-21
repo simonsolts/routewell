@@ -117,7 +117,7 @@ struct SetupScreen: View {
                     Button("Save router") {
                         Task { await save(validation: validation) }
                     }
-                    .disabled(!validation.canSave || isSaving)
+                    .disabled(!validation.canSave || isSaving || environment.mutation.inFlight != nil)
                 }
 
                 Text("SSH uses key files or the SSH agent only. Routewell never asks for an SSH password.")
