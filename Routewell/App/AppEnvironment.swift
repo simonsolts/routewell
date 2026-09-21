@@ -154,12 +154,60 @@ final class AppEnvironment {
         let saved = await persistence.addLiveProfile(profile, password: password)
         guard saved else { return false }
         model.setHasLiveEndpoint(true)
-        if let liveBackend = makeLiveBackend(for: profile) {
-            setup = model.session.switchProfile(profile.name, model: model, refresh: refresh) {
-                SessionLease(token: $0, backend: liveBackend)
-            }
-        }
+        reconnectLiveSession()
         return true
+    }
+
+    /// Rebuilds the live session from whatever is currently the saved
+    /// profile: a new session revision, a fresh `LiveRouterBackend` from
+    /// `makeLiveBackend(for:)`, then one refresh through the normal
+    /// lease-ready path. Every mutation to a saved live profile — address,
+    /// username, AdGuard settings, AdGuard credential, or router password —
+    /// must call this afterwards. Without it, the old backend's password
+    /// closures keep pointing at whatever `CredentialReference` they closed
+    /// over at construction time, which a changed address or a deleted/
+    /// replaced Keychain item can leave dangling.
+    func reconnectLiveSession() {
+        guard model.mode == .live, let profile = persistence.selectedProfile, profile.liveEndpoint != nil else { return }
+        guard let liveBackend = makeLiveBackend(for: profile) else { return }
+        setup = model.session.switchProfile(profile.name, model: model, refresh: refresh) {
+            SessionLease(token: $0, backend: liveBackend)
+        }
+    }
+
+    /// Router tab mutations that must reconnect the live session afterwards.
+
+    @discardableResult
+    func updateLiveAddress(_ endpoint: RouterEndpoint) async -> Bool {
+        let saved = await persistence.updateLiveAddress(endpoint)
+        if saved { reconnectLiveSession() }
+        return saved
+    }
+
+    func updateLiveUsername(_ username: String) {
+        persistence.updateLiveUsername(username)
+        reconnectLiveSession()
+    }
+
+    @discardableResult
+    func changeLivePassword(_ password: Data) async -> Bool {
+        let saved = await persistence.changeLivePassword(password)
+        if saved { reconnectLiveSession() }
+        return saved
+    }
+
+    /// AdGuard Home tab mutations that must reconnect the live session afterwards.
+
+    func updateAdGuardSettings(_ settings: AdGuardSettings) {
+        persistence.updateAdGuardSettings(settings)
+        reconnectLiveSession()
+    }
+
+    @discardableResult
+    func saveAdGuardPassword(_ password: Data) async -> Bool {
+        let saved = await persistence.saveAdGuardPassword(password)
+        if saved { reconnectLiveSession() }
+        return saved
     }
 
     /// The construction point for a live backend: one `HTTPTransport` per
@@ -232,9 +280,17 @@ final class AppEnvironment {
 
     /// "Test connection": builds a throwaway `LiveRouterBackend` from the
     /// given values (never the saved profile) and probes it. Never installs
-    /// anything into the session; an approved trust prompt is still stored,
-    /// since the certificate really was seen and accepted.
-    func testRouterConnection(endpoint: RouterEndpoint, username: String, password: ConnectionTestPassword) async -> String {
+    /// anything into the session. `trustPromptController` is the caller's own
+    /// local controller (each Test Connection button owns one and shows its
+    /// sheet on its own window) — never the shared `trustPrompt` that
+    /// `MainWindow` uses for refresh-time prompts, so a probe run from the
+    /// Settings or Setup window never pops a sheet on the wrong window. The
+    /// certificate itself is still checked against, and an approval still
+    /// stored in, the one real `trust.store`: only which window asks is local.
+    func testRouterConnection(
+        endpoint: RouterEndpoint, username: String, password: ConnectionTestPassword,
+        trustPromptController: TrustPromptController
+    ) async -> String {
         let transport = transportFactory(trust.store)
         let credentials = self.credentials
         let passwordProvider: @Sendable () async throws -> String
@@ -250,7 +306,7 @@ final class AppEnvironment {
             rpc: rpc,
             adGuard: nil,
             trustStore: trust.store,
-            trustPrompt: TrustPromptAdapter(controller: trustPrompt),
+            trustPrompt: TrustPromptAdapter(controller: trustPromptController),
             log: logging.eventLog
         )
         do {
@@ -265,16 +321,22 @@ final class AppEnvironment {
 
     /// "Test connection" for the AdGuard Home tab: probes only `control/status`,
     /// never the router RPC areas. When the profile uses the router's own
-    /// login, a throwaway `GLiNetRPCClient` supplies the session token.
+    /// login, a throwaway `GLiNetRPCClient` supplies the session token — its
+    /// own untrusted-certificate prompt (on the router's host) is resolved
+    /// first, via `trustPromptController`, before it is handed to the AdGuard
+    /// client, since `AdGuardClient` itself only sees that login as an opaque
+    /// `credentialUnavailable` and cannot recover the certificate decision.
     func testAdGuardConnection(
         routerEndpoint: RouterEndpoint,
         username: String,
         routerPassword: ConnectionTestPassword,
         adGuardSettings: AdGuardSettings,
-        adGuardPassword: ConnectionTestPassword
+        adGuardPassword: ConnectionTestPassword,
+        trustPromptController: TrustPromptController
     ) async -> String {
         let transport = transportFactory(trust.store)
         let baseURL = Self.adGuardBaseURL(host: routerEndpoint.host, settings: adGuardSettings)
+        let adGuardPort = baseURL.port ?? (adGuardSettings.useHTTPS ? 443 : 80)
         let credentials = self.credentials
 
         func passwordProvider(for source: ConnectionTestPassword) -> @Sendable () async throws -> String {
@@ -290,6 +352,13 @@ final class AppEnvironment {
                 endpoint: routerEndpoint, username: username,
                 password: passwordProvider(for: routerPassword), transport: transport, log: logging.eventLog
             )
+            do {
+                try await establishTrustedSession(rpc, host: routerEndpoint.host, port: routerEndpoint.port, trustPromptController: trustPromptController)
+            } catch let error as GLiNetRPCError {
+                return Self.connectionTestMessage(for: error)
+            } catch {
+                return "Could not connect. Try again."
+            }
             provider = RouterTokenAdGuardCredentials(session: rpc)
         } else {
             provider = BasicAdGuardCredentials(username: adGuardSettings.username, password: passwordProvider(for: adGuardPassword))
@@ -297,7 +366,7 @@ final class AppEnvironment {
 
         let client = AdGuardClient(baseURL: baseURL, credentials: provider, transport: transport, log: logging.eventLog)
         do {
-            let status = try await client.status()
+            let status = try await requestAdGuardStatus(client, host: baseURL.host ?? routerEndpoint.host, port: adGuardPort, trustPromptController: trustPromptController)
             return "Connected: AdGuard Home \(status.version ?? "Unknown version")."
         } catch let error as AdGuardClientError {
             return Self.connectionTestMessage(for: error)
@@ -305,6 +374,50 @@ final class AppEnvironment {
             return Self.connectionTestMessage(for: error)
         } catch {
             return "Could not connect. Try again."
+        }
+    }
+
+    /// Forces a login so an untrusted router certificate is caught and
+    /// prompted for here — before `RouterTokenAdGuardCredentials` reuses this
+    /// same `rpc` and would otherwise see the login failure only as
+    /// `AdGuardClientError.credentialUnavailable`, with no certificate to show.
+    private func establishTrustedSession(
+        _ rpc: GLiNetRPCClient, host: String, port: Int, trustPromptController: TrustPromptController
+    ) async throws {
+        do {
+            _ = try await rpc.sessionID()
+        } catch GLiNetRPCError.transport(.untrustedServer(let decision)) {
+            let approved = await trustPromptController.present(TrustPromptRequest(host: host, port: port, decision: decision))
+            guard approved else { throw GLiNetRPCError.transport(.untrustedServer(decision)) }
+            try? await trust.store.approve(TrustedEndpoint(host: host, port: port, fingerprint: Self.leafFingerprint(decision), approvedAt: Date()))
+            _ = try await rpc.sessionID()
+        }
+    }
+
+    /// Same shape as `establishTrustedSession`, for the AdGuard Home host
+    /// itself (only reached when `AdGuardClient`'s own transport — not a
+    /// router-login lookup — hits an untrusted certificate).
+    private func requestAdGuardStatus(
+        _ client: AdGuardClient, host: String, port: Int, trustPromptController: TrustPromptController
+    ) async throws -> AdGuardStatusResponse {
+        do {
+            return try await client.status()
+        } catch AdGuardClientError.transport(.untrustedServer(let decision)) {
+            let approved = await trustPromptController.present(TrustPromptRequest(host: host, port: port, decision: decision))
+            guard approved else { throw AdGuardClientError.transport(.untrustedServer(decision)) }
+            try? await trust.store.approve(TrustedEndpoint(host: host, port: port, fingerprint: Self.leafFingerprint(decision), approvedAt: Date()))
+            return try await client.status()
+        }
+    }
+
+    private static func leafFingerprint(_ decision: TrustDecision) -> CertificateFingerprint {
+        switch decision {
+        case .trusted:
+            preconditionFailure("a trusted decision never reaches the trust prompt")
+        case .untrustedNew(let fingerprint):
+            return fingerprint
+        case .untrustedChanged(_, let actual):
+            return actual
         }
     }
 
