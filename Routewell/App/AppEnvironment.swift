@@ -1,14 +1,16 @@
 import Foundation
+import Observation
 import RoutewellKit
 #if DEBUG
 import RoutewellMock
 #endif
 
-@MainActor
+@MainActor @Observable
 final class AppEnvironment {
     let model: AppModel
     let refresh: RefreshController
     let persistence: PersistenceController
+    let logging: LoggingController
     private var setup: Task<Void, Never>?
     #if DEBUG
     private var mockBackend: MockRouterBackend?
@@ -20,7 +22,8 @@ final class AppEnvironment {
     init(model: AppModel, backend: (any RouterBackend)?, store: AtomicJSONStore? = nil,
          credentials: any CredentialStore = InMemoryCredentialStore()) {
         self.model = model
-        self.refresh = RefreshController(model: model)
+        self.logging = LoggingController(model: model)
+        self.refresh = RefreshController(model: model, logging: logging)
         self.persistence = PersistenceController(model: model, store: store, credentials: credentials)
         #if DEBUG
         mockBackend = backend as? MockRouterBackend
@@ -28,6 +31,7 @@ final class AppEnvironment {
         setup = Task { [weak self] in
             guard let self else { return }
             await persistence.load()
+            logging.record(kind: .session, message: "Application session started")
             if let backend, let profile = persistence.selectedProfile {
                 #if DEBUG
                 if store != nil, model.mode == .mock {

@@ -7,6 +7,7 @@ final class RefreshController {
     private let model: AppModel
     private let schedule: RefreshSchedule
     private let wallClock: any WallClock
+    private let logging: LoggingController?
     private var task: Task<Void, Never>?
     private var pending = false
     private var pollingEnabled = false
@@ -18,10 +19,12 @@ final class RefreshController {
     init(
         model: AppModel,
         clock: any RefreshClock = ContinuousRefreshClock(),
-        wallClock: any WallClock = SystemWallClock()
+        wallClock: any WallClock = SystemWallClock(),
+        logging: LoggingController? = nil
     ) {
         self.model = model
         self.wallClock = wallClock
+        self.logging = logging
         schedule = RefreshSchedule(clock: clock)
         model.refreshSettingsChanged = { [weak self] in self?.updateSchedule() }
     }
@@ -82,6 +85,7 @@ final class RefreshController {
             return task
         }
         model.accept(.busy(true, wallClock.now()), token: lease.token)
+        logging?.record(kind: .refresh, message: "Refresh started")
         let model = model
         let wallClock = wallClock
         task = Task { [weak self] in
@@ -90,10 +94,13 @@ final class RefreshController {
                     let result = try await model.session.routerSession.overview(using: lease)
                     guard !Task.isCancelled else { return }
                     model.accept(.result(result, wallClock.now()), token: lease.token)
+                    self?.logging?.record(kind: .refresh, message: "Refresh completed")
                 } catch {
                     guard !Task.isCancelled else { return }
                     if !(error is CancellationError) {
                         model.accept(.failure(.unavailable, wallClock.now()), token: lease.token)
+                        self?.logging?.record(level: .warning, kind: .refresh, message: "Refresh failed",
+                                              fields: ["failure": FailureCategory.unreachable.rawValue])
                     }
                 }
                 guard model.session.expectedToken == lease.token else { return }

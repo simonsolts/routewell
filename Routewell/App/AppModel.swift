@@ -12,6 +12,7 @@ final class AppModel {
     private(set) var evaluatedAt: Date
     private(set) var isRefreshing = false
     private(set) var refreshFailed = false
+    private(set) var logEvents: [LogEvent] = []
     let session = SessionController()
     var mockScenarioID = "healthy"
     var showInMenuBar = true { didSet { refreshSettingsChanged?(); persistenceSettingsChanged?() } }
@@ -49,6 +50,8 @@ final class AppModel {
         isRefreshing = false
         refreshFailed = false
     }
+
+    func replaceLogEvents(_ events: [LogEvent]) { logEvents = events }
 
     enum Completion {
         case snapshot(OverviewSnapshot)
