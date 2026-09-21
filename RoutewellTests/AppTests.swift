@@ -332,9 +332,11 @@ private actor HeldConstruction {
 private struct FailingBackend: RouterBackend {
     struct Failure: Error {}
     func overview() async throws -> OverviewRefreshResult { throw Failure() }
+    var protection: (any ProtectionService)? { nil }
 }
 
 private actor SuspendedBackend: RouterBackend {
+    nonisolated var protection: (any ProtectionService)? { nil }
     var calls = 0
     private var continuation: CheckedContinuation<OverviewRefreshResult, any Error>?
     private var started: CheckedContinuation<Void, Never>?
