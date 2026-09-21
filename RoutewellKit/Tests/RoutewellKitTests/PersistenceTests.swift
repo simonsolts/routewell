@@ -119,7 +119,7 @@ private func temporaryDirectory() throws -> URL {
     #expect(profile.name == "Home mock")
     #expect(profile.endpoint == "mock://home")
     #expect(profile.liveEndpoint == nil)
-    #expect(profile.username == "root")
+    #expect(profile.username == "admin")
     #expect(profile.plainHTTPAcknowledged == false)
     #expect(profile.adGuard == nil)
     #expect(profile.ssh == nil)

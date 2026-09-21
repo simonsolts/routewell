@@ -16,10 +16,8 @@ import RoutewellKit
 @Test func validHTTPSAddressWithCredentialsCanSave() {
     var form = SetupFormState()
     form.addressText = "192.168.8.1"
-    form.username = "root"
     form.password = "secret"
     let validation = form.validate()
-    #expect(validation.usernameProblem == nil)
     #expect(validation.passwordProblem == nil)
     #expect(!validation.plainHTTPNeedsAck)
     #expect(validation.canSave)
@@ -33,7 +31,6 @@ import RoutewellKit
 @Test func plainHTTPRequiresAcknowledgementBeforeSaving() {
     var form = SetupFormState()
     form.addressText = "http://192.168.8.1"
-    form.username = "root"
     form.password = "secret"
     let unacknowledged = form.validate()
     #expect(unacknowledged.plainHTTPNeedsAck)
@@ -45,13 +42,11 @@ import RoutewellKit
     #expect(acknowledged.canSave)
 }
 
-@Test func blankUsernameOrPasswordCannotSave() {
+@Test func blankPasswordCannotSave() {
     var form = SetupFormState()
     form.addressText = "192.168.8.1"
-    form.username = "   "
     form.password = ""
     let validation = form.validate()
-    #expect(validation.usernameProblem != nil)
     #expect(validation.passwordProblem != nil)
     #expect(!validation.canSave)
 }
