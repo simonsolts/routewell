@@ -1,7 +1,7 @@
 import Foundation
 
 public struct CredentialReference: Codable, Hashable, Sendable {
-    public enum Kind: String, Codable, Sendable { case mockPassword }
+    public enum Kind: String, Codable, Sendable { case mockPassword, routerPassword, adGuardPassword }
     public let profileID: UUID
     public let endpoint: String
     public let kind: Kind

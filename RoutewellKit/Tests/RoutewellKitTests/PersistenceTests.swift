@@ -103,3 +103,24 @@ private func temporaryDirectory() throws -> URL {
     await #expect(throws: error) { try await store.save(Data(), for: reference) }
     await #expect(throws: error) { try await store.delete(reference) }
 }
+
+@Test func oldShapeProfileJSONDecodesWithDefaults() throws {
+    let id = UUID()
+    let json = """
+    {
+        "id": "\(id.uuidString)",
+        "name": "Home mock",
+        "endpoint": "mock://home",
+        "credential": {"profileID": "\(id.uuidString)", "endpoint": "mock://home", "kind": "mockPassword"}
+    }
+    """
+    let profile = try JSONDecoder().decode(RouterProfile.self, from: Data(json.utf8))
+    #expect(profile.id == id)
+    #expect(profile.name == "Home mock")
+    #expect(profile.endpoint == "mock://home")
+    #expect(profile.liveEndpoint == nil)
+    #expect(profile.username == "root")
+    #expect(profile.plainHTTPAcknowledged == false)
+    #expect(profile.adGuard == nil)
+    #expect(profile.ssh == nil)
+}
