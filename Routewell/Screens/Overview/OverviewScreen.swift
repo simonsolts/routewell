@@ -45,7 +45,7 @@ struct OverviewScreen: View {
     }
 
     private var showsLocalNetworkGuidance: Bool {
-        guard let category = model.freshness.values.compactMap(\.failure).first?.failureCategory else { return false }
+        guard let category = model.freshness[.router]?.failure?.failureCategory else { return false }
         return category == .unreachable || category == .timeout
     }
 
