@@ -1,0 +1,11 @@
+{
+  "version": "v0.107.43",
+  "language": "en",
+  "dns_addresses": ["192.168.8.1:53"],
+  "dns_port": 53,
+  "http_port": 3000,
+  "protection_enabled": true,
+  "protection_disabled_duration": 0,
+  "dhcp_available": false,
+  "running": true
+}

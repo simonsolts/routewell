@@ -1,0 +1,42 @@
+{
+  "id": 1,
+  "jsonrpc": "2.0",
+  "result": {
+    "network": [
+      { "online": false, "up": false, "interface": "wan" },
+      { "online": false, "up": false, "interface": "wwan" },
+      { "online": false, "up": false, "interface": "tethering" },
+      { "online": false, "up": false, "interface": "modem_1_1_2" }
+    ],
+    "wifi": [
+      { "guest": false, "ssid": "GL-XE300-49a", "up": true, "channel": 0, "band": "2G", "name": "default_radio0", "passwd": "REDACTED" },
+      { "guest": true, "ssid": "GL-XE300-49a-Guest", "up": false, "channel": 0, "band": "2G", "name": "guest2g", "passwd": "REDACTED" }
+    ],
+    "service": [
+      { "name": "wgclient", "status": 0 },
+      { "name": "wgserver", "status": 0 },
+      { "name": "ovpnclient", "status": 0 },
+      { "name": "ovpnserver", "status": 0 }
+    ],
+    "client": [
+      { "wireless_total": 0, "cable_total": 1 }
+    ],
+    "system": {
+      "lan_ip": "192.168.8.1",
+      "guest_ip": "192.168.9.1",
+      "flash_total": 106278912,
+      "memory_total": 126943232,
+      "memory_free": 78471168,
+      "ipv6_enabled": false,
+      "ddns_enabled": false,
+      "uptime": 111,
+      "load_average": [2.01, 0.89, 0.33],
+      "flash_free": 105918464,
+      "flash_app": 1025,
+      "mode": 0,
+      "mcu": { "charge_cnt": 49, "temperature": 27.6, "charge_percent": 100, "charging_status": 1 },
+      "cpu": { "temperature": 82 },
+      "timestamp": 1613402877
+    }
+  }
+}
