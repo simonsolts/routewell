@@ -115,8 +115,16 @@ private struct StubHTTPTransportForTest: HTTPTransport {
     let model = AppModel(mode: .mock)
     let environment = AppEnvironment(model: model, backend: FailingBackend())
     await environment.waitUntilReady()
-    model.accept(.snapshot(snapshot), token: model.session.expectedToken!)
     let controller = environment.refresh
+    // `waitUntilReady()` only guarantees the session is set up; the automatic
+    // first refresh it kicks off races the rest of this test. Let that first
+    // (failing) refresh fully settle before seeding the "previous
+    // observation" snapshot, otherwise `.snapshot` can land after the
+    // failure and wipe the freshness state it just recorded. Then drive a
+    // second, deterministic refresh against the seeded snapshot.
+    await controller.waitForRefresh()
+    model.accept(.snapshot(snapshot), token: model.session.expectedToken!)
+    controller.refreshNow()
     await controller.waitForRefresh()
     #expect(model.snapshot == snapshot)
     #expect(model.refreshFailed)
