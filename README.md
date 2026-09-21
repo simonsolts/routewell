@@ -4,8 +4,8 @@ An unofficial macOS app for Flint routers.
 
 Open `Routewell.xcodeproj` in Xcode and run **Routewell (Mock)** to explore the
 sample Overview, sidebar, Settings, and menu bar. Requires macOS 26 or later.
-The default **Routewell** scheme shows an unconfigured app. Live connections
-and credentials are not implemented in this scaffold.
+The default **Routewell** scheme shows an unconfigured app. Live connections are not implemented. The mock Settings flow can store a
+made-up credential in Keychain.
 
 Run package tests:
 
@@ -51,3 +51,22 @@ warranty of any kind. To the extent permitted by applicable law, the authors
 and contributors are not liable for any loss or damage arising from its use,
 including data loss, device damage, or network disruption. See [LICENSE](LICENSE)
 for the full warranty disclaimer and limitation of liability.
+
+## Development signing and local data
+
+Use Xcode 27. Local builds use the project's Apple Development team and an
+app-specific Keychain entitlement. Xcode automatic signing needs a development
+profile for this Mac. Mock credentials use the real Keychain; enter only made-up passwords in Settings ›
+Router. Deleting a mock profile deletes only that profile's exact Routewell
+mock credential. Settings and profiles (credential references only) are stored
+in `~/Library/Application Support/Routewell`.
+
+For ad-hoc CI compilation and tests, override signing:
+
+```sh
+xcodebuild -project Routewell.xcodeproj -scheme 'Routewell (Mock)' \
+  -destination 'platform=macOS' CODE_SIGN_IDENTITY=- DEVELOPMENT_TEAM= CODE_SIGN_ENTITLEMENTS= test
+```
+
+Ad-hoc builds do not validate Keychain identity. Automated tests use temporary
+storage and an in-memory credential store, never personal saved credentials.

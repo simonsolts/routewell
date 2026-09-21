@@ -6,7 +6,14 @@
       "options": {}
     }
   ],
-  "defaultOptions": {},
+  "defaultOptions": {
+    "environmentVariableEntries": [
+      {
+        "key": "ROUTEWELL_TESTING",
+        "value": "1"
+      }
+    ]
+  },
   "testTargets": [
     {
       "parallelizable": false,

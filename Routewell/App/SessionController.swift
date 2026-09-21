@@ -12,6 +12,16 @@ final class SessionController {
 
     var isReady: Bool { !switching && lease?.token == expectedToken && lease != nil }
 
+    func disconnect(model: AppModel, refresh: RefreshController) {
+        revision += 1
+        expectedToken = nil
+        lease = nil
+        switching = false
+        setupFailed = false
+        refresh.cancelForSwitch()
+        model.clearSession()
+    }
+
     @discardableResult
     func switchProfile(
         _ profileID: String, model: AppModel, refresh: RefreshController,

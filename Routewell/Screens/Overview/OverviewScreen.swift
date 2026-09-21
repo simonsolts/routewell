@@ -18,7 +18,7 @@ struct OverviewScreen: View {
                         VStack(spacing: 22) { leftColumn(snapshot); rightColumn(snapshot) }
                     }
                     HStack {
-                        Text(model.refreshFailed ? "One or more areas could not refresh." : "Each area keeps its last successful observation.")
+                        Text(refreshStatusMessage)
                         Spacer()
                     }.font(.subheadline).foregroundStyle(.secondary)
                 }.padding(20)
@@ -185,12 +185,19 @@ struct OverviewScreen: View {
     }
     private func freshnessSubtitle(_ freshness: Freshness) -> String {
         if freshness.isRefreshing { return String(localized: "Refreshing…") }
-        if freshness.failure != nil {
-            guard let lastSuccess = freshness.lastSuccess else { return String(localized: "Refresh failed · no data loaded") }
-            return String(localized: "Refresh failed · last data \(relative(lastSuccess))")
+        if let failure = freshness.failure {
+            let message = failure.failureCategory.message
+            guard let lastSuccess = freshness.lastSuccess else { return message }
+            return "\(message) Last data \(relative(lastSuccess))."
         }
         guard let lastSuccess = freshness.lastSuccess else { return String(localized: "Never loaded") }
         return relative(lastSuccess)
+    }
+    private var refreshStatusMessage: String {
+        guard let failure = model.freshness.values.compactMap(\.failure).first else {
+            return "Each area keeps its last successful observation."
+        }
+        return failure.failureCategory.message
     }
     private func relative(_ date: Date) -> String {
         if abs(model.evaluatedAt.timeIntervalSince(date)) < 1 { return String(localized: "Just now") }
