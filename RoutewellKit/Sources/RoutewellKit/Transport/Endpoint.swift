@@ -54,9 +54,14 @@ public struct RouterEndpoint: Sendable, Hashable, Codable {
 
     /// "https://host:port/" — IPv6 hosts get brackets, always a trailing slash.
     public var url: URL {
-        let hostToken = isIPv6 ? "[\(host)]" : host
-        let portToken = isDefaultPort ? "" : ":\(port)"
-        return URL(string: "\(scheme.rawValue)://\(hostToken)\(portToken)/")!
+        var components = URLComponents()
+        components.scheme = scheme.rawValue
+        components.host = isIPv6 ? "[\(host)]" : host
+        if !isDefaultPort { components.port = port }
+        components.path = "/"
+        if let url = components.url { return url }
+        assertionFailure("RouterEndpoint could not build a URL for \(scheme.rawValue) host on port \(port)")
+        return URL(string: "https://invalid.invalid")!
     }
 
     /// "https://192.168.8.1" — omits the port when it is the scheme's default.
@@ -167,6 +172,11 @@ public struct RouterEndpoint: Sendable, Hashable, Codable {
         for label in labels {
             guard !label.isEmpty, label.first != "-", label.last != "-" else { return false }
         }
+        // All-numeric, dot-separated hosts that are not a valid IPv4 literal
+        // (e.g. "999.999.999.999", "192.168.8.1.1") look like typos of an IP
+        // address, not a hostname. Reject rather than silently trying to
+        // resolve them as DNS names.
+        guard !labels.allSatisfy({ $0.allSatisfy(\.isASCII) && $0.allSatisfy(\.isNumber) }) else { return false }
         return true
     }
 }
