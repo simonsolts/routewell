@@ -13,6 +13,7 @@ final class AppModel {
     private(set) var isRefreshing = false
     private(set) var refreshFailed = false
     private(set) var logEvents: [LogEvent] = []
+    private(set) var lastProtectionReport: MutationReport<ProtectionState>?
     let session = SessionController()
     var mockScenarioID = "healthy"
     private(set) var hasLiveEndpoint = false
@@ -63,6 +64,7 @@ final class AppModel {
         case result(OverviewRefreshResult, Date)
         case failure(RefreshFailureCategory, Date)
         case busy(Bool, Date)
+        case mutation(MutationReport<ProtectionState>)
     }
 
     func accept(_ completion: Completion, token: SessionToken) {
@@ -90,6 +92,8 @@ final class AppModel {
                 if value { state.lastAttempt = date }
                 freshness[area] = state
             }
+        case .mutation(let report):
+            lastProtectionReport = report
         }
         refreshFailed = freshness.values.contains { $0.failure != nil }
         evaluateFreshness(at: completion.date)
@@ -136,6 +140,7 @@ private extension AppModel.Completion {
         case .snapshot(let snapshot): snapshot.observedAt
         case .result(_, let date): date
         case .failure(_, let date), .busy(_, let date): date
+        case .mutation(let report): report.finishedAt
         }
     }
 }

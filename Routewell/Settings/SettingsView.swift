@@ -25,6 +25,7 @@ struct SettingsView: View {
     /// certificate prompt from a probe started in this window's Router or
     /// AdGuard Home tab must show here, never on the main window.
     @State private var testConnectionTrustPrompt = TrustPromptController()
+    private var mutationInFlight: Bool { environment.mutation.inFlight != nil }
     var body: some View {
         @Bindable var model = model
         TabView {
@@ -79,6 +80,7 @@ struct SettingsView: View {
                         Text("Healthy, partial, offline, stale, and slow samples stay in memory. The slow scenario takes five seconds.")
                             .foregroundStyle(.secondary)
                     }
+                    .disabled(mutationInFlight)
                 }
                 if model.mode == .mock, let profile = environment.persistence.selectedProfile {
                     Section("Mock credential · Keychain") {
@@ -100,6 +102,9 @@ struct SettingsView: View {
                     }
                 }
                 if model.mode == .live, let profile = environment.persistence.selectedProfile, profile.liveEndpoint != nil {
+                    if mutationInFlight {
+                        Section { Text("A change is running. Wait for it to finish.").foregroundStyle(.secondary) }
+                    }
                     Section("Router") {
                         TextField("Address", text: $addressText, prompt: Text("Router hostname or IP address"))
                             .onSubmit { Task { await saveAddress() } }
@@ -114,6 +119,7 @@ struct SettingsView: View {
                             Text(routerConnectionTestResult).font(.caption).foregroundStyle(.secondary)
                         }
                     }
+                    .disabled(mutationInFlight)
                     Section("Change password") {
                         SecureField("New password", text: $newPassword)
                         Button("Save Password") {
@@ -122,6 +128,7 @@ struct SettingsView: View {
                             Task { await environment.changeLivePassword(secret) }
                         }.disabled(newPassword.isEmpty)
                     }
+                    .disabled(mutationInFlight)
                     .onAppear {
                         addressText = profile.liveEndpoint?.displayString ?? profile.endpoint
                         usernameText = profile.username
@@ -136,6 +143,9 @@ struct SettingsView: View {
 
             Form {
                 if model.mode == .live, let profile = environment.persistence.selectedProfile, profile.liveEndpoint != nil {
+                    if mutationInFlight {
+                        Section { Text("A change is running. Wait for it to finish.").foregroundStyle(.secondary) }
+                    }
                     Section {
                         Picker("Login", selection: $adGuardUseRouterCredentials) {
                             Text("Use router login").tag(true)
@@ -169,6 +179,7 @@ struct SettingsView: View {
                     } footer: {
                         Text("On firmware 4.9 and later the router login may not work for AdGuard Home. Create an AdGuard Home account and use it here.")
                     }
+                    .disabled(mutationInFlight)
                     .onAppear {
                         adGuardPort = profile.adGuard?.port ?? 3000
                         adGuardUseRouterCredentials = profile.adGuard?.useRouterCredentials ?? true
@@ -194,12 +205,16 @@ struct SettingsView: View {
 
             Form {
                 if model.mode == .live, let profile = environment.persistence.selectedProfile, profile.liveEndpoint != nil {
+                    if mutationInFlight {
+                        Section { Text("A change is running. Wait for it to finish.").foregroundStyle(.secondary) }
+                    }
                     Section {
                         TextField("Router login username", text: $usernameText)
                             .onSubmit { environment.updateLiveUsername(usernameText) }
                     } footer: {
                         Text("The GL.iNet web login user. Firmware 4.x uses admin. Only change this if your router is different.")
                     }
+                    .disabled(mutationInFlight)
                     .onAppear { usernameText = profile.username }
                 }
                 Section {
