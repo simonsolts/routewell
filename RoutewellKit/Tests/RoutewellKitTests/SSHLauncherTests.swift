@@ -22,6 +22,7 @@ private func temporaryDirectory() throws -> URL {
     #expect(throws: SSHTargetError.invalidHost) { _ = try SSHTarget(host: "-bad.lan", port: 22, user: "root") }
     #expect(throws: SSHTargetError.invalidHost) { _ = try SSHTarget(host: "bad-.lan", port: 22, user: "root") }
     #expect(throws: SSHTargetError.invalidHost) { _ = try SSHTarget(host: "bad_host.lan", port: 22, user: "root") }
+    #expect(throws: SSHTargetError.invalidHost) { _ = try SSHTarget(host: "999.999.999.999", port: 22, user: "root") }
 }
 
 @Test func sshTargetRejectsInvalidPort() {
