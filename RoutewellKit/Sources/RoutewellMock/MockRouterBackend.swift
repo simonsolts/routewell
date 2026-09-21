@@ -23,6 +23,11 @@ public actor MockRouterBackend: RouterBackend {
     /// Overrides `adGuard.protection` in the next `overview()` result once a
     /// mock mutation has run; `nil` means "use the scenario's own value."
     private var protectionOverride: ProtectionState?
+    /// Serializes `runProtectionMutation` the same way the live path
+    /// serializes through one `MutationGate` per backend: without it, an
+    /// actor's reentrancy across `await Task.sleep` lets a second concurrent
+    /// mutation read `protectionBehavior`/`protectionOverride` mid-update.
+    private let protectionGate = MutationGate()
     public nonisolated let hostname: String
 
     public init(scenario: Scenario = .healthy, hostname: String = "flint-demo") {
@@ -57,12 +62,32 @@ public actor MockRouterBackend: RouterBackend {
     /// Runs the currently selected `ProtectionBehavior` against `intent`,
     /// updating `protectionOverride` so the next `overview()` reflects the
     /// change, and returns the matching `MutationOutcome`. Never sleeps more
-    /// than 100 ms.
+    /// than 100 ms. Serialized through `protectionGate`: a second concurrent
+    /// call waits for the first to finish reading and writing shared state
+    /// before it starts its own.
     func runProtectionMutation(_ intent: ProtectionIntent, allowRecovery: Bool) async -> MutationReport<ProtectionState> {
         let startedAt = Date()
         if let rejection = intent.validate() {
             return MutationReport(outcome: .rejected(rejection), dispatched: false, startedAt: startedAt, finishedAt: startedAt, failure: nil)
         }
+
+        let token: MutationGateToken
+        do {
+            token = try await protectionGate.acquire()
+        } catch {
+            return MutationReport(
+                outcome: .rejected(.preconditionFailed("Cancelled before dispatch")),
+                dispatched: false, startedAt: startedAt, finishedAt: Date(), failure: nil
+            )
+        }
+        let report = await performProtectionMutation(intent, allowRecovery: allowRecovery, startedAt: startedAt)
+        await protectionGate.release(token)
+        return report
+    }
+
+    private func performProtectionMutation(
+        _ intent: ProtectionIntent, allowRecovery: Bool, startedAt: Date
+    ) async -> MutationReport<ProtectionState> {
         try? await Task.sleep(for: .milliseconds(50))
 
         let intended = Self.intendedState(for: intent)
@@ -90,7 +115,13 @@ public actor MockRouterBackend: RouterBackend {
             return MutationReport(outcome: .conflictingExternalEdit(actual: actual), dispatched: true, startedAt: startedAt, finishedAt: Date(), failure: nil)
 
         case .unauthorized:
-            return MutationReport(outcome: .rejected(.preconditionFailed("credential unavailable")), dispatched: false, startedAt: startedAt, finishedAt: Date(), failure: .authentication)
+            // Matches the live path's semantics: a 401/403 reaches the
+            // server and is a definitive rejection, not an ambiguous one,
+            // but a request was still sent — so `dispatched` is `true`.
+            return MutationReport(
+                outcome: .rejected(.preconditionFailed("AdGuard Home refused the login")),
+                dispatched: true, startedAt: startedAt, finishedAt: Date(), failure: .authentication
+            )
         }
     }
 

@@ -100,14 +100,14 @@ import RoutewellMock
     #expect(adGuard.protection == actual)
 }
 
-@Test func unauthorizedBehaviorRejectsWithoutDispatching() async throws {
+@Test func unauthorizedBehaviorRejectsButStillCountsAsDispatched() async throws {
     let backend = MockRouterBackend()
     await backend.setProtectionBehavior(.unauthorized)
     let report = await backend.protection!.setProtection(.enable, allowRecovery: false)
-    #expect(report.dispatched == false)
-    guard case .rejected = report.outcome else {
-        Issue.record("expected rejected, got \(report.outcome)"); return
-    }
+    // Matches the live path: a 401/403 reaches the server and is a
+    // definitive rejection, not an ambiguous one, but a request was sent.
+    #expect(report.dispatched == true)
+    #expect(report.outcome == .rejected(.preconditionFailed("AdGuard Home refused the login")))
 }
 
 @Test func invalidIntentIsRejectedRegardlessOfBehavior() async throws {
@@ -118,6 +118,41 @@ import RoutewellMock
     guard case .rejected(.invalidIntent) = report.outcome else {
         Issue.record("expected rejected(.invalidIntent), got \(report.outcome)"); return
     }
+}
+
+@Test func concurrentMockMutationsSerializeThroughAGateAndOverviewReflectsConsistentState() async throws {
+    let backend = MockRouterBackend()
+    await backend.setProtectionBehavior(.succeeds)
+
+    let clock = ContinuousClock()
+    let start = clock.now
+    async let reportA = backend.protection!.setProtection(.enable, allowRecovery: false)
+    async let reportB = backend.protection!.setProtection(.disable, allowRecovery: false)
+    let (a, b) = await (reportA, reportB)
+    let elapsed = clock.now - start
+
+    // Each mock mutation sleeps ~50ms while it reads and writes shared
+    // state. If the two calls are serialized through a shared gate, the
+    // wall-clock time for both is close to 2x that sleep; if they
+    // interleaved instead (the bug this guards against), it would be
+    // close to 1x. 90ms only ever fails in the interleaved case: any
+    // amount of extra CI slowness only makes the serialized case slower,
+    // never faster.
+    #expect(elapsed >= .milliseconds(90))
+
+    #expect(a.outcome == .verifiedSuccess(.enabled))
+    #expect(a.dispatched == true)
+    #expect(b.outcome == .verifiedSuccess(.disabled))
+    #expect(b.dispatched == true)
+
+    let overview = try await backend.overview()
+    guard case .success(let adGuard, _, _) = overview.adGuard else {
+        Issue.record("expected adGuard success"); return
+    }
+    // Whichever call actually ran last through the gate determines the
+    // final state; either is a valid, self-consistent outcome, but it
+    // must match one of the two intended states exactly, never a mix.
+    #expect(adGuard.protection == .enabled || adGuard.protection == .disabled)
 }
 
 @Test func cancelledReadDoesNotReturnData() async {
