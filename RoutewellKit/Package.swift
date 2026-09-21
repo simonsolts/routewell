@@ -11,7 +11,11 @@ let package = Package(
     targets: [
         .target(name: "RoutewellKit"),
         .target(name: "RoutewellMock", dependencies: ["RoutewellKit"]),
-        .testTarget(name: "RoutewellKitTests", dependencies: ["RoutewellKit", "RoutewellMock"]),
+        .testTarget(
+            name: "RoutewellKitTests",
+            dependencies: ["RoutewellKit", "RoutewellMock"],
+            resources: [.copy("Fixtures")]
+        ),
     ],
     swiftLanguageModes: [.v6]
 )

@@ -1,0 +1,26 @@
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "result": {
+    "clients": [
+      {
+        "mac": "02:00:00:00:00:03",
+        "type": 2,
+        "limit_tx": 2048,
+        "limit_rx": 2048,
+        "remote": false,
+        "name": "DESKTOP-HO0T5C1",
+        "vendor": "unknown",
+        "ip": "192.168.8.148",
+        "tx": 0,
+        "total_rx": 397117728,
+        "rx": 0,
+        "blocked": false,
+        "iface": "eth0",
+        "online": true,
+        "online_time": "1638517436",
+        "total_tx": 470371319
+      }
+    ]
+  }
+}

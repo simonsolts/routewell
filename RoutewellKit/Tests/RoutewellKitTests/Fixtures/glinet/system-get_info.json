@@ -1,0 +1,38 @@
+{
+  "id": 1,
+  "jsonrpc": "2.0",
+  "result": {
+    "mac": "02:00:00:00:00:01",
+    "hardware_version": "",
+    "software_feature": { "ids_ips": false, "ipv6": true, "adguard": false, "tor": false, "vpn": true },
+    "vendor": "GL.iNet",
+    "hardware_feature": {
+      "switch_button": "",
+      "radio": "radio0",
+      "lan": "eth0",
+      "nand": true,
+      "usb": "1-1.3",
+      "build_in_modem": "1-1.2",
+      "microsd": "1-1.1",
+      "wan": "eth1",
+      "mcu": true,
+      "fan": true,
+      "reset_button": "gpio-3"
+    },
+    "country_code": "",
+    "sn_bak": "0000000000000001",
+    "board_info": {
+      "architecture": "ARMv7 Processor rev 4 (v7l)",
+      "hostname": "GL-AXT1800",
+      "kernel_version": "4.4.60",
+      "openwrt_version": "OpenWrt 21.02-SNAPSHOT r16273+114-378769b555",
+      "model": "GL Technologies, Inc. AXT1800"
+    },
+    "firmware_date": "2022-02-16 5:42:18",
+    "model": "xe300",
+    "ddns": "evc749a",
+    "sn": "0000000000000002",
+    "firmware_type": "alpha4",
+    "firmware_version": "4.0.0"
+  }
+}
