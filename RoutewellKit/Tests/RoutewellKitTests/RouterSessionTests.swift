@@ -3,6 +3,7 @@ import Testing
 @testable import RoutewellKit
 
 private struct Backend: RouterBackend {
+    var protection: (any ProtectionService)? { nil }
     func overview() async throws -> OverviewRefreshResult { result() }
 }
 
@@ -67,6 +68,7 @@ func allLateCompletionsAreStaleBeforeNewResult(_ event: String) async throws {
 }
 
 private actor HeldBackend: RouterBackend {
+    nonisolated let protection: (any ProtectionService)? = nil
     private var completion: CheckedContinuation<OverviewRefreshResult, any Error>?
     private var started: CheckedContinuation<Void, Never>?
     func overview() async throws -> OverviewRefreshResult {

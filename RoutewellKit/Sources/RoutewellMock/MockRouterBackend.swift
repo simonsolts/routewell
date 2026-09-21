@@ -6,7 +6,23 @@ public actor MockRouterBackend: RouterBackend {
     public enum Scenario: String, CaseIterable, Sendable {
         case healthy, partial, offline, stale, slow
     }
+
+    /// Which outcome the mock Protection service produces on its next
+    /// `setProtection` call. Selectable in DEBUG builds via a picker so the
+    /// app's outcome-text mapping can be exercised without a live router.
+    public enum ProtectionBehavior: String, CaseIterable, Sendable {
+        case succeeds
+        case mismatchThenRecovers
+        case lostResponseThenApplied
+        case externalEdit
+        case unauthorized
+    }
+
     private var scenario: Scenario
+    private var protectionBehavior: ProtectionBehavior = .succeeds
+    /// Overrides `adGuard.protection` in the next `overview()` result once a
+    /// mock mutation has run; `nil` means "use the scenario's own value."
+    private var protectionOverride: ProtectionState?
     public nonisolated let hostname: String
 
     public init(scenario: Scenario = .healthy, hostname: String = "flint-demo") {
@@ -18,10 +34,76 @@ public actor MockRouterBackend: RouterBackend {
         try Task.checkCancellation()
         let scenario = scenario
         if scenario == .slow { try await Task.sleep(for: .seconds(5)) }
-        return Self.result(scenario: scenario, hostname: hostname, at: .now)
+        var result = Self.result(scenario: scenario, hostname: hostname, at: .now)
+        if let protectionOverride, case .success(var adGuard, let observedAt, let source) = result.adGuard {
+            adGuard.protection = protectionOverride
+            result.adGuard = .success(adGuard, observedAt: observedAt, source: source)
+        }
+        return result
     }
 
     public func setScenario(_ scenario: Scenario) { self.scenario = scenario }
+
+    public func setProtectionBehavior(_ behavior: ProtectionBehavior) {
+        protectionBehavior = behavior
+    }
+
+    // MARK: - ProtectionService
+
+    public nonisolated var protection: (any ProtectionService)? {
+        MockProtectionService(backend: self)
+    }
+
+    /// Runs the currently selected `ProtectionBehavior` against `intent`,
+    /// updating `protectionOverride` so the next `overview()` reflects the
+    /// change, and returns the matching `MutationOutcome`. Never sleeps more
+    /// than 100 ms.
+    func runProtectionMutation(_ intent: ProtectionIntent, allowRecovery: Bool) async -> MutationReport<ProtectionState> {
+        let startedAt = Date()
+        if let rejection = intent.validate() {
+            return MutationReport(outcome: .rejected(rejection), dispatched: false, startedAt: startedAt, finishedAt: startedAt, failure: nil)
+        }
+        try? await Task.sleep(for: .milliseconds(50))
+
+        let intended = Self.intendedState(for: intent)
+        let before = protectionOverride ?? .enabled
+
+        switch protectionBehavior {
+        case .succeeds:
+            protectionOverride = intended
+            return MutationReport(outcome: .verifiedSuccess(intended), dispatched: true, startedAt: startedAt, finishedAt: Date(), failure: nil)
+
+        case .mismatchThenRecovers:
+            guard allowRecovery else {
+                return MutationReport(outcome: .verifiedMismatch(expected: intended, actual: before), dispatched: true, startedAt: startedAt, finishedAt: Date(), failure: nil)
+            }
+            protectionOverride = before
+            return MutationReport(outcome: .verifiedRecovery(restored: before), dispatched: true, startedAt: startedAt, finishedAt: Date(), failure: nil)
+
+        case .lostResponseThenApplied:
+            protectionOverride = intended
+            return MutationReport(outcome: .verifiedSuccess(intended), dispatched: true, startedAt: startedAt, finishedAt: Date(), failure: nil)
+
+        case .externalEdit:
+            let actual: ProtectionState = .paused(until: Date().addingTimeInterval(300))
+            protectionOverride = actual
+            return MutationReport(outcome: .conflictingExternalEdit(actual: actual), dispatched: true, startedAt: startedAt, finishedAt: Date(), failure: nil)
+
+        case .unauthorized:
+            return MutationReport(outcome: .rejected(.preconditionFailed("credential unavailable")), dispatched: false, startedAt: startedAt, finishedAt: Date(), failure: .authentication)
+        }
+    }
+
+    private static func intendedState(for intent: ProtectionIntent) -> ProtectionState {
+        switch intent {
+        case .enable: return .enabled
+        case .disable: return .disabled
+        case .pause(let duration):
+            let components = duration.components
+            let seconds = Double(components.seconds) + Double(components.attoseconds) / 1e18
+            return .paused(until: Date().addingTimeInterval(seconds))
+        }
+    }
 
     public static func result(
         scenario: Scenario = .healthy,
@@ -85,5 +167,13 @@ public actor MockRouterBackend: RouterBackend {
         clients.activeCount = .value(18)
         return OverviewSnapshot(router: router, internet: internet, adGuard: adGuard,
                                 clients: clients, observedAt: date)
+    }
+}
+
+private struct MockProtectionService: ProtectionService {
+    let backend: MockRouterBackend
+
+    func setProtection(_ intent: ProtectionIntent, allowRecovery: Bool) async -> MutationReport<ProtectionState> {
+        await backend.runProtectionMutation(intent, allowRecovery: allowRecovery)
     }
 }
