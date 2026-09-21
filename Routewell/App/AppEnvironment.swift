@@ -149,7 +149,8 @@ final class AppEnvironment {
             name: endpoint.displayString,
             liveEndpoint: endpoint,
             username: username,
-            plainHTTPAcknowledged: plainHTTPAcknowledged
+            plainHTTPAcknowledged: plainHTTPAcknowledged,
+            adGuard: AdGuardSettings()
         )
         let saved = await persistence.addLiveProfile(profile, password: password)
         guard saved else { return false }

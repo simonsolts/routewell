@@ -64,6 +64,30 @@ import RoutewellKit
     #expect(calls == 1)
 }
 
+@MainActor @Test func setupCreatesDefaultAdGuardSettings() async throws {
+    var calls = 0
+    let environment = AppEnvironment.configured(variables: [:], persist: false) { _ in
+        calls += 1
+        return StubHTTPTransportForTest()
+    }
+    await environment.waitUntilReady()
+
+    let endpoint = try! RouterEndpoint.parse("192.0.2.1")
+    let saved = await environment.saveLiveRouterProfile(
+        endpoint: endpoint, username: "admin", password: Data("secret".utf8), plainHTTPAcknowledged: false
+    )
+    #expect(saved)
+    #expect(calls == 1)
+
+    let profile = environment.persistence.selectedProfile
+    #expect(profile?.adGuard?.port == 3000)
+    #expect(profile?.adGuard?.useRouterCredentials == true)
+
+    let adGuardSettings = try #require(profile?.adGuard)
+    let baseURL = AppEnvironment.adGuardBaseURL(host: endpoint.host, settings: adGuardSettings)
+    #expect(baseURL.absoluteString == "http://192.0.2.1:3000/")
+}
+
 @MainActor @Test func updateLiveAddressReconnectsTheLiveSessionWithANewRevision() async {
     var calls = 0
     let environment = AppEnvironment.configured(variables: [:], persist: false) { _ in
