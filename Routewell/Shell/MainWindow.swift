@@ -25,36 +25,59 @@ struct MainWindow: View {
             .navigationSplitViewColumnWidth(min: 180, ideal: 200, max: 260)
             .safeAreaInset(edge: .bottom) { sidebarFooter }
         } detail: {
-            VStack(spacing: 0) {
-                if model.mode == .mock {
-                    HStack {
-                        Label("Mock data", systemImage: "testtube.2").fontWeight(.medium)
-                        Text("\(model.session.expectedToken?.profileID ?? "Sample router") · no network connection").foregroundStyle(.secondary)
-                        Spacer()
+            Group {
+                if model.needsSetup {
+                    SetupScreen(environment: environment)
+                        .navigationTitle("Set Up Routewell")
+                } else {
+                    VStack(spacing: 0) {
+                        if model.mode == .mock {
+                            HStack {
+                                Label("Mock data", systemImage: "testtube.2").fontWeight(.medium)
+                                Text("\(model.session.expectedToken?.profileID ?? "Sample router") · no network connection").foregroundStyle(.secondary)
+                                Spacer()
+                            }
+                            .font(.subheadline).padding(.horizontal, 20).padding(.vertical, 9)
+                            .background(.quaternary)
+                        }
+                        DetailRouter(destination: model.selection)
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        if model.showStatusBar && [.clients, .logs].contains(model.selection) {
+                            Divider()
+                            Text(model.selection == .logs
+                                 ? "Session-only observations — not a router audit log."
+                                 : "Client inventory is not available in this build.")
+                                .font(.caption).foregroundStyle(.secondary).padding(7)
+                        }
                     }
-                    .font(.subheadline).padding(.horizontal, 20).padding(.vertical, 9)
-                    .background(.quaternary)
-                }
-                DetailRouter(destination: model.selection)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                if model.showStatusBar && [.clients, .logs].contains(model.selection) {
-                    Divider()
-                    Text(model.selection == .logs
-                         ? "Session-only observations — not a router audit log."
-                         : "Client inventory is not available in this build.")
-                        .font(.caption).foregroundStyle(.secondary).padding(7)
+                    .navigationTitle(model.selection.title)
+                    .navigationSubtitle(model.mode == .mock ? (model.session.expectedToken?.profileID ?? "Sample router") : "Not connected")
+                    .toolbar { toolbar }
                 }
             }
             .background(Color(nsColor: .windowBackgroundColor))
-            .navigationTitle(model.selection.title)
-            .navigationSubtitle(model.mode == .mock ? (model.session.expectedToken?.profileID ?? "Sample router") : "Not connected")
-            .toolbar { toolbar }
         }
         .frame(minWidth: 900, minHeight: 600)
         .background(MainWindowLifecycle(delegate: delegate, refresh: environment.refresh))
         .onAppear {
             delegate?.reopenMainWindow = { openWindow(id: "main") }
         }
+        .sheet(isPresented: trustPromptPresented) {
+            if let request = environment.trustPrompt.pending {
+                TrustPromptView(
+                    request: request,
+                    onCancel: { environment.trustPrompt.resolve(false) },
+                    onApprove: { environment.trustPrompt.resolve(true) }
+                )
+            }
+        }
+    }
+
+    private var trustPromptPresented: Binding<Bool> {
+        Binding(
+            get: { environment.trustPrompt.pending != nil },
+            set: { if !$0 { environment.trustPrompt.resolve(false) } }
+        )
     }
 
     private var sidebarFooter: some View {

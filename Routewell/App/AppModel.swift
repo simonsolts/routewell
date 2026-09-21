@@ -15,6 +15,11 @@ final class AppModel {
     private(set) var logEvents: [LogEvent] = []
     let session = SessionController()
     var mockScenarioID = "healthy"
+    private(set) var hasLiveEndpoint = false
+    /// `.live` mode with no saved profile that has a `liveEndpoint` yet.
+    /// `MainWindow` shows `SetupScreen` instead of the normal detail content.
+    var needsSetup: Bool { mode == .live && !hasLiveEndpoint }
+    func setHasLiveEndpoint(_ value: Bool) { hasLiveEndpoint = value }
     var showInMenuBar = true { didSet { refreshSettingsChanged?(); persistenceSettingsChanged?() } }
     var refreshIntervalSeconds = 30 { didSet { refreshSettingsChanged?(); persistenceSettingsChanged?() } }
     var pauseWhenHidden = true { didSet { refreshSettingsChanged?(); persistenceSettingsChanged?() } }
@@ -136,11 +141,11 @@ private extension AppModel.Completion {
 }
 
 enum BackendMode: Equatable {
-    case mock, unconfigured, invalid
+    case mock, live, invalid
 
     static func resolve(_ value: String?, allowsMock: Bool) -> Self {
         switch value {
-        case nil, "": .unconfigured
+        case nil, "", "live": .live
         case "mock" where allowsMock: .mock
         default: .invalid
         }

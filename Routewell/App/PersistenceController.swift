@@ -76,6 +76,33 @@ final class PersistenceController {
         scheduleSave()
     }
 
+    /// Saves the password first, then appends, selects, and persists the
+    /// profile. If the credential save fails, nothing is added: a selected
+    /// live profile must never exist without its password, or the next
+    /// launch would treat the router as configured with no way to reach it.
+    @discardableResult
+    func addLiveProfile(_ profile: RouterProfile, password: Data) async -> Bool {
+        guard !credentialBusy else { return false }
+        credentialBusy = true
+        defer { credentialBusy = false }
+        credentialMessage = nil
+        do {
+            try await credentials.save(password, for: profile.credential)
+        } catch {
+            credentialMessage = credentialError(error)
+            return false
+        }
+        profiles.profiles.append(profile)
+        profiles.selectedID = profile.id
+        await flush()
+        guard errors[.profiles] == nil else {
+            credentialMessage = "Router password saved, but the router could not be saved. Try again."
+            return false
+        }
+        credentialMessage = "Router password saved in Keychain."
+        return true
+    }
+
     @discardableResult
     func deleteSelectedProfile() async -> Bool {
         guard let profile = selectedProfile, !credentialBusy else { return false }
@@ -117,6 +144,74 @@ final class PersistenceController {
         } catch { credentialMessage = credentialError(error) }
     }
 
+    /// Re-parses and saves a new address for the selected live profile. The
+    /// address is part of the profile's credential reference, so the stored
+    /// secret is migrated to the new reference before the old one is removed.
+    /// Mirrors `addLiveProfile`'s ordering: the new credential is saved and
+    /// the in-memory profile is updated before `flush()`; the old credential
+    /// is only deleted after a successful flush, and a failed flush restores
+    /// the in-memory profile and best-effort removes the new credential, so
+    /// the on-disk profile never points at a deleted credential.
+    @discardableResult
+    func updateLiveAddress(_ endpoint: RouterEndpoint) async -> Bool {
+        guard let old = selectedProfile, old.liveEndpoint != nil, !credentialBusy,
+              let index = profiles.profiles.firstIndex(where: { $0.id == old.id }) else { return false }
+        credentialBusy = true
+        defer { credentialBusy = false }
+        let rebuilt = RouterProfile(
+            id: old.id, name: old.name, liveEndpoint: endpoint, username: old.username,
+            plainHTTPAcknowledged: old.plainHTTPAcknowledged, adGuard: old.adGuard, ssh: old.ssh
+        )
+        do {
+            let secret = try await credentials.read(old.credential)
+            try await credentials.save(secret, for: rebuilt.credential)
+        } catch {
+            credentialMessage = credentialError(error)
+            return false
+        }
+        profiles.profiles[index] = rebuilt
+        await flush()
+        guard errors[.profiles] == nil else {
+            profiles.profiles[index] = old
+            try? await credentials.delete(rebuilt.credential)
+            credentialMessage = "Router address could not be saved. Try again."
+            return false
+        }
+        try? await credentials.delete(old.credential)
+        return true
+    }
+
+    func updateLiveUsername(_ username: String) {
+        guard var profile = selectedProfile, profile.liveEndpoint != nil,
+              let index = profiles.profiles.firstIndex(where: { $0.id == profile.id }) else { return }
+        profile.username = username
+        profiles.profiles[index] = profile
+        scheduleSave()
+    }
+
+    func updateAdGuardSettings(_ settings: AdGuardSettings) {
+        guard var profile = selectedProfile, profile.liveEndpoint != nil,
+              let index = profiles.profiles.firstIndex(where: { $0.id == profile.id }) else { return }
+        profile.adGuard = settings
+        profiles.profiles[index] = profile
+        scheduleSave()
+    }
+
+    @discardableResult
+    func changeLivePassword(_ password: Data) async -> Bool {
+        guard let profile = selectedProfile, profile.liveEndpoint != nil, !credentialBusy else { return false }
+        credentialBusy = true
+        defer { credentialBusy = false }
+        do {
+            try await credentials.save(password, for: profile.credential)
+            credentialMessage = "Router password updated in Keychain."
+            return true
+        } catch {
+            credentialMessage = credentialError(error)
+            return false
+        }
+    }
+
     func scheduleSave() {
         guard !isLoading else { return }
         pending?.cancel()
@@ -142,11 +237,14 @@ final class PersistenceController {
         let settings = model.persistedSettings
         let profiles = profiles
         isSaving = true
-        for file in StoreFile.allCases {
+        // `.trust` is owned by `TrustController`, which writes through
+        // `PersistentEndpointTrustStore` directly with its own revision.
+        for file: StoreFile in [.settings, .profiles] {
             do {
                 switch file {
                 case .settings: try await store.save(settings, to: file, revision: current)
                 case .profiles: try await store.save(profiles, to: file, revision: current)
+                case .trust: break
                 }
                 if current == revision { errors[file] = nil }
             } catch { if current == revision { report(error, file: file) } }
