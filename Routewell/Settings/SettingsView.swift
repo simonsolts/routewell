@@ -12,6 +12,13 @@ struct SettingsView: View {
     @State private var newPassword = ""
     @State private var adGuardPort = 3000
     @State private var adGuardUseRouterCredentials = true
+    @State private var adGuardUseHTTPS = false
+    @State private var adGuardUsername = ""
+    @State private var adGuardPassword = ""
+    @State private var isTestingRouterConnection = false
+    @State private var routerConnectionTestResult: String?
+    @State private var isTestingAdGuardConnection = false
+    @State private var adGuardConnectionTestResult: String?
     var body: some View {
         @Bindable var model = model
         TabView {
@@ -94,8 +101,11 @@ struct SettingsView: View {
                         TextField("Username", text: $usernameText)
                             .onSubmit { environment.persistence.updateLiveUsername(usernameText) }
                         Picker("SSH authentication", selection: .constant("Key")) { Text("SSH key").tag("Key") }.disabled(true)
-                        Button("Test Connection") {}.disabled(true)
-                            .help("Available after live status is added")
+                        Button("Test Connection") { Task { await testRouterConnection(profile: profile) } }
+                            .disabled(isTestingRouterConnection)
+                        if let routerConnectionTestResult {
+                            Text(routerConnectionTestResult).font(.caption).foregroundStyle(.secondary)
+                        }
                     }
                     Section("Change password") {
                         SecureField("New password", text: $newPassword)
@@ -119,17 +129,41 @@ struct SettingsView: View {
 
             Form {
                 if model.mode == .live, let profile = environment.persistence.selectedProfile, profile.liveEndpoint != nil {
-                    Section("AdGuard Home") {
+                    Section {
+                        Picker("Login", selection: $adGuardUseRouterCredentials) {
+                            Text("Use router login").tag(true)
+                            Text("AdGuard Home account").tag(false)
+                        }
+                        .onChange(of: adGuardUseRouterCredentials) { _, newValue in saveAdGuardSettings(useRouterCredentials: newValue) }
+                        if !adGuardUseRouterCredentials {
+                            TextField("Username", text: $adGuardUsername)
+                                .onSubmit { saveAdGuardSettings(username: adGuardUsername) }
+                            SecureField("Password", text: $adGuardPassword)
+                            Button("Save AdGuard Home Password") {
+                                let secret = Data(adGuardPassword.utf8)
+                                adGuardPassword = ""
+                                Task { await environment.persistence.saveAdGuardPassword(secret) }
+                            }.disabled(adGuardPassword.isEmpty)
+                        }
                         Stepper("Port: \(adGuardPort)", value: $adGuardPort, in: 1...65535)
                             .onChange(of: adGuardPort) { _, newValue in saveAdGuardSettings(port: newValue) }
-                        Toggle("Use router login for AdGuard Home", isOn: $adGuardUseRouterCredentials)
-                            .onChange(of: adGuardUseRouterCredentials) { _, newValue in saveAdGuardSettings(useRouterCredentials: newValue) }
-                        Button("Test Connection") {}.disabled(true)
-                            .help("Available after live status is added")
+                        Toggle("Use HTTPS", isOn: $adGuardUseHTTPS)
+                            .onChange(of: adGuardUseHTTPS) { _, newValue in saveAdGuardSettings(useHTTPS: newValue) }
+                        Button("Test Connection") { Task { await testAdGuardConnection(profile: profile) } }
+                            .disabled(isTestingAdGuardConnection)
+                        if let adGuardConnectionTestResult {
+                            Text(adGuardConnectionTestResult).font(.caption).foregroundStyle(.secondary)
+                        }
+                    } header: {
+                        Text("AdGuard Home")
+                    } footer: {
+                        Text("On firmware 4.9 and later the router login may not work for AdGuard Home. Create an AdGuard Home account and use it here.")
                     }
                     .onAppear {
                         adGuardPort = profile.adGuard?.port ?? 3000
                         adGuardUseRouterCredentials = profile.adGuard?.useRouterCredentials ?? true
+                        adGuardUseHTTPS = profile.adGuard?.useHTTPS ?? false
+                        adGuardUsername = profile.adGuard?.username ?? ""
                     }
                 } else {
                     Text("AdGuard Home connection settings are not available yet.").foregroundStyle(.secondary)
@@ -214,11 +248,42 @@ struct SettingsView: View {
         }
     }
 
-    private func saveAdGuardSettings(port: Int? = nil, useRouterCredentials: Bool? = nil) {
+    private func saveAdGuardSettings(port: Int? = nil, useRouterCredentials: Bool? = nil, useHTTPS: Bool? = nil, username: String? = nil) {
         guard let profile = environment.persistence.selectedProfile else { return }
         var settings = profile.adGuard ?? AdGuardSettings()
         if let port { settings.port = port }
         if let useRouterCredentials { settings.useRouterCredentials = useRouterCredentials }
+        if let useHTTPS { settings.useHTTPS = useHTTPS }
+        if let username { settings.username = username }
         environment.persistence.updateAdGuardSettings(settings)
+    }
+
+    private func testRouterConnection(profile: RouterProfile) async {
+        guard let endpoint = try? RouterEndpoint.parse(addressText) else {
+            routerConnectionTestResult = "Enter a valid router address before testing."
+            return
+        }
+        isTestingRouterConnection = true
+        defer { isTestingRouterConnection = false }
+        routerConnectionTestResult = await environment.testRouterConnection(
+            endpoint: endpoint,
+            username: usernameText.trimmingCharacters(in: .whitespaces),
+            password: .keychain(profile.credential)
+        )
+    }
+
+    private func testAdGuardConnection(profile: RouterProfile) async {
+        guard let endpoint = profile.liveEndpoint else { return }
+        let settings = profile.adGuard ?? AdGuardSettings(port: adGuardPort, useRouterCredentials: adGuardUseRouterCredentials, useHTTPS: adGuardUseHTTPS, username: adGuardUsername)
+        isTestingAdGuardConnection = true
+        defer { isTestingAdGuardConnection = false }
+        let adGuardCredential = CredentialReference(profileID: profile.id, endpoint: profile.endpoint, kind: .adGuardPassword)
+        adGuardConnectionTestResult = await environment.testAdGuardConnection(
+            routerEndpoint: endpoint,
+            username: usernameText.trimmingCharacters(in: .whitespaces),
+            routerPassword: .keychain(profile.credential),
+            adGuardSettings: settings,
+            adGuardPassword: .keychain(adGuardCredential)
+        )
     }
 }
