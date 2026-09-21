@@ -82,6 +82,64 @@ public actor AdGuardClient {
         return response
     }
 
+    /// `POST control/protection`. Dispatches at most once per call: a
+    /// 401/403 that arrives before the body is accepted is re-authenticated
+    /// and re-dispatched exactly once, which still counts as the single
+    /// accepted attempt (the first response was a rejection, not an
+    /// ambiguous outcome). Any other failure — transport error, timeout,
+    /// non-2xx after the retry — is surfaced as a thrown error; the caller
+    /// (the mutation executor) treats that as "dispatched, outcome
+    /// unknown" rather than replaying the write.
+    public func setProtection(enabled: Bool, durationMilliseconds: Int) async throws {
+        try await setProtection(enabled: enabled, durationMilliseconds: durationMilliseconds, retried: false)
+    }
+
+    private func setProtection(enabled: Bool, durationMilliseconds: Int, retried: Bool) async throws {
+        let headers: [String: String]
+        do {
+            headers = try await credentials.authorizationHeaders()
+        } catch {
+            await log?.record(LogEvent(level: .warning, kind: .refresh, message: "adguard setProtection failed credentialUnavailable"))
+            throw AdGuardClientError.credentialUnavailable
+        }
+
+        let url = requestURL(path: "control/protection")
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        for (field, value) in headers {
+            request.setValue(value, forHTTPHeaderField: field)
+        }
+        request.httpBody = try JSONSerialization.data(
+            withJSONObject: ["enabled": enabled, "duration": durationMilliseconds],
+            options: [.sortedKeys]
+        )
+
+        let data: Data
+        let response: HTTPURLResponse
+        do {
+            (data, response) = try await transport.send(request, limits: limits)
+        } catch let error as TransportError {
+            await log?.record(LogEvent(level: .warning, kind: .refresh, message: "adguard setProtection failed transport"))
+            throw AdGuardClientError.transport(error)
+        }
+        _ = data
+
+        if response.statusCode == 401 || response.statusCode == 403 {
+            if !retried, await credentials.handleUnauthorized() {
+                return try await setProtection(enabled: enabled, durationMilliseconds: durationMilliseconds, retried: true)
+            }
+            await log?.record(LogEvent(level: .warning, kind: .refresh, message: "adguard setProtection failed unauthorized"))
+            throw AdGuardClientError.unauthorized(response.statusCode)
+        }
+        guard (200...204).contains(response.statusCode) else {
+            await log?.record(LogEvent(level: .warning, kind: .refresh, message: "adguard setProtection failed httpStatus \(response.statusCode)"))
+            throw AdGuardClientError.httpStatus(response.statusCode)
+        }
+
+        await log?.record(LogEvent(level: .info, kind: .refresh, message: "adguard setProtection ok"))
+    }
+
     public func stats() async throws -> AdGuardStatsResponse {
         let json = try await get(path: "control/stats", method: "stats")
         var response = AdGuardStatsResponse()

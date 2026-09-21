@@ -179,6 +179,52 @@ private actor StubSessionProvider: RouterSessionTokenProvider {
         #expect(recorded.isEmpty)
     }
 
+    @Test func setProtectionSendsSortedJSONBodyAndCorrectMethod() async throws {
+        let transport = StubHTTPTransport { request in
+            (Data(), StubHTTPTransport.response(200, url: request.url!))
+        }
+        let client = AdGuardClient(baseURL: Self.baseURL, credentials: BasicAdGuardCredentials(username: "admin", password: { "hunter2" }), transport: transport)
+        try await client.setProtection(enabled: false, durationMilliseconds: 60_000)
+        let recorded = await transport.recorded()
+        #expect(recorded.count == 1)
+        #expect(recorded[0].request.httpMethod == "POST")
+        #expect(recorded[0].request.url?.path == "/control/protection")
+        #expect(recorded[0].request.value(forHTTPHeaderField: "Content-Type") == "application/json")
+        let body = recorded[0].body.map { String(data: $0, encoding: .utf8) } ?? nil
+        #expect(body == "{\"duration\":60000,\"enabled\":false}")
+    }
+
+    @Test func setProtectionRetriesOnceAfter401ThenSucceeds() async throws {
+        let counter = Counter()
+        let transport = StubHTTPTransport { request in
+            let attempt = await counter.increment()
+            if attempt == 1 {
+                return (Data(), StubHTTPTransport.response(401, url: request.url!))
+            }
+            return (Data(), StubHTTPTransport.response(200, url: request.url!))
+        }
+        let session = StubSessionProvider(sid: "abc123")
+        let client = AdGuardClient(baseURL: Self.baseURL, credentials: RouterTokenAdGuardCredentials(session: session), transport: transport)
+        try await client.setProtection(enabled: true, durationMilliseconds: 0)
+        let recorded = await transport.recorded()
+        #expect(recorded.count == 2)
+        #expect(recorded.allSatisfy { $0.request.httpMethod == "POST" })
+        let invalidated = await session.invalidateCount
+        #expect(invalidated == 1)
+    }
+
+    @Test func setProtection403WithoutRetrySupportThrowsAfterOnePOST() async throws {
+        let transport = StubHTTPTransport { request in
+            (Data(), StubHTTPTransport.response(403, url: request.url!))
+        }
+        let client = AdGuardClient(baseURL: Self.baseURL, credentials: BasicAdGuardCredentials(username: "admin", password: { "hunter2" }), transport: transport)
+        await #expect(throws: AdGuardClientError.unauthorized(403)) {
+            try await client.setProtection(enabled: true, durationMilliseconds: 0)
+        }
+        let recorded = await transport.recorded()
+        #expect(recorded.count == 1)
+    }
+
     @Test func requestsStayPinnedToBaseURLHostAndPort() async throws {
         let body = fixtureData("control-status", subdirectory: "Fixtures/adguard")
         let transport = StubHTTPTransport { request in
