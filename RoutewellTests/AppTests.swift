@@ -30,6 +30,18 @@ import RoutewellKit
     #expect(!environment.transportFactoryWasUsed)
 }
 
+@MainActor @Test func mockModeNeverPersistsTrust() async {
+    let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+    defer { try? FileManager.default.removeItem(at: directory) }
+    let environment = AppEnvironment(
+        model: AppModel(mode: .mock),
+        backend: nil,
+        store: AtomicJSONStore(directory: directory)
+    )
+    await environment.waitUntilReady()
+    #expect(!environment.trust.isPersistent)
+}
+
 @MainActor @Test func liveModeBuildsATransportThroughTheInjectedFactory() async {
     var calls = 0
     let environment = AppEnvironment.configured(variables: [:], persist: false) {

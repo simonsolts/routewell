@@ -33,7 +33,7 @@ final class AppEnvironment {
         self.logging = LoggingController(model: model)
         self.refresh = RefreshController(model: model, logging: logging)
         self.persistence = PersistenceController(model: model, store: store, credentials: credentials)
-        self.trust = TrustController(atomicStore: store)
+        self.trust = TrustController(atomicStore: store, mode: model.mode)
         #if DEBUG
         mockBackend = backend as? MockRouterBackend
         #endif
