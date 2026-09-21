@@ -119,10 +119,12 @@ struct SetupScreen: View {
         guard case .success(let endpoint) = validation.endpoint else { return }
         isSaving = true
         defer { isSaving = false }
+        let password = Data(form.password.utf8)
+        form.password = ""
         let saved = await environment.saveLiveRouterProfile(
             endpoint: endpoint,
             username: form.username.trimmingCharacters(in: .whitespaces),
-            password: Data(form.password.utf8),
+            password: password,
             plainHTTPAcknowledged: form.plainHTTPAcknowledged
         )
         saveError = saved ? nil : "Could not save the router. Try again."
