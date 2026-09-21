@@ -126,6 +126,7 @@ private final class TransportSessionDelegate: NSObject, URLSessionDataDelegate, 
         let systemTrustSucceeded = SecTrustEvaluateWithError(trust, nil)
         guard let chain = SecTrustCopyCertificateChain(trust) as? [SecCertificate],
               let leafCertificate = chain.first else {
+            markPendingFailure(.tlsFailure(code: Int(errSecInternalError)), for: task.taskIdentifier)
             return (.cancelAuthenticationChallenge, nil)
         }
         let leafData = SecCertificateCopyData(leafCertificate) as Data
