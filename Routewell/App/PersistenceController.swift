@@ -76,31 +76,31 @@ final class PersistenceController {
         scheduleSave()
     }
 
-    /// Appends a live router profile, selects it, saves it, then stores its
-    /// password. Returns false if either the profile or the credential save
-    /// fails; the profile stays in `profiles` either way so the failed save
-    /// can be retried.
+    /// Saves the password first, then appends, selects, and persists the
+    /// profile. If the credential save fails, nothing is added: a selected
+    /// live profile must never exist without its password, or the next
+    /// launch would treat the router as configured with no way to reach it.
     @discardableResult
     func addLiveProfile(_ profile: RouterProfile, password: Data) async -> Bool {
         guard !credentialBusy else { return false }
         credentialBusy = true
         defer { credentialBusy = false }
-        profiles.profiles.append(profile)
-        profiles.selectedID = profile.id
         credentialMessage = nil
-        await flush()
-        guard errors[.profiles] == nil else {
-            credentialMessage = "Save the router successfully before storing its password."
-            return false
-        }
         do {
             try await credentials.save(password, for: profile.credential)
-            credentialMessage = "Router password saved in Keychain."
-            return true
         } catch {
             credentialMessage = credentialError(error)
             return false
         }
+        profiles.profiles.append(profile)
+        profiles.selectedID = profile.id
+        await flush()
+        guard errors[.profiles] == nil else {
+            credentialMessage = "Router password saved, but the router could not be saved. Try again."
+            return false
+        }
+        credentialMessage = "Router password saved in Keychain."
+        return true
     }
 
     @discardableResult

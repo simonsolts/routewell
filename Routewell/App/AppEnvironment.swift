@@ -20,6 +20,9 @@ final class AppEnvironment {
     /// Set by `configured` when `transportFactory` was actually called. Tests
     /// use this to prove mock mode never constructs a live transport.
     private(set) var transportFactoryWasUsed = false
+    /// The transport built for `.live` mode, kept for chunk 09's
+    /// `LiveRouterBackend` to use. Never built in `.mock` mode.
+    private(set) var liveTransport: (any HTTPTransport)?
 
     static let mockProfiles = ["Home mock", "Travel mock"]
     static let mockScenarios = ["healthy", "partial", "offline", "stale", "slow"]
@@ -38,6 +41,11 @@ final class AppEnvironment {
             guard let self else { return }
             await persistence.load()
             await trust.load()
+            // `liveEndpoint != nil` alone is enough here: `PersistenceController
+            // .addLiveProfile` now saves the Keychain secret before it ever
+            // appends or persists the profile, so a saved live profile always
+            // has a password. A defensive `credentials.read(...)` on every
+            // launch was considered and skipped as unnecessary Keychain I/O.
             model.setHasLiveEndpoint(persistence.selectedProfile?.liveEndpoint != nil)
             logging.record(kind: .session, message: "Application session started")
             if let backend, let profile = persistence.selectedProfile {
@@ -165,9 +173,10 @@ final class AppEnvironment {
         #endif
         let environment = AppEnvironment(model: AppModel(mode: mode), backend: nil, store: store, credentials: credentials)
         if mode == .live {
-            // Built eagerly so chunk 09 has a ready transport at the same
-            // point `makeLiveBackend` is called; mock mode never reaches here.
-            _ = transportFactory()
+            // Built once here and kept on `environment.liveTransport` so
+            // chunk 09's `LiveRouterBackend` can reuse it instead of building
+            // its own; mock mode never reaches this branch.
+            environment.liveTransport = transportFactory()
             environment.transportFactoryWasUsed = true
         }
         return environment

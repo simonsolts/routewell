@@ -59,6 +59,25 @@ import RoutewellKit
     #expect(!persistence.credentialBusy)
 }
 
+@MainActor @Test func failedCredentialSaveAddsNoLiveProfile() async throws {
+    let fake = InMemoryCredentialStore()
+    let persistence = PersistenceController(model: AppModel(mode: .live), store: nil, credentials: fake)
+    await persistence.load()
+    let countBefore = persistence.profiles.profiles.count
+    let selectedBefore = persistence.selectedProfile
+    await fake.setFailure(.accessDenied)
+    let endpoint = try RouterEndpoint.parse("192.168.8.1")
+    let profile = RouterProfile(name: endpoint.displayString, liveEndpoint: endpoint)
+    let saved = await persistence.addLiveProfile(profile, password: Data("secret".utf8))
+    #expect(!saved)
+    #expect(persistence.profiles.profiles.count == countBefore)
+    #expect(!persistence.profiles.profiles.contains { $0.id == profile.id })
+    #expect(persistence.selectedProfile == selectedBefore)
+    #expect(persistence.credentialMessage == CredentialError.accessDenied.message)
+    await fake.setFailure(nil)
+    await #expect(throws: CredentialError.missing) { try await fake.read(profile.credential) }
+}
+
 @MainActor @Test func persistenceFailureIsVisibleAndPreventsOrphanCredential() async throws {
     let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
     defer { try? FileManager.default.removeItem(at: directory) }
