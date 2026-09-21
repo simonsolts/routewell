@@ -68,6 +68,8 @@ struct SetupScreen: View {
     @State private var form = SetupFormState()
     @State private var isSaving = false
     @State private var saveError: String?
+    @State private var isTestingConnection = false
+    @State private var connectionTestResult: String?
 
     var body: some View {
         let validation = form.validate()
@@ -101,10 +103,21 @@ struct SetupScreen: View {
                     Text(saveError).font(.callout).foregroundStyle(.red)
                 }
 
-                Button("Save router") {
-                    Task { await save(validation: validation) }
+                if let connectionTestResult {
+                    Text(connectionTestResult).font(.callout).foregroundStyle(.secondary)
                 }
-                .disabled(!validation.canSave || isSaving)
+
+                HStack {
+                    Button("Test Connection") {
+                        Task { await testConnection(validation: validation) }
+                    }
+                    .disabled(!validation.canSave || isSaving || isTestingConnection)
+
+                    Button("Save router") {
+                        Task { await save(validation: validation) }
+                    }
+                    .disabled(!validation.canSave || isSaving)
+                }
 
                 Text("SSH uses key files or the SSH agent only. Routewell never asks for an SSH password.")
                     .font(.footnote).foregroundStyle(.secondary)
@@ -113,6 +126,17 @@ struct SetupScreen: View {
             .frame(maxWidth: 420, alignment: .leading)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    private func testConnection(validation: SetupFormState.SetupValidation) async {
+        guard case .success(let endpoint) = validation.endpoint else { return }
+        isTestingConnection = true
+        defer { isTestingConnection = false }
+        connectionTestResult = await environment.testRouterConnection(
+            endpoint: endpoint,
+            username: form.username.trimmingCharacters(in: .whitespaces),
+            password: .literal(form.password)
+        )
     }
 
     private func save(validation: SetupFormState.SetupValidation) async {
