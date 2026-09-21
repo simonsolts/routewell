@@ -95,6 +95,39 @@ private func fingerprint(_ byte: UInt8) -> CertificateFingerprint {
     #expect(await reloaded.all() == [replacement])
 }
 
+@Test func persistentStoreApproveKeepsOldValueWhenSaveFails() async throws {
+    let directory = try temporaryDirectory()
+    defer { try? FileManager.default.removeItem(at: directory) }
+    let original = TrustedEndpoint(host: "router.lan", port: 443, fingerprint: fingerprint(1), approvedAt: Date())
+    try await AtomicJSONStore(directory: directory).save([original], to: .trust, revision: 1)
+
+    let failingStore = AtomicJSONStore(directory: directory, beforeCommit: { throw StoreError.writeFailed })
+    let store = try await PersistentEndpointTrustStore(store: failingStore)
+    #expect(await store.trusted(host: "router.lan", port: 443) == original)
+
+    let replacement = TrustedEndpoint(host: "router.lan", port: 443, fingerprint: fingerprint(2), approvedAt: Date())
+    await #expect(throws: StoreError.writeFailed) { try await store.approve(replacement) }
+    #expect(await store.trusted(host: "router.lan", port: 443) == original)
+    #expect(await store.all() == [original])
+
+    // The failed write must not have reached disk either.
+    let reloaded = try await PersistentEndpointTrustStore(store: AtomicJSONStore(directory: directory))
+    #expect(await reloaded.all() == [original])
+}
+
+@Test func persistentStoreRevokeKeepsOldValueWhenSaveFails() async throws {
+    let directory = try temporaryDirectory()
+    defer { try? FileManager.default.removeItem(at: directory) }
+    let original = TrustedEndpoint(host: "router.lan", port: 443, fingerprint: fingerprint(1), approvedAt: Date())
+    try await AtomicJSONStore(directory: directory).save([original], to: .trust, revision: 1)
+
+    let failingStore = AtomicJSONStore(directory: directory, beforeCommit: { throw StoreError.writeFailed })
+    let store = try await PersistentEndpointTrustStore(store: failingStore)
+
+    await #expect(throws: StoreError.writeFailed) { try await store.revoke(host: "router.lan", port: 443) }
+    #expect(await store.trusted(host: "router.lan", port: 443) == original)
+}
+
 @Test func persistentStoreRevokePersists() async throws {
     let directory = try temporaryDirectory()
     defer { try? FileManager.default.removeItem(at: directory) }

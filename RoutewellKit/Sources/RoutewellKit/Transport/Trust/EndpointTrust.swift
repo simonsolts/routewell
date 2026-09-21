@@ -88,20 +88,28 @@ public actor PersistentEndpointTrustStore: EndpointTrustStore {
     }
 
     public func approve(_ endpoint: TrustedEndpoint) async throws {
-        entries[trustKey(host: endpoint.host, port: endpoint.port)] = endpoint
-        try await persist()
+        var updated = entries
+        updated[trustKey(host: endpoint.host, port: endpoint.port)] = endpoint
+        try await persist(updated)
+        entries = updated
     }
 
     public func revoke(host: String, port: Int) async throws {
-        entries.removeValue(forKey: trustKey(host: host, port: port))
-        try await persist()
+        var updated = entries
+        updated.removeValue(forKey: trustKey(host: host, port: port))
+        try await persist(updated)
+        entries = updated
     }
 
     public func all() async -> [TrustedEndpoint] { Array(entries.values) }
 
-    private func persist() async throws {
-        revision += 1
-        try await store.save(Array(entries.values), to: .trust, revision: revision)
+    /// Persists `updated` without mutating `entries`. Callers assign `entries`
+    /// only after this succeeds, so a failed write never leaves memory ahead
+    /// of disk — `trusted(host:port:)` keeps reporting the last saved state.
+    private func persist(_ updated: [String: TrustedEndpoint]) async throws {
+        let nextRevision = revision + 1
+        try await store.save(Array(updated.values), to: .trust, revision: nextRevision)
+        revision = nextRevision
     }
 }
 
