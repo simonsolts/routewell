@@ -51,6 +51,8 @@ public enum GLiNetLoginHasher {
             return hexDigest(Insecure.MD5.hash(data: material))
         case "sha256":
             return hexDigest(SHA256.hash(data: material))
+        case "sha512":
+            return hexDigest(SHA512.hash(data: material))
         case let other?:
             throw .unsupportedHashMethod(other)
         }

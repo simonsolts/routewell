@@ -32,10 +32,18 @@ import Testing
 }
 
 @Test func loginHashUnsupportedHashMethodThrows() {
-    let challenge = GLiNetChallenge(alg: 1, salt: "37784Ahz", nonce: "nonce", hashMethod: "sha512")
-    #expect(throws: GLiNetRPCError.unsupportedHashMethod("sha512")) {
+    let challenge = GLiNetChallenge(alg: 1, salt: "37784Ahz", nonce: "nonce", hashMethod: "sha3")
+    #expect(throws: GLiNetRPCError.unsupportedHashMethod("sha3")) {
         try GLiNetLoginHasher.loginHash(username: "root", password: "x", challenge: challenge)
     }
+}
+
+@Test func loginHashSHA512MatchesIndependentlyComputedDigest() throws {
+    // crypt = $1$37784Ahz$A31O0f9qcaTa0YHB3ctJK. (as above)
+    // expected = printf '%s' "root:$1$37784Ahz$A31O0f9qcaTa0YHB3ctJK.:DhBsQ0VDGDiFrbWE0e0fmN5uW7Aql0Zq" | shasum -a 512
+    let challenge = GLiNetChallenge(alg: 1, salt: "37784Ahz", nonce: "DhBsQ0VDGDiFrbWE0e0fmN5uW7Aql0Zq", hashMethod: "sha512")
+    let hash = try GLiNetLoginHasher.loginHash(username: "root", password: "correct horse", challenge: challenge)
+    #expect(hash == "6d960e3f9ce10ba5c31e70c59b21094ca398b377ea7f6f9eaf51b0084c7172d33ec75d1a84480e581024236ea69be1cd570517230248d033d860106958513a39")
 }
 
 @Test func loginHashSaltIsTrimmedOfDollarSignsAndNewlines() throws {
