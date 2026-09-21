@@ -254,6 +254,36 @@ private actor SpyTrustPromptHandler: TrustPromptHandler {
     guard case .success = result.clients else { Issue.record("expected clients success"); return }
 }
 
+// MARK: - AdGuard stats 403 fails the area (unlike a missing/malformed stats window)
+
+@Test func adGuardStats403FailsAreaWithAuthentication() async throws {
+    let transport = LiveFixtures.makeTransport(
+        methods: [
+            "system.get_status": { _ in .fixture("system-get_status") },
+            "system.get_info": { _ in .fixture("system-get_info") },
+            "cable.get_status": { _ in .fixture("cable-get_status") },
+            "clients.get_list": { _ in .fixture("clients-get_list") },
+            "adguardhome.get_config": { _ in .fixture("adguardhome-get_config") },
+        ],
+        adGuard: [
+            "status": { _ in .fixture("control-status") },
+            "stats": { _ in .httpStatus(403) },
+        ]
+    )
+    let backend = LiveFixtures.makeBackend(transport: transport)
+
+    let result = try await backend.overview()
+
+    guard case .failure(let category, _) = result.adGuard else {
+        Issue.record("expected adGuard failure, got \(result.adGuard)"); return
+    }
+    #expect(category == .authentication)
+
+    guard case .success = result.router else { Issue.record("expected router success"); return }
+    guard case .success = result.internet else { Issue.record("expected internet success"); return }
+    guard case .success = result.clients else { Issue.record("expected clients success"); return }
+}
+
 // MARK: - cable.get_status -32601 leaves internet succeeding from get_status alone
 
 @Test func cableMethodNotFoundLeavesInternetSucceedingFromStatus() async throws {
@@ -450,6 +480,32 @@ private actor SpyTrustPromptHandler: TrustPromptHandler {
         return try await transport.send(request, limits: .init())
     }
     let backend = LiveFixtures.makeBackend(transport: stallingTransport)
+
+    let task = Task { try await backend.overview() }
+    task.cancel()
+
+    await #expect(throws: CancellationError.self) {
+        _ = try await task.value
+    }
+}
+
+// MARK: - TransportError.cancelled surfaces as cancellation, not a .network failure
+
+@Test func transportCancelledSurfacesAsCancellationNotNetworkFailure() async throws {
+    let transport = LiveFixtures.makeTransport(
+        methods: [
+            "system.get_status": { _ in .transportError(.cancelled) },
+            "system.get_info": { _ in .fixture("system-get_info") },
+            "cable.get_status": { _ in .fixture("cable-get_status") },
+            "clients.get_list": { _ in .fixture("clients-get_list") },
+            "adguardhome.get_config": { _ in .fixture("adguardhome-get_config") },
+        ],
+        adGuard: [
+            "status": { _ in .fixture("control-status") },
+            "stats": { _ in .fixture("control-stats") },
+        ]
+    )
+    let backend = LiveFixtures.makeBackend(transport: transport)
 
     let task = Task { try await backend.overview() }
     task.cancel()
