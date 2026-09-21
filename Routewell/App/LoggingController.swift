@@ -3,7 +3,9 @@ import RoutewellKit
 
 @MainActor
 final class LoggingController {
-    private let eventLog: SessionEventLog
+    /// Exposed so live backends can log through the same session-lifetime
+    /// event log the Logs screen reads from.
+    let eventLog: SessionEventLog
     private weak var model: AppModel?
 
     init(model: AppModel, eventLog: SessionEventLog = SessionEventLog()) {

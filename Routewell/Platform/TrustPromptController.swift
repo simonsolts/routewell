@@ -12,8 +12,12 @@ struct TrustPromptRequest: Equatable {
 /// Presents at most one trust prompt at a time. `chunk 09` will call
 /// `present(_:)` from the live transport's challenge path; this chunk only
 /// wires the controller and view up so that path can be filled in later.
+/// `@MainActor`-isolated, so this conformance only asserts what is already
+/// true: every access to its mutable state is serialized through the main
+/// actor, which is what `Sendable` requires of a reference type here. Needed
+/// so `TrustPromptAdapter` can hold a reference to it across actor hops.
 @MainActor @Observable
-final class TrustPromptController {
+final class TrustPromptController: Sendable {
     private(set) var pending: TrustPromptRequest?
     private var continuation: CheckedContinuation<Bool, Never>?
 
