@@ -171,6 +171,7 @@ public actor LiveRouterBackend: RouterBackend {
         do {
             return .success(try await rpc.call(.init(object: "system", method: "get_status", params: .object([:]))))
         } catch let error as GLiNetRPCError {
+            try Self.rethrowIfCancelled(error)
             return .failure(error)
         }
     }
@@ -179,6 +180,7 @@ public actor LiveRouterBackend: RouterBackend {
         do {
             return .success(try await rpc.call(.init(object: "system", method: "get_info", params: .object([:]))))
         } catch let error as GLiNetRPCError {
+            try Self.rethrowIfCancelled(error)
             return .failure(error)
         }
     }
@@ -187,6 +189,7 @@ public actor LiveRouterBackend: RouterBackend {
         do {
             return .success(try await rpc.call(.init(object: "cable", method: "get_status", params: .object([:]))))
         } catch let error as GLiNetRPCError {
+            try Self.rethrowIfCancelled(error)
             return .failure(error)
         }
     }
@@ -195,6 +198,7 @@ public actor LiveRouterBackend: RouterBackend {
         do {
             return .success(try await rpc.call(.init(object: "clients", method: "get_list", params: .object([:]))))
         } catch let error as GLiNetRPCError {
+            try Self.rethrowIfCancelled(error)
             return .failure(error)
         }
     }
@@ -208,6 +212,7 @@ public actor LiveRouterBackend: RouterBackend {
         do {
             configResult = .success(try await rpc.call(.init(object: "adguardhome", method: "get_config", params: .object([:]))))
         } catch let error as GLiNetRPCError {
+            try Self.rethrowIfCancelled(error)
             configResult = .failure(error)
         }
 
@@ -215,6 +220,9 @@ public actor LiveRouterBackend: RouterBackend {
         case .failure(let error):
             return (.failure(Self.category(for: error), attemptedAt: attemptedAt), Self.untrustedSignal(for: error, host: adGuardHostPort.host, port: adGuardHostPort.port))
         case .success(let configJSON):
+            // "enabled" false (or missing/unreadable) means AdGuard Home is not
+            // running on the router right now, not that Routewell failed to
+            // reach it: the area stays `.unavailable`, never a network failure.
             guard configJSON["enabled"]?.bool == true else {
                 return (.failure(.unavailable, attemptedAt: attemptedAt), nil)
             }
@@ -224,12 +232,21 @@ public actor LiveRouterBackend: RouterBackend {
                 do {
                     stats = try await adGuardClient.stats()
                 } catch let error as AdGuardClientError {
-                    stats = nil
-                    _ = error // best-effort: a missing stats window never fails the area
+                    try Self.rethrowIfCancelled(error)
+                    switch error {
+                    case .unauthorized, .credentialUnavailable:
+                        // Unlike a missing stats window, a stats auth failure means
+                        // the whole AdGuard session is bad: fail the area instead of
+                        // reporting a misleadingly successful, counter-less status.
+                        return (.failure(Self.category(for: error), attemptedAt: attemptedAt), Self.untrustedSignal(for: error, host: adGuardHostPort.host, port: adGuardHostPort.port))
+                    case .transport, .httpStatus, .malformedResponse:
+                        stats = nil // best-effort: a missing stats window never fails the area
+                    }
                 }
                 let mapped = AdGuardClient.adGuardStatus(status: status, stats: stats, now: clock())
                 return (.success(mapped, observedAt: attemptedAt, source: .adGuardAPI), nil)
             } catch let error as AdGuardClientError {
+                try Self.rethrowIfCancelled(error)
                 return (.failure(Self.category(for: error), attemptedAt: attemptedAt), Self.untrustedSignal(for: error, host: adGuardHostPort.host, port: adGuardHostPort.port))
             }
         }
@@ -348,7 +365,11 @@ public actor LiveRouterBackend: RouterBackend {
         switch error {
         case .timedOut:
             return .timeout
-        case .unreachable, .redirectRefused, .tlsFailure, .cancelled, .localNetworkDenied:
+        case .unreachable, .redirectRefused, .tlsFailure, .localNetworkDenied:
+            return .network
+        case .cancelled:
+            // Defensive only: every call site checks `rethrowIfCancelled` first
+            // and throws `CancellationError` instead of reaching this mapping.
             return .network
         case .untrustedServer:
             // Only reached after a refused trust prompt; an approved one is
@@ -357,6 +378,30 @@ public actor LiveRouterBackend: RouterBackend {
         case .responseTooLarge, .invalidResponse:
             return .malformedResponse
         }
+    }
+
+    /// Real task cancellation through `URLSessionTransport` surfaces as
+    /// `TransportError.cancelled`, not Swift's `CancellationError` — without
+    /// this, a cancelled refresh would be reported as a `.network` failure
+    /// instead of the cancellation propagating out of `overview()`/`probe()`.
+    /// `Task.isCancelled` is checked too, in case cancellation ever surfaces
+    /// as some other error instead.
+    private static func rethrowIfCancelled(_ error: GLiNetRPCError) throws {
+        if isCancelled(error) || Task.isCancelled { throw CancellationError() }
+    }
+
+    private static func rethrowIfCancelled(_ error: AdGuardClientError) throws {
+        if isCancelled(error) || Task.isCancelled { throw CancellationError() }
+    }
+
+    private static func isCancelled(_ error: GLiNetRPCError) -> Bool {
+        if case .transport(.cancelled) = error { return true }
+        return false
+    }
+
+    private static func isCancelled(_ error: AdGuardClientError) -> Bool {
+        if case .transport(.cancelled) = error { return true }
+        return false
     }
 
     private static func untrustedSignal(for error: GLiNetRPCError, host: String, port: Int) -> UntrustedSignal? {
