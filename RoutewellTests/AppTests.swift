@@ -3,11 +3,12 @@ import Testing
 import RoutewellKit
 @testable import Routewell
 
-@Test func backendSelectionNeverFallsBackToLiveAccess() {
-    #expect(BackendMode.resolve(nil, allowsMock: true) == .unconfigured)
+@Test func backendSelectionNeverFallsBackToMockWithoutOptingIn() {
+    #expect(BackendMode.resolve(nil, allowsMock: true) == .live)
+    #expect(BackendMode.resolve("", allowsMock: true) == .live)
+    #expect(BackendMode.resolve("live", allowsMock: true) == .live)
     #expect(BackendMode.resolve("mock", allowsMock: true) == .mock)
     #expect(BackendMode.resolve("mock", allowsMock: false) == .invalid)
-    #expect(BackendMode.resolve("live", allowsMock: true) == .invalid)
     #expect(BackendMode.resolve("typo", allowsMock: true) == .invalid)
 }
 
@@ -21,7 +22,31 @@ import RoutewellKit
     #expect(second.model.snapshot == nil)
 }
 
-@MainActor @Test func unconfiguredAppDoesNotRefresh() async {
+@MainActor @Test func mockModeNeverConstructsALiveTransport() async {
+    let environment = AppEnvironment.configured(variables: ["ROUTEWELL_BACKEND": "mock"], persist: false) {
+        Issue.record("mock mode must never build a transport")
+        return StubHTTPTransportForTest()
+    }
+    #expect(!environment.transportFactoryWasUsed)
+}
+
+@MainActor @Test func liveModeBuildsATransportThroughTheInjectedFactory() async {
+    var calls = 0
+    let environment = AppEnvironment.configured(variables: [:], persist: false) {
+        calls += 1
+        return StubHTTPTransportForTest()
+    }
+    #expect(environment.transportFactoryWasUsed)
+    #expect(calls == 1)
+}
+
+private struct StubHTTPTransportForTest: HTTPTransport {
+    func send(_ request: URLRequest, limits: HTTPRequestLimits) async throws -> (Data, HTTPURLResponse) {
+        throw TransportError.invalidResponse
+    }
+}
+
+@MainActor @Test func liveAppWithoutProfileDoesNotRefresh() async {
     let environment = AppEnvironment.configured(variables: [:])
     environment.refresh.refreshNow()
     await environment.refresh.waitForRefresh()
