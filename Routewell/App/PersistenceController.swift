@@ -147,9 +147,15 @@ final class PersistenceController {
     /// Re-parses and saves a new address for the selected live profile. The
     /// address is part of the profile's credential reference, so the stored
     /// secret is migrated to the new reference before the old one is removed.
+    /// Mirrors `addLiveProfile`'s ordering: the new credential is saved and
+    /// the in-memory profile is updated before `flush()`; the old credential
+    /// is only deleted after a successful flush, and a failed flush restores
+    /// the in-memory profile and best-effort removes the new credential, so
+    /// the on-disk profile never points at a deleted credential.
     @discardableResult
     func updateLiveAddress(_ endpoint: RouterEndpoint) async -> Bool {
-        guard let old = selectedProfile, old.liveEndpoint != nil, !credentialBusy else { return false }
+        guard let old = selectedProfile, old.liveEndpoint != nil, !credentialBusy,
+              let index = profiles.profiles.firstIndex(where: { $0.id == old.id }) else { return false }
         credentialBusy = true
         defer { credentialBusy = false }
         let rebuilt = RouterProfile(
@@ -159,15 +165,20 @@ final class PersistenceController {
         do {
             let secret = try await credentials.read(old.credential)
             try await credentials.save(secret, for: rebuilt.credential)
-            try await credentials.delete(old.credential)
         } catch {
             credentialMessage = credentialError(error)
             return false
         }
-        guard let index = profiles.profiles.firstIndex(where: { $0.id == old.id }) else { return false }
         profiles.profiles[index] = rebuilt
         await flush()
-        return errors[.profiles] == nil
+        guard errors[.profiles] == nil else {
+            profiles.profiles[index] = old
+            try? await credentials.delete(rebuilt.credential)
+            credentialMessage = "Router address could not be saved. Try again."
+            return false
+        }
+        try? await credentials.delete(old.credential)
+        return true
     }
 
     func updateLiveUsername(_ username: String) {

@@ -78,6 +78,38 @@ import RoutewellKit
     await #expect(throws: CredentialError.missing) { try await fake.read(profile.credential) }
 }
 
+@MainActor @Test func updateLiveAddressFailureRestoresProfileAndKeepsOldCredential() async throws {
+    let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+    defer { try? FileManager.default.removeItem(at: directory) }
+    let fake = InMemoryCredentialStore()
+    let failSwitch = FlushFailSwitch()
+    let store = AtomicJSONStore(directory: directory, beforeCommit: {
+        if failSwitch.shouldFail { throw StoreError.writeFailed }
+    })
+    let persistence = PersistenceController(model: AppModel(mode: .live), store: store, credentials: fake)
+    await persistence.load()
+    let oldEndpoint = try RouterEndpoint.parse("192.168.8.1")
+    let profile = RouterProfile(name: oldEndpoint.displayString, liveEndpoint: oldEndpoint)
+    let secret = Data("old-secret".utf8)
+    #expect(await persistence.addLiveProfile(profile, password: secret))
+    let selected = try #require(persistence.selectedProfile)
+
+    failSwitch.shouldFail = true
+    let newEndpoint = try RouterEndpoint.parse("192.168.8.2")
+    let updated = await persistence.updateLiveAddress(newEndpoint)
+
+    #expect(!updated)
+    #expect(persistence.selectedProfile == selected)
+    #expect(try await fake.read(selected.credential) == secret)
+    await #expect(throws: CredentialError.missing) { try await fake.read(RouterProfile(
+        id: selected.id, name: selected.name, liveEndpoint: newEndpoint
+    ).credential) }
+}
+
+private final class FlushFailSwitch: @unchecked Sendable {
+    var shouldFail = false
+}
+
 @MainActor @Test func persistenceFailureIsVisibleAndPreventsOrphanCredential() async throws {
     let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
     defer { try? FileManager.default.removeItem(at: directory) }
