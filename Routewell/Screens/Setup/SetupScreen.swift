@@ -70,6 +70,11 @@ struct SetupScreen: View {
     @State private var saveError: String?
     @State private var isTestingConnection = false
     @State private var connectionTestResult: String?
+    @State private var connectionTestTask: Task<Void, Never>?
+    /// Owned by this screen, not shared with `MainWindow`'s `trustPrompt`:
+    /// a certificate prompt from a probe started here must show on this
+    /// window, never pop up behind or on top of a different one.
+    @State private var testConnectionTrustPrompt = TrustPromptController()
 
     var body: some View {
         let validation = form.validate()
@@ -109,7 +114,8 @@ struct SetupScreen: View {
 
                 HStack {
                     Button("Test Connection") {
-                        Task { await testConnection(validation: validation) }
+                        connectionTestTask?.cancel()
+                        connectionTestTask = Task { await testConnection(validation: validation) }
                     }
                     .disabled(!validation.canSave || isSaving || isTestingConnection)
 
@@ -126,6 +132,19 @@ struct SetupScreen: View {
             .frame(maxWidth: 420, alignment: .leading)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .onDisappear { connectionTestTask?.cancel() }
+        .sheet(isPresented: Binding(
+            get: { testConnectionTrustPrompt.pending != nil },
+            set: { if !$0 { testConnectionTrustPrompt.resolve(false) } }
+        )) {
+            if let request = testConnectionTrustPrompt.pending {
+                TrustPromptView(
+                    request: request,
+                    onCancel: { testConnectionTrustPrompt.resolve(false) },
+                    onApprove: { testConnectionTrustPrompt.resolve(true) }
+                )
+            }
+        }
     }
 
     private func testConnection(validation: SetupFormState.SetupValidation) async {
@@ -135,7 +154,8 @@ struct SetupScreen: View {
         connectionTestResult = await environment.testRouterConnection(
             endpoint: endpoint,
             username: form.username.trimmingCharacters(in: .whitespaces),
-            password: .literal(form.password)
+            password: .literal(form.password),
+            trustPromptController: testConnectionTrustPrompt
         )
     }
 

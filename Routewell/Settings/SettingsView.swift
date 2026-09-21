@@ -17,8 +17,14 @@ struct SettingsView: View {
     @State private var adGuardPassword = ""
     @State private var isTestingRouterConnection = false
     @State private var routerConnectionTestResult: String?
+    @State private var routerConnectionTestTask: Task<Void, Never>?
     @State private var isTestingAdGuardConnection = false
     @State private var adGuardConnectionTestResult: String?
+    @State private var adGuardConnectionTestTask: Task<Void, Never>?
+    /// Owned by this window, not `MainWindow`'s shared `trustPrompt`: a
+    /// certificate prompt from a probe started in this window's Router or
+    /// AdGuard Home tab must show here, never on the main window.
+    @State private var testConnectionTrustPrompt = TrustPromptController()
     var body: some View {
         @Bindable var model = model
         TabView {
@@ -99,10 +105,13 @@ struct SettingsView: View {
                             .onSubmit { Task { await saveAddress() } }
                         if let addressError { Text(addressError).font(.caption).foregroundStyle(.red) }
                         TextField("Username", text: $usernameText)
-                            .onSubmit { environment.persistence.updateLiveUsername(usernameText) }
+                            .onSubmit { environment.updateLiveUsername(usernameText) }
                         Picker("SSH authentication", selection: .constant("Key")) { Text("SSH key").tag("Key") }.disabled(true)
-                        Button("Test Connection") { Task { await testRouterConnection(profile: profile) } }
-                            .disabled(isTestingRouterConnection)
+                        Button("Test Connection") {
+                            routerConnectionTestTask?.cancel()
+                            routerConnectionTestTask = Task { await testRouterConnection(profile: profile) }
+                        }
+                        .disabled(isTestingRouterConnection)
                         if let routerConnectionTestResult {
                             Text(routerConnectionTestResult).font(.caption).foregroundStyle(.secondary)
                         }
@@ -112,7 +121,7 @@ struct SettingsView: View {
                         Button("Save Password") {
                             let secret = Data(newPassword.utf8)
                             newPassword = ""
-                            Task { await environment.persistence.changeLivePassword(secret) }
+                            Task { await environment.changeLivePassword(secret) }
                         }.disabled(newPassword.isEmpty)
                     }
                     .onAppear {
@@ -142,15 +151,18 @@ struct SettingsView: View {
                             Button("Save AdGuard Home Password") {
                                 let secret = Data(adGuardPassword.utf8)
                                 adGuardPassword = ""
-                                Task { await environment.persistence.saveAdGuardPassword(secret) }
+                                Task { await environment.saveAdGuardPassword(secret) }
                             }.disabled(adGuardPassword.isEmpty)
                         }
                         Stepper("Port: \(adGuardPort)", value: $adGuardPort, in: 1...65535)
                             .onChange(of: adGuardPort) { _, newValue in saveAdGuardSettings(port: newValue) }
                         Toggle("Use HTTPS", isOn: $adGuardUseHTTPS)
                             .onChange(of: adGuardUseHTTPS) { _, newValue in saveAdGuardSettings(useHTTPS: newValue) }
-                        Button("Test Connection") { Task { await testAdGuardConnection(profile: profile) } }
-                            .disabled(isTestingAdGuardConnection)
+                        Button("Test Connection") {
+                            adGuardConnectionTestTask?.cancel()
+                            adGuardConnectionTestTask = Task { await testAdGuardConnection(profile: profile) }
+                        }
+                        .disabled(isTestingAdGuardConnection)
                         if let adGuardConnectionTestResult {
                             Text(adGuardConnectionTestResult).font(.caption).foregroundStyle(.secondary)
                         }
@@ -235,13 +247,29 @@ struct SettingsView: View {
         }
         .formStyle(.grouped)
         .frame(width: 640, height: 560)
+        .onDisappear {
+            routerConnectionTestTask?.cancel()
+            adGuardConnectionTestTask?.cancel()
+        }
+        .sheet(isPresented: Binding(
+            get: { testConnectionTrustPrompt.pending != nil },
+            set: { if !$0 { testConnectionTrustPrompt.resolve(false) } }
+        )) {
+            if let request = testConnectionTrustPrompt.pending {
+                TrustPromptView(
+                    request: request,
+                    onCancel: { testConnectionTrustPrompt.resolve(false) },
+                    onApprove: { testConnectionTrustPrompt.resolve(true) }
+                )
+            }
+        }
     }
 
     private func saveAddress() async {
         do {
             let endpoint = try RouterEndpoint.parse(addressText)
             addressError = nil
-            let saved = await environment.persistence.updateLiveAddress(endpoint)
+            let saved = await environment.updateLiveAddress(endpoint)
             if !saved { addressError = "Could not save the new address. Try again." }
         } catch {
             addressError = error.message
@@ -255,7 +283,7 @@ struct SettingsView: View {
         if let useRouterCredentials { settings.useRouterCredentials = useRouterCredentials }
         if let useHTTPS { settings.useHTTPS = useHTTPS }
         if let username { settings.username = username }
-        environment.persistence.updateAdGuardSettings(settings)
+        environment.updateAdGuardSettings(settings)
     }
 
     private func testRouterConnection(profile: RouterProfile) async {
@@ -268,7 +296,8 @@ struct SettingsView: View {
         routerConnectionTestResult = await environment.testRouterConnection(
             endpoint: endpoint,
             username: usernameText.trimmingCharacters(in: .whitespaces),
-            password: .keychain(profile.credential)
+            password: .keychain(profile.credential),
+            trustPromptController: testConnectionTrustPrompt
         )
     }
 
@@ -283,7 +312,8 @@ struct SettingsView: View {
             username: usernameText.trimmingCharacters(in: .whitespaces),
             routerPassword: .keychain(profile.credential),
             adGuardSettings: settings,
-            adGuardPassword: .keychain(adGuardCredential)
+            adGuardPassword: .keychain(adGuardCredential),
+            trustPromptController: testConnectionTrustPrompt
         )
     }
 }
