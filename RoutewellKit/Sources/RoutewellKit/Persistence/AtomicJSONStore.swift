@@ -1,7 +1,7 @@
 import Foundation
 
 public enum StoreFile: String, Sendable, CaseIterable {
-    case settings, profiles
+    case settings, profiles, trust
 }
 
 public enum StoreError: Error, Equatable, Sendable {
