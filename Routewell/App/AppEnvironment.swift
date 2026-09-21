@@ -12,6 +12,7 @@ final class AppEnvironment {
     let persistence: PersistenceController
     let logging: LoggingController
     let trust: TrustController
+    let mutation: MutationController
     let trustPrompt = TrustPromptController()
     private let credentials: any CredentialStore
     /// Builds one `HTTPTransport` for a lease, given the trust store it
@@ -39,6 +40,7 @@ final class AppEnvironment {
         self.refresh = RefreshController(model: model, logging: logging)
         self.persistence = PersistenceController(model: model, store: store, credentials: credentials)
         self.trust = TrustController(atomicStore: store, mode: model.mode)
+        self.mutation = MutationController(model: model, refresh: refresh)
         #if DEBUG
         mockBackend = backend as? MockRouterBackend
         #endif
@@ -129,6 +131,15 @@ final class AppEnvironment {
     }
 
     #if DEBUG
+    /// DEBUG-only dev tool: selects which outcome the mock Protection
+    /// service produces on its next `setProtection` call.
+    func setMockProtectionBehavior(_ behavior: MockRouterBackend.ProtectionBehavior) {
+        guard model.mode == .mock, let mockBackend else { return }
+        Task { await mockBackend.setProtectionBehavior(behavior) }
+    }
+    #endif
+
+    #if DEBUG
     private func installMock(profile: String, scenarioID: String) {
         let hostname = profile == Self.mockProfiles[0] ? "flint-demo" : "travel-demo"
         let scenario = MockRouterBackend.Scenario(rawValue: scenarioID) ?? .healthy
@@ -169,6 +180,10 @@ final class AppEnvironment {
     /// over at construction time, which a changed address or a deleted/
     /// replaced Keychain item can leave dangling.
     func reconnectLiveSession() {
+        guard mutation.inFlight == nil else {
+            logging.record(kind: .session, message: "Reconnect refused: a Protection change is running")
+            return
+        }
         guard model.mode == .live, let profile = persistence.selectedProfile, profile.liveEndpoint != nil else { return }
         guard let liveBackend = makeLiveBackend(for: profile) else { return }
         setup = model.session.switchProfile(profile.name, model: model, refresh: refresh) {
