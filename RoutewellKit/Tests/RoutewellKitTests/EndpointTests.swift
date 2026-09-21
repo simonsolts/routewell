@@ -37,6 +37,8 @@ func parsesAcceptedInputs(input: String, scheme: EndpointScheme, host: String, p
     ("https://router..lan", EndpointParseError.invalidHost),
     ("router .lan", EndpointParseError.invalidHost),
     ("https://" + String(repeating: "a", count: 254), EndpointParseError.invalidHost),
+    ("https://999.999.999.999", EndpointParseError.invalidHost),
+    ("https://192.168.8.1.1", EndpointParseError.invalidHost),
 ])
 func rejectsInvalidInputs(input: String, error: EndpointParseError) {
     #expect(throws: error) { try RouterEndpoint.parse(input) }
