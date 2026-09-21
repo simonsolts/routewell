@@ -104,8 +104,6 @@ struct SettingsView: View {
                         TextField("Address", text: $addressText, prompt: Text("Router hostname or IP address"))
                             .onSubmit { Task { await saveAddress() } }
                         if let addressError { Text(addressError).font(.caption).foregroundStyle(.red) }
-                        TextField("Username", text: $usernameText)
-                            .onSubmit { environment.updateLiveUsername(usernameText) }
                         Picker("SSH authentication", selection: .constant("Key")) { Text("SSH key").tag("Key") }.disabled(true)
                         Button("Test Connection") {
                             routerConnectionTestTask?.cancel()
@@ -195,6 +193,15 @@ struct SettingsView: View {
             }.tabItem { Label("Notifications", systemImage: "bell") }
 
             Form {
+                if model.mode == .live, let profile = environment.persistence.selectedProfile, profile.liveEndpoint != nil {
+                    Section {
+                        TextField("Router login username", text: $usernameText)
+                            .onSubmit { environment.updateLiveUsername(usernameText) }
+                    } footer: {
+                        Text("The GL.iNet web login user. Firmware 4.x uses admin. Only change this if your router is different.")
+                    }
+                    .onAppear { usernameText = profile.username }
+                }
                 Section {
                     LabeledContent("Logs", value: "Session only")
                     Button("Choose Export Folder…") {}.disabled(true)

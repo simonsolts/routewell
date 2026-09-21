@@ -4,14 +4,14 @@ import RoutewellKit
 /// A pure, unit-testable model for the setup form's validation. It never
 /// touches SwiftUI so `RoutewellTests` can exercise every branch directly.
 struct SetupFormState: Equatable {
+    static let username = "admin"
+
     var addressText: String = ""
-    var username: String = "root"
     var password: String = ""
     var plainHTTPAcknowledged: Bool = false
 
     struct SetupValidation {
         let endpoint: Result<RouterEndpoint, EndpointParseError>
-        let usernameProblem: String?
         let passwordProblem: String?
         let plainHTTPNeedsAck: Bool
         let canSave: Bool
@@ -25,8 +25,6 @@ struct SetupFormState: Equatable {
             endpoint = .failure(error)
         }
 
-        let usernameProblem = username.trimmingCharacters(in: .whitespaces).isEmpty
-            ? "Enter a username." : nil
         let passwordProblem = password.isEmpty ? "Enter a password." : nil
 
         var plainHTTPNeedsAck = false
@@ -35,11 +33,10 @@ struct SetupFormState: Equatable {
         }
 
         let endpointIsValid = (try? endpoint.get()) != nil
-        let canSave = endpointIsValid && usernameProblem == nil && passwordProblem == nil && !plainHTTPNeedsAck
+        let canSave = endpointIsValid && passwordProblem == nil && !plainHTTPNeedsAck
 
         return SetupValidation(
             endpoint: endpoint,
-            usernameProblem: usernameProblem,
             passwordProblem: passwordProblem,
             plainHTTPNeedsAck: plainHTTPNeedsAck,
             canSave: canSave
@@ -92,8 +89,6 @@ struct SetupScreen: View {
                     }
                 }
 
-                TextField("Username", text: $form.username)
-                    .textFieldStyle(.roundedBorder)
                 SecureField("Password", text: $form.password)
                     .textFieldStyle(.roundedBorder)
 
@@ -153,7 +148,7 @@ struct SetupScreen: View {
         defer { isTestingConnection = false }
         connectionTestResult = await environment.testRouterConnection(
             endpoint: endpoint,
-            username: form.username.trimmingCharacters(in: .whitespaces),
+            username: SetupFormState.username,
             password: .literal(form.password),
             trustPromptController: testConnectionTrustPrompt
         )
@@ -167,7 +162,7 @@ struct SetupScreen: View {
         form.password = ""
         let saved = await environment.saveLiveRouterProfile(
             endpoint: endpoint,
-            username: form.username.trimmingCharacters(in: .whitespaces),
+            username: SetupFormState.username,
             password: password,
             plainHTTPAcknowledged: form.plainHTTPAcknowledged
         )

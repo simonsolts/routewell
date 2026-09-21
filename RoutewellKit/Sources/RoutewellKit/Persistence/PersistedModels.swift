@@ -47,7 +47,7 @@ public struct RouterProfile: Codable, Identifiable, Equatable, Sendable {
     public let credential: CredentialReference
     /// nil for mock profiles. Set for live profiles created from `SetupScreen`.
     public var liveEndpoint: RouterEndpoint?
-    public var username: String = "root"
+    public var username: String = "admin"
     public var plainHTTPAcknowledged: Bool = false
     public var adGuard: AdGuardSettings?
     public var ssh: SSHSettings?
@@ -63,7 +63,7 @@ public struct RouterProfile: Codable, Identifiable, Equatable, Sendable {
         endpoint = try values.decode(String.self, forKey: .endpoint)
         credential = try values.decode(CredentialReference.self, forKey: .credential)
         liveEndpoint = try values.decodeIfPresent(RouterEndpoint.self, forKey: .liveEndpoint)
-        username = try values.decodeIfPresent(String.self, forKey: .username) ?? "root"
+        username = try values.decodeIfPresent(String.self, forKey: .username) ?? "admin"
         plainHTTPAcknowledged = try values.decodeIfPresent(Bool.self, forKey: .plainHTTPAcknowledged) ?? false
         adGuard = try values.decodeIfPresent(AdGuardSettings.self, forKey: .adGuard)
         ssh = try values.decodeIfPresent(SSHSettings.self, forKey: .ssh)
@@ -86,7 +86,7 @@ public struct RouterProfile: Codable, Identifiable, Equatable, Sendable {
         id: UUID = UUID(),
         name: String,
         liveEndpoint: RouterEndpoint,
-        username: String = "root",
+        username: String = "admin",
         plainHTTPAcknowledged: Bool = false,
         adGuard: AdGuardSettings? = nil,
         ssh: SSHSettings? = nil
