@@ -167,11 +167,7 @@ public enum RecordedFixtureRedactor {
         string.range(of: #"^(?:[0-9A-Fa-f]{2}[:-]){5}[0-9A-Fa-f]{2}$"#, options: .regularExpression) != nil
     }
 
-    static func isIPAddress(_ string: String) -> Bool {
-        var v4 = in_addr()
-        var v6 = in6_addr()
-        return string.withCString { inet_pton(AF_INET, $0, &v4) == 1 || inet_pton(AF_INET6, $0, &v6) == 1 }
-    }
+    static func isIPAddress(_ string: String) -> Bool { IPAddressText.isValid(string) }
 }
 
 public protocol FixtureRecordableBackend: Sendable {
