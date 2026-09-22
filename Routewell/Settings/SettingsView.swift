@@ -1,10 +1,16 @@
 import SwiftUI
 import RoutewellKit
+#if DEBUG
+import RoutewellMock
+#endif
 
 struct SettingsView: View {
     let environment: AppEnvironment
     @Environment(AppModel.self) private var model
     @State private var mockSecret = ""
+    #if DEBUG
+    @State private var mockFeatureBehaviors: [DataArea: MockRouterBackend.FeatureBehavior] = [:]
+    #endif
     @State private var confirmingDelete = false
     @State private var addressText = ""
     @State private var addressError: String?
@@ -28,7 +34,7 @@ struct SettingsView: View {
     private var mutationInFlight: Bool { environment.mutation.inFlight != nil }
     var body: some View {
         @Bindable var model = model
-        TabView {
+        TabView(selection: $model.settingsTab) {
             Form {
                 Section {
                     Toggle("Show in menu bar", isOn: $model.showInMenuBar)
@@ -54,6 +60,7 @@ struct SettingsView: View {
                 }
             }
             .tabItem { Label("General", systemImage: "gearshape") }
+            .tag("General")
 
             Form {
                 if model.mode == .mock {
@@ -81,6 +88,27 @@ struct SettingsView: View {
                             .foregroundStyle(.secondary)
                     }
                     .disabled(mutationInFlight)
+                    #if DEBUG
+                    Section {
+                        ForEach([DataArea.clients, .queryLog, .network, .maintenance, .vpn, .plugins, .telemetry], id: \.self) { area in
+                            Picker(area.rawValue, selection: Binding(
+                                get: { mockFeatureBehaviors[area] ?? .unknown },
+                                set: { behavior in
+                                    mockFeatureBehaviors[area] = behavior
+                                    environment.setMockFeatureBehavior(behavior, for: area)
+                                }
+                            )) {
+                                ForEach(MockRouterBackend.FeatureBehavior.allCases, id: \.self) { behavior in
+                                    Text(behavior.rawValue.capitalized).tag(behavior)
+                                }
+                            }
+                        }
+                    } header: {
+                        Text("Mock feature capabilities")
+                    } footer: {
+                        Text("Each area probes independently. Slow waits five seconds; failing leaves capability unknown.")
+                    }
+                    #endif
                 }
                 if model.mode == .mock, let profile = environment.persistence.selectedProfile {
                     Section("Mock credential · Keychain") {
@@ -139,7 +167,7 @@ struct SettingsView: View {
                             .foregroundStyle(.secondary)
                     }
                 }
-            }.tabItem { Label("Router", systemImage: "wifi.router") }
+            }.tabItem { Label("Router", systemImage: "wifi.router") }.tag("Router")
 
             Form {
                 if model.mode == .live, let profile = environment.persistence.selectedProfile, profile.liveEndpoint != nil {
@@ -189,7 +217,7 @@ struct SettingsView: View {
                 } else {
                     Text("AdGuard Home connection settings are not available yet.").foregroundStyle(.secondary)
                 }
-            }.tabItem { Label("AdGuard Home", systemImage: "shield") }
+            }.tabItem { Label("AdGuard Home", systemImage: "shield") }.tag("AdGuard Home")
 
             Form {
                 Section {
@@ -201,7 +229,7 @@ struct SettingsView: View {
                 }.disabled(true)
                 Text("Notifications are not available yet. This build does not request notification permission.")
                     .foregroundStyle(.secondary)
-            }.tabItem { Label("Notifications", systemImage: "bell") }
+            }.tabItem { Label("Notifications", systemImage: "bell") }.tag("Notifications")
 
             Form {
                 if model.mode == .live, let profile = environment.persistence.selectedProfile, profile.liveEndpoint != nil {
@@ -243,7 +271,7 @@ struct SettingsView: View {
                     Text("Trust is approved per router address, not for a whole certificate authority.")
                         .font(.caption).foregroundStyle(.secondary)
                 }
-            }.tabItem { Label("Advanced", systemImage: "wrench.and.screwdriver") }
+            }.tabItem { Label("Advanced", systemImage: "wrench.and.screwdriver") }.tag("Advanced")
         }
         .disabled(environment.persistence.isLoading || environment.persistence.credentialBusy)
         .safeAreaInset(edge: .bottom) {

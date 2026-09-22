@@ -1,4 +1,5 @@
 import SwiftUI
+import RoutewellKit
 
 struct RoutewellCommands: Commands {
     let environment: AppEnvironment
@@ -43,6 +44,13 @@ struct RoutewellCommands: Commands {
             Button("Open Router UI") {}.disabled(true)
             Button("Open AdGuard Home UI") {}.disabled(true)
         }
+        #if DEBUG
+        CommandMenu("Debug") {
+            Button("Record Fixtures…") { environment.recordFixtures() }
+                .disabled(environment.model.mode != .live || !environment.model.session.isReady ||
+                          !(environment.model.session.lease?.backend is LiveRouterBackend))
+        }
+        #endif
     }
 
     private func select(_ destination: SidebarDestination) {

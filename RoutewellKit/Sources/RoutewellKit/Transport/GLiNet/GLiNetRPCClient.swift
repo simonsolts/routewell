@@ -63,6 +63,19 @@ public actor GLiNetRPCClient: RouterSessionTokenProvider {
         }
     }
 
+    /// Recorder-only read. The normal call path authenticates and retries;
+    /// a method-not-found becomes a JSON error fixture instead of disappearing.
+    public func recordRead(_ call: GLiNetRPCCall) async -> JSONValue {
+        do { return try await self.call(call) }
+        catch GLiNetRPCError.methodNotFound {
+            return .object(["error": .object(["code": .number(-32601), "message": .string("Method not found")])])
+        } catch GLiNetRPCError.accessDenied {
+            return .object(["error": .object(["category": .string("authentication")])])
+        } catch {
+            return .object(["error": .object(["category": .string("unavailable")])])
+        }
+    }
+
     /// Calls `alive`. Returns true when the sid is still valid.
     public func keepAlive() async throws -> Bool {
         let currentSID = try await sessionID()

@@ -1,7 +1,7 @@
 import Foundation
 
 public enum DataArea: String, CaseIterable, Sendable, Hashable, Codable {
-    case router, internet, adGuard, clients
+    case router, internet, adGuard, clients, queryLog, network, maintenance, vpn, plugins, telemetry, publicIP, schedules
 }
 
 public enum ObservationSource: Sendable, Equatable, Codable {

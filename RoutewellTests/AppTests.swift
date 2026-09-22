@@ -1,7 +1,96 @@
 import Foundation
+import AppKit
+import SwiftUI
 import Testing
 import RoutewellKit
 @testable import Routewell
+
+@Test func featureUnavailableExplainsUnknownAndUnsupported() {
+    #expect(FeatureUnavailableView.explanation(for: .supported) == nil)
+    #expect(FeatureUnavailableView.explanation(for: .unsupported)?.contains("does not support") == true)
+    #expect(FeatureUnavailableView.explanation(for: .unknown)?.contains("unknown") == true)
+}
+
+@MainActor @Test func unavailableViewsLayOutForBothCapabilityStatesAndSSH() {
+    for state in [CapabilityState.unknown, .unsupported] {
+        let view = NSHostingView(rootView: FeatureUnavailableView(title: "Example", capability: Capability(state)))
+        #expect(view.fittingSize.width > 0)
+        #expect(view.fittingSize.height > 0)
+    }
+    let ssh = NSHostingView(rootView: SSHRequiredView(title: "Ports").environment(AppModel(mode: .mock)))
+    #expect(ssh.fittingSize.width > 0)
+    #expect(ssh.fittingSize.height > 0)
+}
+
+@MainActor @Test func telemetryBuildsMemorySparklineFromSuccessiveReadsInMockAndLiveModels() async {
+    for mode in [BackendMode.mock, .live] {
+        let backend = TelemetryBackendForTest()
+        let model = AppModel(mode: mode)
+        let environment = AppEnvironment(model: model, backend: backend)
+        await environment.waitUntilReady()
+        await environment.refresh.waitForRefresh()
+        if !model.session.isReady {
+            await model.session.switchProfile("synthetic", model: model, refresh: environment.refresh) {
+                SessionLease(token: $0, backend: backend)
+            }.value
+            await environment.refresh.waitForRefresh()
+        }
+        environment.refresh.refreshNow()
+        await environment.refresh.waitForRefresh()
+        environment.refresh.refreshNow()
+        await environment.refresh.waitForRefresh()
+        let history = model.snapshot?.router.memoryHistory ?? []
+        #expect(history.count >= 2)
+        #expect(history.last == 0.6 || history.last == 0.7 || history.last == 0.8)
+    }
+}
+
+@MainActor @Test func visibleDestinationProbesItsFeatureCapability() async {
+    let backend = VisibleFeatureBackendForTest()
+    let model = AppModel(mode: .mock)
+    let environment = AppEnvironment(model: model, backend: backend)
+    await environment.waitUntilReady()
+    await environment.refresh.waitForRefresh()
+    environment.refresh.setWindowVisible(true)
+    model.selection = .vpn
+    await environment.refresh.waitForRefresh()
+    #expect(model.capabilities[.vpn]?.state == .supported)
+    #expect(model.capabilities[.plugins] == nil)
+}
+
+private actor TelemetryBackendForTest: RouterBackend {
+    nonisolated let protection: (any ProtectionService)? = nil
+    private var count = 0
+    func overview() async throws -> OverviewRefreshResult {
+        count += 1
+        let now = Date()
+        var router = RouterStatus()
+        router.memoryUsedBytes = Int64(min(count + 4, 8) * 10)
+        router.memoryTotalBytes = 100
+        return OverviewRefreshResult(
+            router: .success(router, observedAt: now, source: .mock),
+            internet: .success(InternetStatus(), observedAt: now, source: .mock),
+            adGuard: .success(AdGuardStatus(), observedAt: now, source: .mock),
+            clients: .success(ClientStatus(), observedAt: now, source: .mock)
+        )
+    }
+}
+
+private struct VisibleFeatureBackendForTest: RouterBackend {
+    var protection: (any ProtectionService)? { nil }
+    var vpn: (any VPNService)? { VisibleVPNProbeForTest() }
+    func overview() async throws -> OverviewRefreshResult {
+        let now = Date()
+        return OverviewRefreshResult(router: .success(RouterStatus(), observedAt: now, source: .mock),
+            internet: .success(InternetStatus(), observedAt: now, source: .mock),
+            adGuard: .success(AdGuardStatus(), observedAt: now, source: .mock),
+            clients: .success(ClientStatus(), observedAt: now, source: .mock))
+    }
+}
+
+private actor VisibleVPNProbeForTest: VPNService {
+    func probe() async -> Capability { Capability(.supported, evidence: .successfulResponse, observedAt: .now) }
+}
 
 @Test func backendSelectionNeverFallsBackToMockWithoutOptingIn() {
     #expect(BackendMode.resolve(nil, allowsMock: true) == .live)

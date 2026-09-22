@@ -110,7 +110,7 @@ struct OverviewScreen: View {
 
     private var freshnessGroup: some View {
         InsetGroup(title: "Data freshness") {
-            ForEach(DataArea.allCases, id: \.self) { area in
+            ForEach([DataArea.router, .internet, .adGuard, .clients], id: \.self) { area in
                 if area != .router { Divider() }
                 let freshness = model.freshness[area] ?? Freshness()
                 HStack(alignment: .firstTextBaseline, spacing: 12) {
@@ -186,7 +186,7 @@ struct OverviewScreen: View {
         return .unknown
     }
     private func areaLabel(_ area: DataArea) -> String {
-        switch area { case .router: "Router"; case .internet: "Internet"; case .adGuard: "AdGuard Home"; case .clients: "Clients" }
+        switch area { case .router: "Router"; case .internet: "Internet"; case .adGuard: "AdGuard Home"; case .clients: "Clients"; default: area.rawValue }
     }
     private func sourceLabel(_ source: ObservationSource?) -> String {
         switch source { case .mock: "Mock source"; case .routerRPC: "Router RPC"; case .adGuardAPI: "AdGuard API"; case nil: "No source" }

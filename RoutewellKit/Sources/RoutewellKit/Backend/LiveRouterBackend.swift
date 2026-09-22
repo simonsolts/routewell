@@ -47,7 +47,7 @@ private struct UntrustedSignal: Sendable {
 /// exactly once and shares it across the router, internet, and clients
 /// areas; each area otherwise catches its own errors so one area's failure
 /// never discards another's data.
-public actor LiveRouterBackend: RouterBackend {
+public actor LiveRouterBackend: RouterBackend, FixtureRecordableBackend {
     private let configuration: LiveBackendConfiguration
     private let rpc: GLiNetRPCClient
     private let adGuardClient: AdGuardClient?
@@ -88,6 +88,20 @@ public actor LiveRouterBackend: RouterBackend {
     }
 
     // MARK: RouterBackend
+
+    public func recordFixture(_ call: FixtureCall) async -> JSONValue {
+        guard FixtureRecordingPlan.isReadOnly(call) else {
+            return .object(["error": .object(["category": .string("unsafe call")])])
+        }
+        switch call.transport {
+        case .rpc:
+            guard let object = call.object else { return .object(["error": .string("invalid call")]) }
+            return await rpc.recordRead(.init(object: object, method: call.method, params: .object([:])))
+        case .adGuard:
+            guard let adGuardClient else { return .object(["error": .object(["category": .string("not configured")])]) }
+            return await adGuardClient.recordRead(path: call.method)
+        }
+    }
 
     public func overview() async throws -> OverviewRefreshResult {
         let attempt1 = try await runAreas()
