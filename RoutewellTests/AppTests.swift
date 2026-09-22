@@ -1,4 +1,6 @@
 import Foundation
+import AppKit
+import SwiftUI
 import Testing
 import RoutewellKit
 @testable import Routewell
@@ -7,6 +9,17 @@ import RoutewellKit
     #expect(FeatureUnavailableView.explanation(for: .supported) == nil)
     #expect(FeatureUnavailableView.explanation(for: .unsupported)?.contains("does not support") == true)
     #expect(FeatureUnavailableView.explanation(for: .unknown)?.contains("unknown") == true)
+}
+
+@MainActor @Test func unavailableViewsLayOutForBothCapabilityStatesAndSSH() {
+    for state in [CapabilityState.unknown, .unsupported] {
+        let view = NSHostingView(rootView: FeatureUnavailableView(title: "Example", capability: Capability(state)))
+        #expect(view.fittingSize.width > 0)
+        #expect(view.fittingSize.height > 0)
+    }
+    let ssh = NSHostingView(rootView: SSHRequiredView(title: "Ports").environment(AppModel(mode: .mock)))
+    #expect(ssh.fittingSize.width > 0)
+    #expect(ssh.fittingSize.height > 0)
 }
 
 @MainActor @Test func telemetryBuildsMemorySparklineFromSuccessiveReadsInMockAndLiveModels() async {

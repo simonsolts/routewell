@@ -127,8 +127,7 @@ public actor FixtureRecorder {
             try Task.checkCancellation()
             try await session.validateAfter(lease)
             RecordedFixtureRedactor.collectAliases(value, into: &aliases)
-            let redacted = RecordedFixtureRedactor.redact(value, aliases: aliases)
-            let data = try JSONEncoder().encode(redacted)
+            let data = try PayloadRedactor.redact(JSONEncoder().encode(value), schema: .recordedFixture, aliases: aliases)
             try data.write(to: directory.appendingPathComponent(call.fileName), options: .atomic)
             count += 1
         }

@@ -68,7 +68,7 @@ public actor SessionEventLog {
 }
 
 public enum PayloadSchema: String, Sendable, Equatable, Codable {
-    case loginResponse, adGuardStatus
+    case loginResponse, adGuardStatus, recordedFixture
 }
 
 public enum RedactionError: Error, Sendable, Equatable { case invalidJSON, unsupportedPayload }
@@ -103,6 +103,10 @@ public enum PayloadRedactor {
     /// Redacts only payload schemas Routewell understands. Unknown schemas are
     /// rejected instead of being guessed at or stored as arbitrary text.
     public static func redact(_ body: Data, schema: PayloadSchema, aliases: FixtureAliases) throws -> Data {
+        if schema == .recordedFixture {
+            guard let value = try? JSONDecoder().decode(JSONValue.self, from: body) else { throw RedactionError.invalidJSON }
+            return try JSONEncoder().encode(RecordedFixtureRedactor.redact(value, aliases: aliases))
+        }
         let object: Any
         do { object = try JSONSerialization.jsonObject(with: body) }
         catch { throw RedactionError.invalidJSON }
