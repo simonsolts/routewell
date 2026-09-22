@@ -240,8 +240,8 @@ private actor MockFeatureProbe: ClientsService, QueryLogService, NetworkService,
         }
         guard !Task.isCancelled else { return Capability() }
         switch selected {
-        case .supported: return Capability(.supported, evidence: "mock success", observedAt: .now)
-        case .unsupported: return Capability(.unsupported, evidence: "mock method not found", observedAt: .now)
+        case .supported: return Capability(.supported, evidence: .mockScenario("supported"), observedAt: .now)
+        case .unsupported: return Capability(.unsupported, evidence: .mockScenario("unsupported"), observedAt: .now)
         case .unknown, .slow, .failing: return Capability()
         }
     }

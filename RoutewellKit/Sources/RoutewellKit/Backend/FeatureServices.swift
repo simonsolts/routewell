@@ -4,12 +4,18 @@ public enum CapabilityState: String, Sendable, Equatable, Codable {
     case supported, unsupported, unknown
 }
 
+public enum CapabilityEvidence: Sendable, Equatable, Codable {
+    case successfulResponse
+    case methodNotFound(method: String)
+    case mockScenario(String)
+}
+
 public struct Capability: Sendable, Equatable, Codable {
     public let state: CapabilityState
-    public let evidence: String?
+    public let evidence: CapabilityEvidence?
     public let observedAt: Date?
 
-    public init(_ state: CapabilityState = .unknown, evidence: String? = nil, observedAt: Date? = nil) {
+    public init(_ state: CapabilityState = .unknown, evidence: CapabilityEvidence? = nil, observedAt: Date? = nil) {
         self.state = state
         self.evidence = evidence
         self.observedAt = observedAt
