@@ -148,9 +148,10 @@ final class AppEnvironment {
     }
 
     func recordFixtures() {
-        guard model.mode == .live, let lease = model.session.lease else { return }
+        guard model.mode == .live, let lease = model.session.lease,
+              lease.backend is LiveRouterBackend else { return }
         let panel = NSOpenPanel()
-        panel.message = "Choose a folder for redacted, read-only router fixtures"
+        panel.message = "Choose a folder for live router responses with private values replaced by examples"
         panel.prompt = "Record Fixtures"
         panel.canChooseDirectories = true
         panel.canChooseFiles = false
@@ -162,7 +163,7 @@ final class AppEnvironment {
                 let count = try await FixtureRecorder().record(session: session, lease: lease, to: directory)
                 let alert = NSAlert()
                 alert.messageText = "Fixtures recorded"
-                alert.informativeText = "Wrote \(count) redacted files. Review them before committing."
+                alert.informativeText = "Recorded \(count) read-only calls from the connected live router. Example addresses and names are privacy aliases, not mock responses. Check _recording-manifest.json and review the files before committing."
                 alert.runModal()
             } catch {
                 let alert = NSAlert()

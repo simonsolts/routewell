@@ -1,4 +1,5 @@
 import SwiftUI
+import RoutewellKit
 
 struct RoutewellCommands: Commands {
     let environment: AppEnvironment
@@ -46,7 +47,8 @@ struct RoutewellCommands: Commands {
         #if DEBUG
         CommandMenu("Debug") {
             Button("Record Fixtures…") { environment.recordFixtures() }
-                .disabled(environment.model.mode != .live || !environment.model.session.isReady)
+                .disabled(environment.model.mode != .live || !environment.model.session.isReady ||
+                          !(environment.model.session.lease?.backend is LiveRouterBackend))
         }
         #endif
     }

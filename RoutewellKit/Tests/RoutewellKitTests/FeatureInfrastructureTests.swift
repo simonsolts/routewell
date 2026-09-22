@@ -79,6 +79,11 @@ import RoutewellMock
         #expect(!text.contains("AA:BB:CC:DD:EE:FF"))
         #expect(text.contains("-32601"))
     }
+    let manifestData = try Data(contentsOf: directory.appendingPathComponent("_recording-manifest.json"))
+    let manifest = try JSONDecoder().decode(FixtureRecordingManifest.self, from: manifestData)
+    #expect(manifest.source == "synthetic-test-backend")
+    #expect(manifest.files.count == count)
+    #expect(manifest.privacy.contains("privacy aliases"))
 }
 
 private struct NoFeaturesBackend: RouterBackend {

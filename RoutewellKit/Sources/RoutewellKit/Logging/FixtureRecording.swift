@@ -110,6 +110,18 @@ public protocol FixtureRecordableBackend: Sendable {
     func recordFixture(_ call: FixtureCall) async -> JSONValue
 }
 
+public struct FixtureRecordingManifest: Sendable, Codable, Equatable {
+    public let source: String
+    public let privacy: String
+    public let files: [String]
+
+    public init(source: String, files: [String]) {
+        self.source = source
+        self.privacy = "Addresses, MACs, names, SSIDs, credentials, and other text are replaced before writing. Example values are privacy aliases."
+        self.files = files
+    }
+}
+
 public actor FixtureRecorder {
     public init() {}
 
@@ -131,6 +143,15 @@ public actor FixtureRecorder {
             try data.write(to: directory.appendingPathComponent(call.fileName), options: .atomic)
             count += 1
         }
+        try Task.checkCancellation()
+        try await session.validateAfter(lease)
+        let manifest = FixtureRecordingManifest(
+            source: backend is LiveRouterBackend ? "live-router" : "synthetic-test-backend",
+            files: calls.map(\.fileName)
+        )
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+        try encoder.encode(manifest).write(to: directory.appendingPathComponent("_recording-manifest.json"), options: .atomic)
         return count
     }
 }
