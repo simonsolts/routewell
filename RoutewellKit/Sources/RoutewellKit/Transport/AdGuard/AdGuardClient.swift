@@ -39,6 +39,13 @@ public struct AdGuardStatsResponse: Sendable, Equatable {
     }
 }
 
+/// Read-only AdGuard Home paths a feature service may fetch as raw JSON for
+/// its own parser.
+public enum AdGuardReadPath: String, Sendable, CaseIterable {
+    case clients = "control/clients"
+    case stats = "control/stats"
+}
+
 public enum AdGuardClientError: Error, Equatable, Sendable {
     case transport(TransportError)
     case unauthorized(Int)
@@ -80,6 +87,10 @@ public actor AdGuardClient {
         response.protectionDisabledDurationMilliseconds = json["protection_disabled_duration"]?.int
         response.dnsAddresses = json["dns_addresses"]?.array?.compactMap(\.string) ?? []
         return response
+    }
+
+    public func read(_ path: AdGuardReadPath) async throws -> JSONValue {
+        try await get(path: path.rawValue, method: path == .clients ? "clients" : "stats")
     }
 
     public func recordRead(path: String) async -> JSONValue {

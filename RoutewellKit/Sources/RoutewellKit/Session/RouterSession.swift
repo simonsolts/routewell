@@ -62,6 +62,18 @@ public actor RouterSession {
         return try result.get()
     }
 
+    /// Reads the client inventory, fenced like `overview(using:)`. `nil` when
+    /// the backend has no Clients service.
+    public func clientInventory(using lease: SessionLease) async throws -> ClientInventoryResult? {
+        try validateBefore(lease)
+        guard let service = lease.backend.clients else { return nil }
+        let result: Result<ClientInventoryResult, any Error>
+        do { result = .success(try await service.inventory()) }
+        catch { result = .failure(error) }
+        try validateAfter(lease)
+        return try result.get()
+    }
+
     /// Runs one Protection mutation against `lease.backend`. `validateBefore`
     /// fences it against a lease that's already stale or mid-switch;
     /// `validateAfter` fences the result. If `validateAfter` throws

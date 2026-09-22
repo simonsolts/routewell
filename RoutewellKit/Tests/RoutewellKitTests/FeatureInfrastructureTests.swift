@@ -14,6 +14,9 @@ import RoutewellMock
     let backend = MockRouterBackend()
     let clients = try #require(backend.clients)
     let vpn = try #require(backend.vpn)
+    // Clients has mock data, so it starts supported (chunk 12).
+    #expect(await clients.probe().state == .supported)
+    await backend.setFeatureBehavior(.unknown, for: .clients)
     #expect(await clients.probe().state == .unknown)
     await backend.setFeatureBehavior(.supported, for: .clients)
     let supported = await clients.probe()
