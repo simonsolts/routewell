@@ -102,3 +102,41 @@ private struct FixtureBackend: RouterBackend, FixtureRecordableBackend {
         ])
     }
 }
+
+@Test func recorderKeepsTechnicalEvidenceButHidesPersonalText() throws {
+    let payload: JSONValue = .object([
+        "clients": .array([.object([
+            "mac": .string("AA:BB:CC:DD:EE:01"), "ip": .string("192.168.8.40"),
+            "name": .string(""), "alias": .string("Kitchen iPad"),
+            "iface": .string("ra0"), "class": .string("Simons iPhone"),
+            "total_rx": .string("123456"), "online_time": .number(1_789_000_000)
+        ])]),
+        "top_clients": .array([.object(["192.168.8.40": .number(12)])]),
+        "data": .array([.object([
+            "client": .string("192.168.8.40"), "reason": .string("FilteredBlackList"),
+            "time": .string("2026-09-22T21:14:11.123456+01:00"), "key": .string("12345678")
+        ])])
+    ])
+    var aliases = FixtureAliases()
+    RecordedFixtureRedactor.collectAliases(payload, into: &aliases)
+    let redacted = RecordedFixtureRedactor.redact(payload, aliases: aliases)
+    let client = try #require(redacted["clients"]?.array?.first)
+    let ipAlias = try #require(client["ip"]?.string)
+    #expect(ipAlias.hasPrefix("198.51."))
+    #expect(client["mac"]?.string?.hasPrefix("02:00:00:00:") == true)
+    #expect(client["name"]?.string == "")
+    #expect(client["alias"]?.string?.hasPrefix("Example") == true)
+    #expect(client["iface"]?.string == "ra0")
+    #expect(client["class"]?.string == "[REDACTED TEXT]")
+    #expect(client["total_rx"]?.string == "123456")
+    #expect(redacted["top_clients"]?.array?.first?[ipAlias]?.int == 12)
+    let entry = try #require(redacted["data"]?.array?.first)
+    #expect(entry["client"]?.string == ipAlias)
+    #expect(entry["reason"]?.string == "FilteredBlackList")
+    #expect(entry["time"]?.string == "2026-09-22T21:14:11.123456+01:00")
+    #expect(entry["key"]?.string == "[REDACTED TEXT]")
+    let text = String(decoding: try JSONEncoder().encode(redacted), as: UTF8.self)
+    #expect(!text.contains("192.168.8.40"))
+    #expect(!text.contains("Kitchen iPad"))
+    #expect(!text.contains("Simons iPhone"))
+}
