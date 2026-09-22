@@ -1,0 +1,32 @@
+import Foundation
+
+public enum CapabilityState: String, Sendable, Equatable, Codable {
+    case supported, unsupported, unknown
+}
+
+public struct Capability: Sendable, Equatable, Codable {
+    public let state: CapabilityState
+    public let evidence: String?
+    public let observedAt: Date?
+
+    public init(_ state: CapabilityState = .unknown, evidence: String? = nil, observedAt: Date? = nil) {
+        self.state = state
+        self.evidence = evidence
+        self.observedAt = observedAt
+    }
+}
+
+/// A probe never treats a timeout, malformed reply, or empty collection as
+/// evidence of absence. Implementations retain unknown until they see a
+/// successful response or an exact method-not-found response.
+public protocol FeatureService: Sendable {
+    func probe() async -> Capability
+}
+
+public protocol ClientsService: FeatureService {}
+public protocol QueryLogService: FeatureService {}
+public protocol NetworkService: FeatureService {}
+public protocol MaintenanceService: FeatureService {}
+public protocol VPNService: FeatureService {}
+public protocol PluginsService: FeatureService {}
+public protocol TelemetryService: FeatureService {}

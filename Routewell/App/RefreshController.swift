@@ -8,11 +8,15 @@ final class RefreshController {
     private let schedule: RefreshSchedule
     private let wallClock: any WallClock
     private let logging: LoggingController?
+    private var telemetry = TelemetrySampler()
     private var task: Task<Void, Never>?
     private var pending = false
+    private var pendingManual = false
     private var pollingEnabled = false
     private var windowVisible = false
     private var sleeping = false
+    private var overviewElapsed: Duration = .zero
+    private var featureElapsed: [DataArea: Duration] = [:]
 
     var isAvailable: Bool { model.session.isReady && !sleeping }
 
@@ -27,6 +31,10 @@ final class RefreshController {
         self.logging = logging
         schedule = RefreshSchedule(clock: clock)
         model.refreshSettingsChanged = { [weak self] in self?.updateSchedule() }
+        model.screenChanged = { [weak self] in
+            self?.updateSchedule()
+            if self?.windowVisible == true { self?.refreshNow() }
+        }
     }
 
     func setWindowVisible(_ visible: Bool) {
@@ -53,14 +61,20 @@ final class RefreshController {
 
     private func updateSchedule() {
         let policy = RefreshPolicy(interval: .seconds(model.refreshIntervalSeconds), pauseWhenHidden: model.pauseWhenHidden)
-        let interval = pollingEnabled && model.session.isReady
+        let baseInterval = pollingEnabled && model.session.isReady
             ? policy.cadence(windowVisible: windowVisible, menuBarVisible: model.showInMenuBar, sleeping: sleeping)
             : nil
+        let requests = ScreenRefreshPlan.resolve(destination: model.selection.rawValue,
+            segment: model.subpages[model.selection] ?? model.selection.segments.first,
+            defaultInterval: .seconds(model.refreshIntervalSeconds))
+        let interval = baseInterval.map { base in
+            windowVisible ? min(base, requests.map(\.interval).min() ?? base) : base
+        }
         if pollingEnabled && interval == nil { pending = false }
         schedule.update(interval: interval) { [weak self] in
             guard let self else { return }
             if self.windowVisible { self.model.evaluateFreshness(at: self.wallClock.now()) }
-            self.refreshNow()
+            self.refreshNow(automaticTick: interval)
         }
     }
 
@@ -69,6 +83,10 @@ final class RefreshController {
         task?.cancel()
         task = nil
         pending = false
+        pendingManual = false
+        overviewElapsed = .zero
+        featureElapsed = [:]
+        telemetry = TelemetrySampler()
     }
 
     func stop() {
@@ -78,22 +96,63 @@ final class RefreshController {
     }
 
     @discardableResult
-    func refreshNow() -> Task<Void, Never>? {
+    func refreshNow(automaticTick: Duration? = nil) -> Task<Void, Never>? {
         guard isAvailable, let lease = model.session.lease else { return nil }
+        if let automaticTick { overviewElapsed += automaticTick }
+        else { overviewElapsed = .seconds(model.refreshIntervalSeconds) }
+        let activeRequests = ScreenRefreshPlan.resolve(destination: model.selection.rawValue,
+            segment: model.subpages[model.selection] ?? model.selection.segments.first,
+            defaultInterval: .seconds(model.refreshIntervalSeconds))
+        for request in activeRequests {
+            featureElapsed[request.area, default: .zero] += automaticTick ?? request.interval
+        }
         if let task {
             pending = true
+            if automaticTick == nil { pendingManual = true }
             return task
         }
         model.accept(.busy(true, wallClock.now()), token: lease.token)
         logging?.record(kind: .refresh, message: "Refresh started")
         let model = model
         let wallClock = wallClock
+        let telemetry = telemetry
         task = Task { [weak self] in
             repeat {
                 do {
-                    let result = try await model.session.routerSession.overview(using: lease)
+                    let now = wallClock.now()
+                    let overviewDue = self?.overviewElapsed ?? .zero >= .seconds(model.refreshIntervalSeconds)
+                    if overviewDue {
+                    var result = try await model.session.routerSession.overview(using: lease)
                     guard !Task.isCancelled else { return }
+                    if case .success(var router, let observedAt, let source) = result.router {
+                        let total = router.memoryTotalBytes
+                        let used = router.memoryUsedBytes
+                        let history = await telemetry.append(TelemetrySample(
+                            capturedAt: observedAt,
+                            cpuLoad: router.loadAverages.first.map(Observed.value) ?? .unknown,
+                            memoryUsedBytes: used.map { .value(Double($0)) } ?? .unknown,
+                            temperatureCelsius: router.temperatureCelsius
+                        ))
+                        guard !Task.isCancelled, model.session.expectedToken == lease.token else { return }
+                        router.memoryHistory = history.memoryUsedBytes.compactMap {
+                            guard let total, total > 0 else { return nil }
+                            return $0.value / Double(total)
+                        }
+                        result.router = .success(router, observedAt: observedAt, source: source)
+                    }
                     model.accept(.result(result, wallClock.now()), token: lease.token)
+                    self?.overviewElapsed = .zero
+                    }
+                    if self?.windowVisible == true {
+                        for request in activeRequests where !ScreenRefreshPlan.overviewAreas.contains(request.area) || request.area == .clients {
+                            guard let service = lease.backend.service(for: request.area) else { continue }
+                            if automaticTick != nil, (self?.featureElapsed[request.area] ?? .zero) < request.interval { continue }
+                            let capability = await service.probe()
+                            guard !Task.isCancelled, model.session.expectedToken == lease.token else { return }
+                            model.acceptCapability(capability, area: request.area, token: lease.token)
+                            self?.featureElapsed[request.area] = .zero
+                        }
+                    }
                     self?.logging?.record(kind: .refresh, message: "Refresh completed")
                 } catch {
                     guard !Task.isCancelled else { return }
@@ -105,6 +164,9 @@ final class RefreshController {
                 }
                 guard model.session.expectedToken == lease.token else { return }
                 if self?.takePending() == true {
+                    if self?.takePendingManual() == true {
+                        self?.overviewElapsed = .seconds(model.refreshIntervalSeconds)
+                    }
                     model.accept(.busy(true, wallClock.now()), token: lease.token)
                 } else {
                     self?.task = nil
@@ -119,6 +181,11 @@ final class RefreshController {
     private func takePending() -> Bool {
         defer { pending = false }
         return pending && !sleeping
+    }
+
+    private func takePendingManual() -> Bool {
+        defer { pendingManual = false }
+        return pendingManual
     }
 
     func waitForRefresh() async { await task?.value }

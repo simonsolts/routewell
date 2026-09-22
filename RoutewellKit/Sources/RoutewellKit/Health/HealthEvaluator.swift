@@ -49,7 +49,7 @@ public struct HealthEvaluator: Sendable {
         now: Date
     ) -> [HealthCheck] {
         var checks: [HealthCheck] = []
-        for area in DataArea.allCases {
+        for area in [DataArea.router, .internet, .adGuard, .clients] {
             let state = freshness[area] ?? Freshness()
             if state.isRefreshing {
                 checks.append(.init(kind: .refreshing(area), state: .refreshing,
@@ -99,6 +99,7 @@ public struct HealthEvaluator: Sendable {
         case .internet: .network
         case .adGuard: .protection
         case .clients: .clients
+        case .queryLog, .maintenance, .plugins, .telemetry, .vpn, .network, .publicIP, .schedules: .network
         }
     }
 }

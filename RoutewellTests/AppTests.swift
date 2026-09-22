@@ -3,6 +3,53 @@ import Testing
 import RoutewellKit
 @testable import Routewell
 
+@Test func featureUnavailableExplainsUnknownAndUnsupported() {
+    #expect(FeatureUnavailableView.explanation(for: .supported) == nil)
+    #expect(FeatureUnavailableView.explanation(for: .unsupported)?.contains("does not support") == true)
+    #expect(FeatureUnavailableView.explanation(for: .unknown)?.contains("unknown") == true)
+}
+
+@MainActor @Test func telemetryBuildsMemorySparklineFromSuccessiveReadsInMockAndLiveModels() async {
+    for mode in [BackendMode.mock, .live] {
+        let backend = TelemetryBackendForTest()
+        let model = AppModel(mode: mode)
+        let environment = AppEnvironment(model: model, backend: backend)
+        await environment.waitUntilReady()
+        await environment.refresh.waitForRefresh()
+        if !model.session.isReady {
+            await model.session.switchProfile("synthetic", model: model, refresh: environment.refresh) {
+                SessionLease(token: $0, backend: backend)
+            }.value
+            await environment.refresh.waitForRefresh()
+        }
+        environment.refresh.refreshNow()
+        await environment.refresh.waitForRefresh()
+        environment.refresh.refreshNow()
+        await environment.refresh.waitForRefresh()
+        let history = model.snapshot?.router.memoryHistory ?? []
+        #expect(history.count >= 2)
+        #expect(history.last == 0.6 || history.last == 0.7 || history.last == 0.8)
+    }
+}
+
+private actor TelemetryBackendForTest: RouterBackend {
+    nonisolated let protection: (any ProtectionService)? = nil
+    private var count = 0
+    func overview() async throws -> OverviewRefreshResult {
+        count += 1
+        let now = Date()
+        var router = RouterStatus()
+        router.memoryUsedBytes = Int64(min(count + 4, 8) * 10)
+        router.memoryTotalBytes = 100
+        return OverviewRefreshResult(
+            router: .success(router, observedAt: now, source: .mock),
+            internet: .success(InternetStatus(), observedAt: now, source: .mock),
+            adGuard: .success(AdGuardStatus(), observedAt: now, source: .mock),
+            clients: .success(ClientStatus(), observedAt: now, source: .mock)
+        )
+    }
+}
+
 @Test func backendSelectionNeverFallsBackToMockWithoutOptingIn() {
     #expect(BackendMode.resolve(nil, allowsMock: true) == .live)
     #expect(BackendMode.resolve("", allowsMock: true) == .live)

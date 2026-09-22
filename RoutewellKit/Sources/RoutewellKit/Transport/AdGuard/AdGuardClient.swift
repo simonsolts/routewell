@@ -82,6 +82,20 @@ public actor AdGuardClient {
         return response
     }
 
+    public func recordRead(path: String) async -> JSONValue {
+        guard path.hasPrefix("control/"), !path.contains("..") else {
+            return .object(["error": .object(["category": .string("invalid path")])])
+        }
+        do { return try await get(path: path, method: "fixture") }
+        catch AdGuardClientError.unauthorized {
+            return .object(["error": .object(["category": .string("authentication")])])
+        } catch AdGuardClientError.httpStatus(let status) {
+            return .object(["error": .object(["status": .number(Double(status))])])
+        } catch {
+            return .object(["error": .object(["category": .string("unavailable")])])
+        }
+    }
+
     /// `POST control/protection`. Dispatches at most once per call: a
     /// 401/403 that arrives before the body is accepted is re-authenticated
     /// and re-dispatched exactly once, which still counts as the single

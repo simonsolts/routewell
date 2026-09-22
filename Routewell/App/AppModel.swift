@@ -4,8 +4,10 @@ import RoutewellKit
 
 @MainActor @Observable
 final class AppModel {
-    var selection: SidebarDestination = .overview
-    var subpages: [SidebarDestination: String] = [:]
+    var selection: SidebarDestination = .overview { didSet { screenChanged?() } }
+    var settingsTab = "General"
+    var subpages: [SidebarDestination: String] = [:] { didSet { screenChanged?() } }
+    private(set) var capabilities: [DataArea: Capability] = [:]
     private(set) var snapshot: OverviewSnapshot?
     private(set) var freshness: [DataArea: Freshness] = [:]
     private(set) var healthChecks: [HealthCheck] = []
@@ -25,6 +27,7 @@ final class AppModel {
     var refreshIntervalSeconds = 30 { didSet { refreshSettingsChanged?(); persistenceSettingsChanged?() } }
     var pauseWhenHidden = true { didSet { refreshSettingsChanged?(); persistenceSettingsChanged?() } }
     @ObservationIgnored var refreshSettingsChanged: (() -> Void)?
+    @ObservationIgnored var screenChanged: (() -> Void)?
     @ObservationIgnored var persistenceSettingsChanged: (() -> Void)?
     var showStatusBar = true { didSet { persistenceSettingsChanged?() } }
     var persistedSettings: AppSettings {
@@ -42,7 +45,7 @@ final class AppModel {
         self.snapshot = snapshot
         evaluatedAt = now
         if let snapshot {
-            freshness = Dictionary(uniqueKeysWithValues: DataArea.allCases.map {
+            freshness = Dictionary(uniqueKeysWithValues: ScreenRefreshPlan.overviewAreas.map {
                 ($0, Freshness(lastSuccess: snapshot.observedAt, lastAttempt: snapshot.observedAt, source: .mock))
             })
         }
@@ -52,12 +55,18 @@ final class AppModel {
     func clearSession() {
         snapshot = nil
         freshness = [:]
+        capabilities = [:]
         healthChecks = HealthEvaluator().evaluate(snapshot: nil, freshness: freshness, now: evaluatedAt)
         isRefreshing = false
         refreshFailed = false
     }
 
     func replaceLogEvents(_ events: [LogEvent]) { logEvents = events }
+
+    func acceptCapability(_ capability: Capability, area: DataArea, token: SessionToken) {
+        guard session.isReady, token == session.expectedToken else { return }
+        capabilities[area] = capability
+    }
 
     enum Completion {
         case snapshot(OverviewSnapshot)
@@ -72,12 +81,12 @@ final class AppModel {
         switch completion {
         case .snapshot(let value):
             snapshot = value
-            for area in DataArea.allCases {
+            for area in ScreenRefreshPlan.overviewAreas {
                 freshness[area] = Freshness(lastSuccess: value.observedAt, lastAttempt: value.observedAt, source: .mock)
             }
         case .result(let result, _): apply(result)
         case .failure(let category, let date):
-            for area in DataArea.allCases {
+            for area in ScreenRefreshPlan.overviewAreas {
                 var state = freshness[area] ?? Freshness()
                 state.lastAttempt = date
                 state.failure = category
@@ -86,7 +95,7 @@ final class AppModel {
             }
         case .busy(let value, let date):
             isRefreshing = value
-            for area in DataArea.allCases {
+            for area in ScreenRefreshPlan.overviewAreas {
                 var state = freshness[area] ?? Freshness()
                 state.isRefreshing = value
                 if value { state.lastAttempt = date }

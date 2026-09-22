@@ -18,6 +18,19 @@ public actor MockRouterBackend: RouterBackend {
         case unauthorized
     }
 
+    public enum FeatureBehavior: String, CaseIterable, Sendable {
+        case supported, unsupported, unknown, slow, failing
+    }
+
+    public nonisolated let clients: (any ClientsService)?
+    public nonisolated let queryLog: (any QueryLogService)?
+    public nonisolated let network: (any NetworkService)?
+    public nonisolated let maintenance: (any MaintenanceService)?
+    public nonisolated let vpn: (any VPNService)?
+    public nonisolated let plugins: (any PluginsService)?
+    public nonisolated let telemetry: (any TelemetryService)?
+    private let featureProbes: [DataArea: MockFeatureProbe]
+
     private var scenario: Scenario
     private var protectionBehavior: ProtectionBehavior = .succeeds
     /// Overrides `adGuard.protection` in the next `overview()` result once a
@@ -33,6 +46,15 @@ public actor MockRouterBackend: RouterBackend {
     public init(scenario: Scenario = .healthy, hostname: String = "flint-demo") {
         self.scenario = scenario
         self.hostname = hostname
+        let probes = Dictionary(uniqueKeysWithValues: [DataArea.clients, .queryLog, .network, .maintenance, .vpn, .plugins, .telemetry].map { ($0, MockFeatureProbe()) })
+        featureProbes = probes
+        clients = probes[.clients]
+        queryLog = probes[.queryLog]
+        network = probes[.network]
+        maintenance = probes[.maintenance]
+        vpn = probes[.vpn]
+        plugins = probes[.plugins]
+        telemetry = probes[.telemetry]
     }
 
     public func overview() async throws -> OverviewRefreshResult {
@@ -48,6 +70,10 @@ public actor MockRouterBackend: RouterBackend {
     }
 
     public func setScenario(_ scenario: Scenario) { self.scenario = scenario }
+
+    public func setFeatureBehavior(_ behavior: FeatureBehavior, for area: DataArea) async {
+        await featureProbes[area]?.setBehavior(behavior)
+    }
 
     public func setProtectionBehavior(_ behavior: ProtectionBehavior) {
         protectionBehavior = behavior
@@ -177,7 +203,6 @@ public actor MockRouterBackend: RouterBackend {
         router.loadAverages = [0.18, 0.24, 0.21]
         router.memoryUsedBytes = 418_759_311
         router.memoryTotalBytes = 1_073_741_824
-        router.memoryHistory = [0.36, 0.36, 0.37, 0.37, 0.38, 0.38, 0.39, 0.40, 0.39, 0.39]
         router.temperatureCelsius = .value(52)
 
         var internet = InternetStatus()
@@ -198,6 +223,27 @@ public actor MockRouterBackend: RouterBackend {
         clients.activeCount = .value(18)
         return OverviewSnapshot(router: router, internet: internet, adGuard: adGuard,
                                 clients: clients, observedAt: date)
+    }
+}
+
+private actor MockFeatureProbe: ClientsService, QueryLogService, NetworkService,
+    MaintenanceService, VPNService, PluginsService, TelemetryService {
+    private var behavior: MockRouterBackend.FeatureBehavior = .unknown
+
+    func setBehavior(_ value: MockRouterBackend.FeatureBehavior) { behavior = value }
+
+    func probe() async -> Capability {
+        let selected = behavior
+        if selected == .slow {
+            do { try await Task.sleep(for: .seconds(5)) }
+            catch { return Capability() }
+        }
+        guard !Task.isCancelled else { return Capability() }
+        switch selected {
+        case .supported: return Capability(.supported, evidence: "mock success", observedAt: .now)
+        case .unsupported: return Capability(.unsupported, evidence: "mock method not found", observedAt: .now)
+        case .unknown, .slow, .failing: return Capability()
+        }
     }
 }
 

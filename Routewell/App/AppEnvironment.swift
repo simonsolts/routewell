@@ -1,4 +1,5 @@
 import Foundation
+import AppKit
 import Observation
 import RoutewellKit
 #if DEBUG
@@ -136,6 +137,40 @@ final class AppEnvironment {
     func setMockProtectionBehavior(_ behavior: MockRouterBackend.ProtectionBehavior) {
         guard model.mode == .mock, let mockBackend else { return }
         Task { await mockBackend.setProtectionBehavior(behavior) }
+    }
+
+    func setMockFeatureBehavior(_ behavior: MockRouterBackend.FeatureBehavior, for area: DataArea) {
+        guard model.mode == .mock, let mockBackend else { return }
+        Task {
+            await mockBackend.setFeatureBehavior(behavior, for: area)
+            refresh.refreshNow()
+        }
+    }
+
+    func recordFixtures() {
+        guard model.mode == .live, let lease = model.session.lease else { return }
+        let panel = NSOpenPanel()
+        panel.message = "Choose a folder for redacted, read-only router fixtures"
+        panel.prompt = "Record Fixtures"
+        panel.canChooseDirectories = true
+        panel.canChooseFiles = false
+        panel.canCreateDirectories = true
+        guard panel.runModal() == .OK, let directory = panel.url else { return }
+        let session = model.session.routerSession
+        Task {
+            do {
+                let count = try await FixtureRecorder().record(session: session, lease: lease, to: directory)
+                let alert = NSAlert()
+                alert.messageText = "Fixtures recorded"
+                alert.informativeText = "Wrote \(count) redacted files. Review them before committing."
+                alert.runModal()
+            } catch {
+                let alert = NSAlert()
+                alert.messageText = "Fixture recording stopped"
+                alert.informativeText = "The session changed or a file could not be written."
+                alert.runModal()
+            }
+        }
     }
     #endif
 
