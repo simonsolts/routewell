@@ -16,7 +16,7 @@ struct MainWindow: View {
                         ForEach(SidebarDestination.allCases.filter { $0.group == group }) { destination in
                             Label(destination.title, systemImage: destination.symbol)
                                 .tag(destination)
-                                .badge(mockBadge(for: destination))
+                                .badge(badge(for: destination))
                         }
                     }
                 }
@@ -42,16 +42,14 @@ struct MainWindow: View {
                         }
                         DetailRouter(destination: model.selection)
                             .frame(maxWidth: .infinity, maxHeight: .infinity)
-                        if model.showStatusBar && [.clients, .logs].contains(model.selection) {
+                        if model.showStatusBar && model.selection == .logs {
                             Divider()
-                            Text(model.selection == .logs
-                                 ? "Session-only observations — not a router audit log."
-                                 : "Client inventory is not available in this build.")
+                            Text("Session-only observations — not a router audit log.")
                                 .font(.caption).foregroundStyle(.secondary).padding(7)
                         }
                     }
                     .navigationTitle(model.selection.title)
-                    .navigationSubtitle(model.mode == .mock ? (model.session.expectedToken?.profileID ?? "Sample router") : "Not connected")
+                    .navigationSubtitle(subtitle)
                     .toolbar { toolbar }
                 }
             }
@@ -94,9 +92,21 @@ struct MainWindow: View {
         .accessibilityElement(children: .combine)
     }
 
-    private func mockBadge(for destination: SidebarDestination) -> Int {
-        guard model.mode == .mock else { return 0 }
-        switch destination { case .clients: return 3; case .notifications: return 1; default: return 0 }
+    /// Clients counts devices awaiting review. Notifications keeps its mock
+    /// count until the event centre exists (chunk 24).
+    private func badge(for destination: SidebarDestination) -> Int {
+        switch destination {
+        case .clients: model.newDeviceCount
+        case .notifications: model.mode == .mock ? 1 : 0
+        default: 0
+        }
+    }
+
+    /// Clients has no toolbar subtitle (architecture 06); its count is in the
+    /// status line above the table.
+    private var subtitle: String {
+        if model.selection == .clients { return "" }
+        return model.mode == .mock ? (model.session.expectedToken?.profileID ?? "Sample router") : "Not connected"
     }
 
     private var footerDetail: String {

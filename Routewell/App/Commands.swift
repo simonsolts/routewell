@@ -25,7 +25,7 @@ struct RoutewellCommands: Commands {
             Button(environment.model.showStatusBar ? "Hide Status Bar" : "Show Status Bar") {
                 environment.model.showStatusBar.toggle()
             }
-            .disabled(![.clients, .logs].contains(environment.model.selection))
+            .disabled(environment.model.selection != .logs)
             Button("Refresh") { environment.refresh.refreshNow() }
                 .keyboardShortcut("r", modifiers: .command)
                 .disabled(!environment.refresh.isAvailable || environment.model.isRefreshing)

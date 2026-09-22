@@ -55,8 +55,11 @@ enum SidebarDestination: String, CaseIterable, Identifiable {
         case .analytics: ["Overview", "Data", "DNS"]
         case .network: ["Overview", "Map", "Wi-Fi", "DHCP", "Ports", "Health", "Quality"]
         case .maintenance: ["Operations", "Health", "Snapshots", "Reports", "Support"]
+        case .clients: ["All Clients", "Known Clients"]
         default: []
         }
     }
-    var showsStatusPill: Bool { segments.count < 5 }
+    /// Clients shows no status pill (architecture 06), like screens with five
+    /// or more segments.
+    var showsStatusPill: Bool { segments.count < 5 && self != .clients }
 }
