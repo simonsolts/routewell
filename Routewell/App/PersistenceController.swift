@@ -255,14 +255,15 @@ final class PersistenceController {
         let settings = model.persistedSettings
         let profiles = profiles
         isSaving = true
-        // `.trust` is owned by `TrustController`, which writes through
+        // `.trust` is owned by `TrustController` and `.devices` by
+        // `DeviceRegistry`; `TrustController` writes through
         // `PersistentEndpointTrustStore` directly with its own revision.
         for file: StoreFile in [.settings, .profiles] {
             do {
                 switch file {
                 case .settings: try await store.save(settings, to: file, revision: current)
                 case .profiles: try await store.save(profiles, to: file, revision: current)
-                case .trust: break
+                case .trust, .devices: break
                 }
                 if current == revision { errors[file] = nil }
             } catch { if current == revision { report(error, file: file) } }
