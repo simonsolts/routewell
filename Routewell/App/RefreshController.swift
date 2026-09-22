@@ -117,36 +117,39 @@ final class RefreshController {
         let wallClock = wallClock
         let telemetry = telemetry
         task = Task { [weak self] in
+            var force = automaticTick == nil
             repeat {
                 do {
-                    let now = wallClock.now()
                     let overviewDue = self?.overviewElapsed ?? .zero >= .seconds(model.refreshIntervalSeconds)
                     if overviewDue {
-                    var result = try await model.session.routerSession.overview(using: lease)
-                    guard !Task.isCancelled else { return }
-                    if case .success(var router, let observedAt, let source) = result.router {
-                        let total = router.memoryTotalBytes
-                        let used = router.memoryUsedBytes
-                        let history = await telemetry.append(TelemetrySample(
-                            capturedAt: observedAt,
-                            cpuLoad: router.loadAverages.first.map(Observed.value) ?? .unknown,
-                            memoryUsedBytes: used.map { .value(Double($0)) } ?? .unknown,
-                            temperatureCelsius: router.temperatureCelsius
-                        ))
-                        guard !Task.isCancelled, model.session.expectedToken == lease.token else { return }
-                        router.memoryHistory = history.memoryUsedBytes.compactMap {
-                            guard let total, total > 0 else { return nil }
-                            return $0.value / Double(total)
+                        var result = try await model.session.routerSession.overview(using: lease)
+                        guard !Task.isCancelled else { return }
+                        if case .success(var router, let observedAt, let source) = result.router {
+                            let total = router.memoryTotalBytes
+                            let used = router.memoryUsedBytes
+                            let history = await telemetry.append(TelemetrySample(
+                                capturedAt: observedAt,
+                                cpuLoad: router.loadAverages.first.map(Observed.value) ?? .unknown,
+                                memoryUsedBytes: used.map { .value(Double($0)) } ?? .unknown,
+                                temperatureCelsius: router.temperatureCelsius
+                            ))
+                            guard !Task.isCancelled, model.session.expectedToken == lease.token else { return }
+                            router.memoryHistory = history.memoryUsedBytes.compactMap {
+                                guard let total, total > 0 else { return nil }
+                                return $0.value / Double(total)
+                            }
+                            result.router = .success(router, observedAt: observedAt, source: source)
                         }
-                        result.router = .success(router, observedAt: observedAt, source: source)
-                    }
-                    model.accept(.result(result, wallClock.now()), token: lease.token)
-                    self?.overviewElapsed = .zero
+                        model.accept(.result(result, wallClock.now()), token: lease.token)
+                        self?.overviewElapsed = .zero
                     }
                     if self?.windowVisible == true {
-                        for request in activeRequests where !ScreenRefreshPlan.overviewAreas.contains(request.area) || request.area == .clients {
+                        let requests = ScreenRefreshPlan.resolve(destination: model.selection.rawValue,
+                            segment: model.subpages[model.selection] ?? model.selection.segments.first,
+                            defaultInterval: .seconds(model.refreshIntervalSeconds))
+                        for request in requests where !ScreenRefreshPlan.overviewAreas.contains(request.area) || request.area == .clients {
                             guard let service = lease.backend.service(for: request.area) else { continue }
-                            if automaticTick != nil, (self?.featureElapsed[request.area] ?? .zero) < request.interval { continue }
+                            if !force, (self?.featureElapsed[request.area] ?? .zero) < request.interval { continue }
                             let capability = await service.probe()
                             guard !Task.isCancelled, model.session.expectedToken == lease.token else { return }
                             model.acceptCapability(capability, area: request.area, token: lease.token)
@@ -164,7 +167,8 @@ final class RefreshController {
                 }
                 guard model.session.expectedToken == lease.token else { return }
                 if self?.takePending() == true {
-                    if self?.takePendingManual() == true {
+                    force = self?.takePendingManual() == true
+                    if force {
                         self?.overviewElapsed = .seconds(model.refreshIntervalSeconds)
                     }
                     model.accept(.busy(true, wallClock.now()), token: lease.token)

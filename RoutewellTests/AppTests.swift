@@ -45,6 +45,19 @@ import RoutewellKit
     }
 }
 
+@MainActor @Test func visibleDestinationProbesItsFeatureCapability() async {
+    let backend = VisibleFeatureBackendForTest()
+    let model = AppModel(mode: .mock)
+    let environment = AppEnvironment(model: model, backend: backend)
+    await environment.waitUntilReady()
+    await environment.refresh.waitForRefresh()
+    environment.refresh.setWindowVisible(true)
+    model.selection = .vpn
+    await environment.refresh.waitForRefresh()
+    #expect(model.capabilities[.vpn]?.state == .supported)
+    #expect(model.capabilities[.plugins] == nil)
+}
+
 private actor TelemetryBackendForTest: RouterBackend {
     nonisolated let protection: (any ProtectionService)? = nil
     private var count = 0
@@ -61,6 +74,22 @@ private actor TelemetryBackendForTest: RouterBackend {
             clients: .success(ClientStatus(), observedAt: now, source: .mock)
         )
     }
+}
+
+private struct VisibleFeatureBackendForTest: RouterBackend {
+    var protection: (any ProtectionService)? { nil }
+    var vpn: (any VPNService)? { VisibleVPNProbeForTest() }
+    func overview() async throws -> OverviewRefreshResult {
+        let now = Date()
+        return OverviewRefreshResult(router: .success(RouterStatus(), observedAt: now, source: .mock),
+            internet: .success(InternetStatus(), observedAt: now, source: .mock),
+            adGuard: .success(AdGuardStatus(), observedAt: now, source: .mock),
+            clients: .success(ClientStatus(), observedAt: now, source: .mock))
+    }
+}
+
+private actor VisibleVPNProbeForTest: VPNService {
+    func probe() async -> Capability { Capability(.supported, evidence: .successfulResponse, observedAt: .now) }
 }
 
 @Test func backendSelectionNeverFallsBackToMockWithoutOptingIn() {
