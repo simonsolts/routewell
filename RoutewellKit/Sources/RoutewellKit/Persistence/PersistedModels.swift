@@ -5,7 +5,31 @@ public struct AppSettings: Codable, Equatable, Sendable {
     public var refreshIntervalSeconds = 30
     public var pauseWhenHidden = true
     public var showStatusBar = true
+    /// Clients details pane (chunk 12): shown or hidden, its height in
+    /// points, and the selected section in its source list.
+    public var clientsDetailsVisible = true
+    public var clientsDetailsHeight = 300.0
+    public var clientsDetailsSection = "overview"
     public init() {}
+
+    private enum CodingKeys: String, CodingKey {
+        case showInMenuBar, refreshIntervalSeconds, pauseWhenHidden, showStatusBar
+        case clientsDetailsVisible, clientsDetailsHeight, clientsDetailsSection
+    }
+
+    /// Every key is optional, so a file written before a setting existed
+    /// still loads with that setting's default instead of being treated as
+    /// damaged.
+    public init(from decoder: any Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        showInMenuBar = try values.decodeIfPresent(Bool.self, forKey: .showInMenuBar) ?? true
+        refreshIntervalSeconds = try values.decodeIfPresent(Int.self, forKey: .refreshIntervalSeconds) ?? 30
+        pauseWhenHidden = try values.decodeIfPresent(Bool.self, forKey: .pauseWhenHidden) ?? true
+        showStatusBar = try values.decodeIfPresent(Bool.self, forKey: .showStatusBar) ?? true
+        clientsDetailsVisible = try values.decodeIfPresent(Bool.self, forKey: .clientsDetailsVisible) ?? true
+        clientsDetailsHeight = try values.decodeIfPresent(Double.self, forKey: .clientsDetailsHeight) ?? 300
+        clientsDetailsSection = try values.decodeIfPresent(String.self, forKey: .clientsDetailsSection) ?? "overview"
+    }
 }
 
 /// Settings for an optional AdGuard Home instance reachable through the same

@@ -42,6 +42,10 @@ final class PersistenceController {
                     model.refreshIntervalSeconds = [15, 30, 60].contains(saved.refreshIntervalSeconds) ? saved.refreshIntervalSeconds : 30
                     model.pauseWhenHidden = saved.pauseWhenHidden
                     model.showStatusBar = saved.showStatusBar
+                    model.clientsDetailsVisible = saved.clientsDetailsVisible
+                    model.clientsDetailsHeight = min(max(saved.clientsDetailsHeight, AppModel.clientsDetailsHeightRange.lowerBound),
+                                                     AppModel.clientsDetailsHeightRange.upperBound)
+                    model.clientsDetailsSection = saved.clientsDetailsSection
                 }
             } catch { report(error, file: .settings) }
             do {

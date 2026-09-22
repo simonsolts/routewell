@@ -30,13 +30,67 @@ final class AppModel {
     @ObservationIgnored var screenChanged: (() -> Void)?
     @ObservationIgnored var persistenceSettingsChanged: (() -> Void)?
     var showStatusBar = true { didSet { persistenceSettingsChanged?() } }
+    var clientsDetailsVisible = true { didSet { persistenceSettingsChanged?() } }
+    var clientsDetailsHeight = 300.0 { didSet { persistenceSettingsChanged?() } }
+    var clientsDetailsSection = ClientDetailsSection.overview.rawValue { didSet { persistenceSettingsChanged?() } }
+    static let clientsDetailsHeightRange = 180.0...1200.0
     var persistedSettings: AppSettings {
         var settings = AppSettings()
         settings.showInMenuBar = showInMenuBar
         settings.refreshIntervalSeconds = refreshIntervalSeconds
         settings.pauseWhenHidden = pauseWhenHidden
         settings.showStatusBar = showStatusBar
+        settings.clientsDetailsVisible = clientsDetailsVisible
+        settings.clientsDetailsHeight = clientsDetailsHeight
+        settings.clientsDetailsSection = clientsDetailsSection
         return settings
+    }
+
+    // MARK: Clients (chunk 12)
+
+    /// The last successful inventory in this session. A failed refresh keeps
+    /// it; a session switch clears it.
+    private(set) var clientInventory: ClientInventory?
+    private(set) var clientsFreshness = Freshness()
+    /// Local device history. It is not session data, so a switch keeps it.
+    private(set) var deviceRegistry = DeviceRegistryState()
+    private(set) var deviceRegistryIssue: DeviceRegistryIssue?
+    var newDeviceCount: Int { deviceRegistry.awaitingReview.count }
+
+    enum DeviceRegistryIssue: Equatable {
+        case notSaved, blocked
+        var message: String {
+            switch self {
+            case .notSaved: "Device history could not be saved. New devices are reported once it saves."
+            case .blocked: "Device history was written by a newer app or cannot be read, so it cannot be saved."
+            }
+        }
+    }
+
+    func acceptClients(_ result: AreaRefreshResult<ClientInventory>, observation: DeviceObservation?, token: SessionToken) {
+        guard session.isReady, token == session.expectedToken else { return }
+        switch result {
+        case .success(let inventory, let observedAt, let source):
+            clientInventory = inventory
+            clientsFreshness = Freshness(lastSuccess: observedAt, lastAttempt: observedAt, source: source)
+        case .failure(let category, let attemptedAt):
+            clientsFreshness.lastAttempt = attemptedAt
+            clientsFreshness.failure = category
+        }
+        clientsFreshness.isRefreshing = false
+        if let observation {
+            deviceRegistry = observation.state
+            switch observation.saveFailure {
+            case nil: deviceRegistryIssue = nil
+            case .futureSchema?, .readFailed?: deviceRegistryIssue = .blocked
+            case .corrupt?, .writeFailed?: deviceRegistryIssue = .notSaved
+            }
+        }
+    }
+
+    func replaceDeviceRegistry(_ state: DeviceRegistryState, issue: DeviceRegistryIssue? = nil) {
+        deviceRegistry = state
+        deviceRegistryIssue = issue
     }
     let mode: BackendMode
 
@@ -56,6 +110,8 @@ final class AppModel {
         snapshot = nil
         freshness = [:]
         capabilities = [:]
+        clientInventory = nil
+        clientsFreshness = Freshness()
         healthChecks = HealthEvaluator().evaluate(snapshot: nil, freshness: freshness, now: evaluatedAt)
         isRefreshing = false
         refreshFailed = false

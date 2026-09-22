@@ -92,7 +92,7 @@ struct SettingsView: View {
                     Section {
                         ForEach([DataArea.clients, .queryLog, .network, .maintenance, .vpn, .plugins, .telemetry], id: \.self) { area in
                             Picker(area.rawValue, selection: Binding(
-                                get: { mockFeatureBehaviors[area] ?? .unknown },
+                                get: { mockFeatureBehaviors[area] ?? MockRouterBackend.defaultFeatureBehavior(for: area) },
                                 set: { behavior in
                                     mockFeatureBehaviors[area] = behavior
                                     environment.setMockFeatureBehavior(behavior, for: area)
@@ -107,6 +107,22 @@ struct SettingsView: View {
                         Text("Mock feature capabilities")
                     } footer: {
                         Text("Each area probes independently. Slow waits five seconds; failing leaves capability unknown.")
+                    }
+                    Section {
+                        Picker("Clients data", selection: Binding(
+                            get: { environment.mockClientsScenario },
+                            set: { environment.setMockClientsScenario($0) }
+                        )) {
+                            Text("New devices present").tag(MockClientsService.Scenario.newDevices)
+                            Text("All devices known").tag(MockClientsService.Scenario.standard)
+                            Text("Empty router list").tag(MockClientsService.Scenario.empty)
+                            Text("AdGuard join mismatch").tag(MockClientsService.Scenario.adGuardMismatch)
+                            Text("Router list fails").tag(MockClientsService.Scenario.primaryFailure)
+                        }
+                    } header: {
+                        Text("Mock clients")
+                    } footer: {
+                        Text("Device history in mock mode stays in memory. Each device the seed history has not seen is reported once per app session.")
                     }
                     #endif
                 }
