@@ -59,6 +59,7 @@ import RoutewellMock
 
 @Test func fixturePlanIsReadOnlyAndRedactsCanaries() async throws {
     #expect(FixtureRecordingPlan.calls.allSatisfy(FixtureRecordingPlan.isReadOnly))
+    #expect(Set(FixtureRecordingPlan.calls.map(\.fileName)).count == FixtureRecordingPlan.calls.count)
     let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
     defer { try? FileManager.default.removeItem(at: directory) }
     let backend = FixtureBackend()
@@ -67,16 +68,17 @@ import RoutewellMock
     let lease = SessionLease(token: token, backend: backend)
     try await session.beginRevision(token)
     try await session.installLease(lease)
-    let count = try await FixtureRecorder().record(session: session, lease: lease, to: directory,
-        calls: [FixtureCall(.rpc, object: "system", method: "get_status", fileName: "one.json")])
-    #expect(count == 1)
-    let data = try Data(contentsOf: directory.appendingPathComponent("one.json"))
-    let text = String(decoding: data, as: UTF8.self)
-    #expect(!text.contains("CANARY-PASSWORD"))
-    #expect(!text.contains("secret-wifi"))
-    #expect(!text.contains("192.168.8.22"))
-    #expect(!text.contains("AA:BB:CC:DD:EE:FF"))
-    #expect(text.contains("-32601"))
+    let count = try await FixtureRecorder().record(session: session, lease: lease, to: directory)
+    #expect(count == FixtureRecordingPlan.calls.count)
+    for call in FixtureRecordingPlan.calls {
+        let data = try Data(contentsOf: directory.appendingPathComponent(call.fileName))
+        let text = String(decoding: data, as: UTF8.self)
+        #expect(!text.contains("CANARY-PASSWORD"))
+        #expect(!text.contains("secret-wifi"))
+        #expect(!text.contains("192.168.8.22"))
+        #expect(!text.contains("AA:BB:CC:DD:EE:FF"))
+        #expect(text.contains("-32601"))
+    }
 }
 
 private struct NoFeaturesBackend: RouterBackend {
