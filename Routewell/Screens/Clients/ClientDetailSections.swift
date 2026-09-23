@@ -33,6 +33,7 @@ struct PaneSwitch: View {
                     Text(detail).font(.subheadline).foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
             .toggleStyle(.switch)
             .disabled(disabled)
