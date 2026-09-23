@@ -67,6 +67,8 @@ public struct SSHClientActions: ClientActionsService {
     private let gate: MutationGate
     private let clock: @Sendable () -> Date
     public static let limits = ProcessLimits(deadline: .seconds(15), maxOutputBytes: 16 * 1024)
+    /// The rejection reason when the router has neither `etherwake` nor `wol`.
+    public static let wakeToolMissing = "No Wake-on-LAN tool on the router"
 
     public init(runner: any SSHCommandRunning, gate: MutationGate, clock: @Sendable @escaping () -> Date = { Date() }) {
         self.runner = runner
@@ -111,7 +113,7 @@ public struct SSHClientActions: ClientActionsService {
         }
         let output = String(decoding: result.stdout + result.stderr, as: UTF8.self)
         if output.contains(SSHCommand.wakeToolMissingMarker) {
-            return report(.rejected(.preconditionFailed("No Wake-on-LAN tool on the router")), dispatched: true, startedAt: startedAt, failure: nil)
+            return report(.rejected(.preconditionFailed(Self.wakeToolMissing)), dispatched: true, startedAt: startedAt, failure: nil)
         }
         let lowered = output.lowercased()
         let failed = ["not found", "error", "invalid", "usage"].contains { lowered.contains($0) }

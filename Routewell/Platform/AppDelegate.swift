@@ -4,6 +4,7 @@ import SwiftUI
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
     weak var persistence: PersistenceController?
+    weak var clients: ClientsController?
     var reopenMainWindow: (() -> Void)?
     private weak var mainWindow: NSWindow?
     private weak var refresh: RefreshController?
@@ -45,7 +46,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
         guard let persistence else { return .terminateNow }
+        let clients = clients
         Task {
+            await clients?.flushPresence()
             await persistence.flush()
             if persistence.errors.isEmpty {
                 sender.reply(toApplicationShouldTerminate: true)

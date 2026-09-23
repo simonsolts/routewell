@@ -92,6 +92,52 @@ final class AppModel {
         deviceRegistry = state
         deviceRegistryIssue = issue
     }
+
+    // MARK: Client details (chunk 13)
+
+    /// The All Clients table selection. Kept here so Known Clients, the
+    /// review sheet, and the context menu can open a device in the pane.
+    var clientsSelection: Set<MACAddress> = []
+    /// Local presence history, shared by every router session.
+    private(set) var presence = PresenceLogState()
+    private(set) var presenceIssue: PresenceIssue?
+    /// The last result of a local write or client action, shown in the pane
+    /// for that device only.
+    var clientNotice: ClientNotice?
+
+    enum PresenceIssue: Equatable {
+        case notSaved, blocked
+        var message: String {
+            switch self {
+            case .notSaved: "Presence history could not be saved. Routewell keeps it in memory and tries again."
+            case .blocked: "Presence history was written by a newer app or cannot be read, so it is not saved."
+            }
+        }
+    }
+
+    struct ClientNotice: Equatable {
+        let mac: MACAddress
+        let text: String
+        var tone: StatusTone = .unknown
+    }
+
+    func replacePresence(_ state: PresenceLogState, failure: StoreError? = nil) {
+        presence = state
+        switch failure {
+        case nil: presenceIssue = nil
+        case .futureSchema?, .readFailed?: presenceIssue = .blocked
+        case .corrupt?, .writeFailed?: presenceIssue = .notSaved
+        }
+    }
+
+    /// Opens one device in the All Clients details pane.
+    func revealClient(_ mac: MACAddress, section: ClientDetailsSection) {
+        selection = .clients
+        subpages[.clients] = SidebarDestination.clients.segments[0]
+        clientsSelection = [mac]
+        clientsDetailsVisible = true
+        clientsDetailsSection = section.rawValue
+    }
     let mode: BackendMode
 
     init(mode: BackendMode, snapshot: OverviewSnapshot? = nil, now: Date = .now) {

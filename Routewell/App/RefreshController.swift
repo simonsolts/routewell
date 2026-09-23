@@ -9,6 +9,7 @@ final class RefreshController {
     private let wallClock: any WallClock
     private let logging: LoggingController?
     private let registry: DeviceRegistry?
+    private let presence: PresenceLog?
     private var telemetry = TelemetrySampler()
     private var task: Task<Void, Never>?
     private var pending = false
@@ -26,12 +27,14 @@ final class RefreshController {
         clock: any RefreshClock = ContinuousRefreshClock(),
         wallClock: any WallClock = SystemWallClock(),
         logging: LoggingController? = nil,
-        registry: DeviceRegistry? = nil
+        registry: DeviceRegistry? = nil,
+        presence: PresenceLog? = nil
     ) {
         self.model = model
         self.wallClock = wallClock
         self.logging = logging
         self.registry = registry
+        self.presence = presence
         schedule = RefreshSchedule(clock: clock)
         model.refreshSettingsChanged = { [weak self] in self?.updateSchedule() }
         model.screenChanged = { [weak self] in
@@ -49,7 +52,10 @@ final class RefreshController {
     func setSleeping(_ value: Bool) {
         guard sleeping != value else { return }
         sleeping = value
-        if value { pending = false }
+        if value {
+            pending = false
+            interruptPresence()
+        }
         updateSchedule()
         if !value {
             model.evaluateFreshness(at: wallClock.now())
@@ -81,7 +87,14 @@ final class RefreshController {
         }
     }
 
+    /// Sampling stops, so the time until the next sample reads as unknown.
+    private func interruptPresence() {
+        guard let presence else { return }
+        Task { await presence.interrupt() }
+    }
+
     func cancelForSwitch() {
+        interruptPresence()
         schedule.stop()
         task?.cancel()
         task = nil
@@ -120,6 +133,7 @@ final class RefreshController {
         let wallClock = wallClock
         let telemetry = telemetry
         let registry = registry
+        let presence = presence
         task = Task { [weak self] in
             var force = automaticTick == nil
             repeat {
@@ -146,6 +160,14 @@ final class RefreshController {
                         }
                         model.accept(.result(result, wallClock.now()), token: lease.token)
                         self?.overviewElapsed = .zero
+                        // One presence sample per refresh, from the overview's own client list.
+                        if let presence, case .success(let clients, let observedAt, _) = result.clients, let listed = clients.listed {
+                            let samples = PresenceLog.samples(listed: listed, known: model.deviceRegistry.records.keys)
+                            let failure = await presence.record(samples, at: observedAt)
+                            let state = await presence.snapshot()
+                            guard !Task.isCancelled, model.session.expectedToken == lease.token else { return }
+                            model.replacePresence(state, failure: failure)
+                        }
                     }
                     if self?.windowVisible == true {
                         let requests = ScreenRefreshPlan.resolve(destination: model.selection.rawValue,

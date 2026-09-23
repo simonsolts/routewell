@@ -21,6 +21,8 @@ public actor PresenceLog {
     private let extensionSaveInterval: TimeInterval
     private var lastSave: Date?
     private var dirty = false
+    /// The last save's failure, kept until a save succeeds.
+    private var lastFailure: StoreError?
 
     public init(store: AtomicJSONStore?, initial: PresenceLogState = .init(), extensionSaveInterval: TimeInterval = 300) {
         self.store = store
@@ -72,13 +74,16 @@ public actor PresenceLog {
         var structural = false
         for (mac, sample) in samples {
             var history = state.devices[mac] ?? PresenceHistory()
+            // A sample no newer than the last one (a repeated or late result)
+            // adds nothing and would break the time order.
+            if let last = history.runs.last, now <= last.end { continue }
             if history.open, var last = history.runs.last, last.state == sample,
-               now >= last.end, now.timeIntervalSince(last.end) <= Self.continuity {
+               now.timeIntervalSince(last.end) <= Self.continuity {
                 last.end = now
                 last.observations += 1
                 history.runs[history.runs.count - 1] = last
             } else {
-                let continuous = history.open && history.runs.last.map { now >= $0.end && now.timeIntervalSince($0.end) <= Self.continuity } == true
+                let continuous = history.open && history.runs.last.map { now.timeIntervalSince($0.end) <= Self.continuity } == true
                 history.runs.append(PresenceRun(start: now, end: now, state: sample, afterGap: !continuous))
                 structural = true
             }
@@ -91,7 +96,7 @@ public actor PresenceLog {
         if trim(now: now) { structural = true }
         dirty = true
         let due = lastSave.map { now.timeIntervalSince($0) >= extensionSaveInterval } ?? true
-        guard structural || due else { return nil }
+        guard structural || due else { return lastFailure }
         return await persist(at: now)
     }
 
@@ -144,12 +149,13 @@ public actor PresenceLog {
             try await store.save(state, to: .presence, revision: revision)
             dirty = false
             lastSave = now
-            return nil
+            lastFailure = nil
         } catch let error as StoreError {
-            return error
+            lastFailure = error
         } catch {
-            return .writeFailed
+            lastFailure = .writeFailed
         }
+        return lastFailure
     }
 
     /// Applies retention and both size bounds. Returns true when anything

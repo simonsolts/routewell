@@ -63,6 +63,15 @@ private let t0 = Date(timeIntervalSince1970: 1_790_000_000)
         #expect(segments.map(\.state) == [.online, .unknown])
     }
 
+    @Test func aRepeatedOrLateSampleIsIgnored() async {
+        let log = PresenceLog(store: nil)
+        await log.record([phone: .online], at: t0.addingTimeInterval(60))
+        await log.record([phone: .offline], at: t0.addingTimeInterval(60))
+        await log.record([phone: .offline], at: t0)
+        #expect(await log.history(for: phone)?.runs.map(\.state) == [.online])
+        #expect(await log.history(for: phone)?.observations == 1)
+    }
+
     @Test func interruptionBreaksTheRun() async {
         let log = PresenceLog(store: nil)
         await log.record([phone: .online], at: t0)
