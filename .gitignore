@@ -29,4 +29,4 @@ xcuserdata/
 .build-artifacts/
 
 # Locally recorded router responses; review and derive safe test fixtures instead.
-/RoutewellKit/Tests/RoutewellKitTests/Fixtures/recorded/
+/RoutewellKit/Tests/RoutewellKitTests/Fixtures/recorded*/
