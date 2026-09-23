@@ -61,6 +61,9 @@ public actor LiveRouterBackend: RouterBackend, FixtureRecordableBackend {
     /// rebuilt per call, so "one mutation in flight per router" actually
     /// holds. `nil` when no AdGuard Home instance is configured.
     public nonisolated let protection: (any ProtectionService)?
+    /// Reads the client inventory only when the Clients screen asks for it;
+    /// `overview()` keeps its own client count.
+    public nonisolated let clients: (any ClientsService)?
 
     public init(
         configuration: LiveBackendConfiguration,
@@ -78,6 +81,7 @@ public actor LiveRouterBackend: RouterBackend, FixtureRecordableBackend {
         self.trustPrompt = trustPrompt
         self.clock = clock
         self.log = log
+        self.clients = LiveClientsService(rpc: rpc, adGuard: adGuard, clock: clock)
         if let adGuard {
             self.protection = ProtectionMutationExecutorService(
                 executor: ProtectionMutationExecutor(adGuard: adGuard, gate: MutationGate(), clock: clock, log: log)
@@ -362,7 +366,7 @@ public actor LiveRouterBackend: RouterBackend, FixtureRecordableBackend {
 
     // MARK: Error → category mapping
 
-    private static func category(for error: GLiNetRPCError) -> RefreshFailureCategory {
+    static func category(for error: GLiNetRPCError) -> RefreshFailureCategory {
         switch error {
         case .transport(let transportError):
             return category(for: transportError)
@@ -375,7 +379,7 @@ public actor LiveRouterBackend: RouterBackend, FixtureRecordableBackend {
         }
     }
 
-    private static func category(for error: AdGuardClientError) -> RefreshFailureCategory {
+    static func category(for error: AdGuardClientError) -> RefreshFailureCategory {
         switch error {
         case .transport(let transportError):
             return category(for: transportError)
@@ -388,7 +392,7 @@ public actor LiveRouterBackend: RouterBackend, FixtureRecordableBackend {
         }
     }
 
-    private static func category(for error: TransportError) -> RefreshFailureCategory {
+    static func category(for error: TransportError) -> RefreshFailureCategory {
         switch error {
         case .timedOut:
             return .timeout
@@ -413,11 +417,11 @@ public actor LiveRouterBackend: RouterBackend, FixtureRecordableBackend {
     /// instead of the cancellation propagating out of `overview()`/`probe()`.
     /// `Task.isCancelled` is checked too, in case cancellation ever surfaces
     /// as some other error instead.
-    private static func rethrowIfCancelled(_ error: GLiNetRPCError) throws {
+    static func rethrowIfCancelled(_ error: GLiNetRPCError) throws {
         if isCancelled(error) || Task.isCancelled { throw CancellationError() }
     }
 
-    private static func rethrowIfCancelled(_ error: AdGuardClientError) throws {
+    static func rethrowIfCancelled(_ error: AdGuardClientError) throws {
         if isCancelled(error) || Task.isCancelled { throw CancellationError() }
     }
 

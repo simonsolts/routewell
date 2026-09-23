@@ -23,6 +23,7 @@ public actor MockRouterBackend: RouterBackend {
     }
 
     public nonisolated let clients: (any ClientsService)?
+    public nonisolated let mockClients = MockClientsService()
     public nonisolated let queryLog: (any QueryLogService)?
     public nonisolated let network: (any NetworkService)?
     public nonisolated let maintenance: (any MaintenanceService)?
@@ -46,9 +47,9 @@ public actor MockRouterBackend: RouterBackend {
     public init(scenario: Scenario = .healthy, hostname: String = "flint-demo") {
         self.scenario = scenario
         self.hostname = hostname
-        let probes = Dictionary(uniqueKeysWithValues: [DataArea.clients, .queryLog, .network, .maintenance, .vpn, .plugins, .telemetry].map { ($0, MockFeatureProbe()) })
+        let probes = Dictionary(uniqueKeysWithValues: [DataArea.queryLog, .network, .maintenance, .vpn, .plugins, .telemetry].map { ($0, MockFeatureProbe()) })
         featureProbes = probes
-        clients = probes[.clients]
+        clients = mockClients
         queryLog = probes[.queryLog]
         network = probes[.network]
         maintenance = probes[.maintenance]
@@ -72,7 +73,18 @@ public actor MockRouterBackend: RouterBackend {
     public func setScenario(_ scenario: Scenario) { self.scenario = scenario }
 
     public func setFeatureBehavior(_ behavior: FeatureBehavior, for area: DataArea) async {
+        if area == .clients { await mockClients.setBehavior(behavior) }
         await featureProbes[area]?.setBehavior(behavior)
+    }
+
+    public func setClientsScenario(_ scenario: MockClientsService.Scenario) async {
+        await mockClients.setScenario(scenario)
+    }
+
+    /// Clients has mock data, so its capability starts supported; the other
+    /// areas have none yet and start unknown.
+    public static func defaultFeatureBehavior(for area: DataArea) -> FeatureBehavior {
+        area == .clients ? .supported : .unknown
     }
 
     public func setProtectionBehavior(_ behavior: ProtectionBehavior) {
@@ -220,13 +232,13 @@ public actor MockRouterBackend: RouterBackend {
         adGuard.blockedToday = 6_438
 
         var clients = ClientStatus()
-        clients.activeCount = .value(18)
+        clients.activeCount = .value(MockClientsService.defaultOnlineCount)
         return OverviewSnapshot(router: router, internet: internet, adGuard: adGuard,
                                 clients: clients, observedAt: date)
     }
 }
 
-private actor MockFeatureProbe: ClientsService, QueryLogService, NetworkService,
+private actor MockFeatureProbe: QueryLogService, NetworkService,
     MaintenanceService, VPNService, PluginsService, TelemetryService {
     private var behavior: MockRouterBackend.FeatureBehavior = .unknown
 

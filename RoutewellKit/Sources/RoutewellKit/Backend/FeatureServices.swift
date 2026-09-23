@@ -29,7 +29,13 @@ public protocol FeatureService: Sendable {
     func probe() async -> Capability
 }
 
-public protocol ClientsService: FeatureService {}
+/// The Clients area (chunk 12). `inventory()` reads the router's client list
+/// and joins AdGuard Home data. It throws only `CancellationError`; every
+/// other failure is a per-area result, and only a failed router list fails
+/// the area.
+public protocol ClientsService: FeatureService {
+    func inventory() async throws -> ClientInventoryResult
+}
 public protocol QueryLogService: FeatureService {}
 public protocol NetworkService: FeatureService {}
 public protocol MaintenanceService: FeatureService {}

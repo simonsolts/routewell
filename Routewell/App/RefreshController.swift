@@ -8,6 +8,7 @@ final class RefreshController {
     private let schedule: RefreshSchedule
     private let wallClock: any WallClock
     private let logging: LoggingController?
+    private let registry: DeviceRegistry?
     private var telemetry = TelemetrySampler()
     private var task: Task<Void, Never>?
     private var pending = false
@@ -24,11 +25,13 @@ final class RefreshController {
         model: AppModel,
         clock: any RefreshClock = ContinuousRefreshClock(),
         wallClock: any WallClock = SystemWallClock(),
-        logging: LoggingController? = nil
+        logging: LoggingController? = nil,
+        registry: DeviceRegistry? = nil
     ) {
         self.model = model
         self.wallClock = wallClock
         self.logging = logging
+        self.registry = registry
         schedule = RefreshSchedule(clock: clock)
         model.refreshSettingsChanged = { [weak self] in self?.updateSchedule() }
         model.screenChanged = { [weak self] in
@@ -116,6 +119,7 @@ final class RefreshController {
         let model = model
         let wallClock = wallClock
         let telemetry = telemetry
+        let registry = registry
         task = Task { [weak self] in
             var force = automaticTick == nil
             repeat {
@@ -148,8 +152,27 @@ final class RefreshController {
                             segment: model.subpages[model.selection] ?? model.selection.segments.first,
                             defaultInterval: .seconds(model.refreshIntervalSeconds))
                         for request in requests where !ScreenRefreshPlan.overviewAreas.contains(request.area) || request.area == .clients {
-                            guard let service = lease.backend.service(for: request.area) else { continue }
                             if !force, (self?.featureElapsed[request.area] ?? .zero) < request.interval { continue }
+                            if request.area == .clients {
+                                // The inventory is read only while the Clients screen is visible.
+                                guard model.selection == .clients else { continue }
+                                guard let result = try await model.session.routerSession.clientInventory(using: lease) else { continue }
+                                guard !Task.isCancelled, model.session.expectedToken == lease.token else { return }
+                                model.acceptCapability(result.capability, area: .clients, token: lease.token)
+                                var observation: DeviceObservation?
+                                if case .success(let inventory, _, _) = result.area, let registry {
+                                    try await model.session.routerSession.validateBefore(lease)
+                                    observation = try await registry.observe(inventory.clients, at: wallClock.now())
+                                    guard !Task.isCancelled, model.session.expectedToken == lease.token else { return }
+                                }
+                                model.acceptClients(result.area, observation: observation, token: lease.token)
+                                if let count = observation?.newDevices.count, count > 0 {
+                                    self?.logging?.record(kind: .refresh, message: "New devices found", fields: ["count": String(count)])
+                                }
+                                self?.featureElapsed[.clients] = .zero
+                                continue
+                            }
+                            guard let service = lease.backend.service(for: request.area) else { continue }
                             let capability = await service.probe()
                             guard !Task.isCancelled, model.session.expectedToken == lease.token else { return }
                             model.acceptCapability(capability, area: request.area, token: lease.token)

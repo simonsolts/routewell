@@ -14,6 +14,7 @@ final class AppEnvironment {
     let logging: LoggingController
     let trust: TrustController
     let mutation: MutationController
+    let clients: ClientsController
     let trustPrompt = TrustPromptController()
     private let credentials: any CredentialStore
     /// Builds one `HTTPTransport` for a lease, given the trust store it
@@ -23,6 +24,7 @@ final class AppEnvironment {
     private var setup: Task<Void, Never>?
     #if DEBUG
     private var mockBackend: MockRouterBackend?
+    private(set) var mockClientsScenario: MockClientsService.Scenario = .newDevices
     #endif
     /// Set when `transportFactory` was actually called. Tests use this to
     /// prove mock mode never constructs a live transport.
@@ -33,12 +35,15 @@ final class AppEnvironment {
 
     init(model: AppModel, backend: (any RouterBackend)?, store: AtomicJSONStore? = nil,
          credentials: any CredentialStore = InMemoryCredentialStore(),
+         registry: DeviceRegistry? = nil,
          transportFactory: @escaping (any EndpointTrustStore) -> any HTTPTransport = { URLSessionTransport(trustStore: $0) }) {
         self.model = model
         self.credentials = credentials
         self.transportFactory = transportFactory
         self.logging = LoggingController(model: model)
-        self.refresh = RefreshController(model: model, logging: logging)
+        let deviceRegistry = registry ?? Self.makeRegistry(mode: model.mode, store: store)
+        self.clients = ClientsController(model: model, registry: deviceRegistry, logging: logging)
+        self.refresh = RefreshController(model: model, logging: logging, registry: deviceRegistry)
         self.persistence = PersistenceController(model: model, store: store, credentials: credentials)
         self.trust = TrustController(atomicStore: store, mode: model.mode)
         self.mutation = MutationController(model: model, refresh: refresh)
@@ -49,6 +54,7 @@ final class AppEnvironment {
             guard let self else { return }
             await persistence.load()
             await trust.load()
+            await clients.load()
             // `liveEndpoint != nil` alone is enough here: `PersistenceController
             // .addLiveProfile` now saves the Keychain secret before it ever
             // appends or persists the profile, so a saved live profile always
@@ -82,6 +88,18 @@ final class AppEnvironment {
     }
 
     func waitUntilReady() async { await setup?.value }
+
+    /// Mock sessions keep device history in memory, seeded so the mockups'
+    /// "3 new devices" state appears. Live sessions use `devices.json` when
+    /// the app persists, and memory otherwise (previews and tests).
+    private static func makeRegistry(mode: BackendMode, store: AtomicJSONStore?) -> DeviceRegistry {
+        #if DEBUG
+        if mode == .mock {
+            return DeviceRegistry(store: nil, initial: MockClientsService.seedRegistry(now: .now))
+        }
+        #endif
+        return DeviceRegistry(store: mode == .live ? store : nil)
+    }
 
     func switchMockProfile(_ profile: String) {
         #if DEBUG
@@ -147,6 +165,15 @@ final class AppEnvironment {
         }
     }
 
+    func setMockClientsScenario(_ scenario: MockClientsService.Scenario) {
+        guard model.mode == .mock, let mockBackend else { return }
+        mockClientsScenario = scenario
+        Task {
+            await mockBackend.setClientsScenario(scenario)
+            refresh.refreshNow()
+        }
+    }
+
     func recordFixtures() {
         guard model.mode == .live, let lease = model.session.lease,
               lease.backend is LiveRouterBackend else { return }
@@ -181,8 +208,10 @@ final class AppEnvironment {
         let scenario = MockRouterBackend.Scenario(rawValue: scenarioID) ?? .healthy
         let backend = MockRouterBackend(scenario: scenario, hostname: hostname)
         mockBackend = backend
+        let clientsScenario = mockClientsScenario
         setup = model.session.switchProfile(profile, model: model, refresh: refresh) {
-            SessionLease(token: $0, backend: backend)
+            await backend.setClientsScenario(clientsScenario)
+            return SessionLease(token: $0, backend: backend)
         }
     }
     #endif

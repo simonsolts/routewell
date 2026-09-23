@@ -25,6 +25,8 @@ public enum FixtureRecordingPlan {
         .init(.rpc, object: "clients", method: "get_list", fileName: "clients-get_list.json"),
         .init(.rpc, object: "adguardhome", method: "get_config", fileName: "adguardhome-get_config.json"),
         .init(.rpc, object: "wifi", method: "get_config", fileName: "wifi-get_config.json"),
+        // Candidate source for per-client signal, radio, and channel (chunks 12 and 14).
+        .init(.rpc, object: "wifi", method: "get_status", fileName: "wifi-get_status.json"),
         .init(.rpc, object: "dhcp", method: "get_config", fileName: "dhcp-get_config.json"),
         .init(.rpc, object: "sqm", method: "get_config", fileName: "sqm-get_config.json"),
         .init(.rpc, object: "firmware", method: "get_info", fileName: "firmware-get_info.json"),
@@ -49,6 +51,11 @@ public enum FixtureRecordingPlan {
 /// Applies a deny-by-default transform to every string leaf. This keeps the
 /// JSON shape and numeric values while names, addresses, SSIDs, and secrets
 /// cannot leave memory. One alias map spans an entire export.
+///
+/// Narrow rules keep review evidence that is not private: empty strings stay
+/// empty, any IP or MAC value (or object key) gets its stable alias, short
+/// technical tokens pass for a few known enum fields, and numeric strings and
+/// timestamps pass for known counter and time fields.
 public enum RecordedFixtureRedactor {
     public static func collectAliases(_ value: JSONValue, into aliases: inout FixtureAliases) {
         collect(value, key: nil, aliases: &aliases)
@@ -57,21 +64,48 @@ public enum RecordedFixtureRedactor {
     private static func collect(_ value: JSONValue, key: String?, aliases: inout FixtureAliases) {
         switch value {
         case .object(let object):
-            for (field, child) in object.sorted(by: { $0.key < $1.key }) { collect(child, key: field, aliases: &aliases) }
+            for (field, child) in object.sorted(by: { $0.key < $1.key }) {
+                collectAddress(field, aliases: &aliases)
+                collect(child, key: field, aliases: &aliases)
+            }
         case .array(let array):
             for child in array { collect(child, key: key, aliases: &aliases) }
         case .string(let string):
+            guard !string.isEmpty else { return }
+            if collectAddress(string, aliases: &aliases) { return }
             let field = key?.lowercased() ?? ""
             if field.contains("mac"), aliases.macAddresses[string] == nil {
-                aliases.macAddresses[string] = String(format: "02:00:00:00:%02X:%02X", aliases.macAddresses.count / 256, aliases.macAddresses.count % 256)
+                addMAC(string, aliases: &aliases)
             } else if (field.contains("ip") || field.contains("address") || field.contains("gateway") || field.contains("dns")), aliases.ipAddresses[string] == nil {
-                let index = aliases.ipAddresses.count
-                aliases.ipAddresses[string] = "198.51.\(100 + index / 254).\(1 + index % 254)"
-            } else if (field.contains("ssid") || field.contains("name") || field.contains("host")), aliases.names[string] == nil {
+                addIP(string, aliases: &aliases)
+            } else if isNameField(field), aliases.names[string] == nil {
                 aliases.names[string] = "Example \(aliases.names.count + 1)"
             }
         default: break
         }
+    }
+
+    /// Returns true when `string` is an IP or MAC address, adding an alias if needed.
+    @discardableResult
+    private static func collectAddress(_ string: String, aliases: inout FixtureAliases) -> Bool {
+        if isMAC(string) {
+            if aliases.macAddresses[string] == nil { addMAC(string, aliases: &aliases) }
+            return true
+        }
+        if isIPAddress(string) {
+            if aliases.ipAddresses[string] == nil { addIP(string, aliases: &aliases) }
+            return true
+        }
+        return false
+    }
+
+    private static func addMAC(_ string: String, aliases: inout FixtureAliases) {
+        aliases.macAddresses[string] = String(format: "02:00:00:00:%02X:%02X", aliases.macAddresses.count / 256, aliases.macAddresses.count % 256)
+    }
+
+    private static func addIP(_ string: String, aliases: inout FixtureAliases) {
+        let index = aliases.ipAddresses.count
+        aliases.ipAddresses[string] = "198.51.\(100 + index / 254).\(1 + index % 254)"
     }
 
     public static func redact(_ value: JSONValue, aliases: FixtureAliases = .init()) -> JSONValue {
@@ -79,7 +113,7 @@ public enum RecordedFixtureRedactor {
     }
 
     private static func transform(_ value: JSONValue, key: String?, aliases: FixtureAliases) -> JSONValue {
-        if let key, ["token", "password", "sid", "cookie", "hash", "nonce", "salt", "secret", "auth"].contains(where: key.lowercased().contains) {
+        if let key, secretFragments.contains(where: key.lowercased().contains) {
             return .string("[REDACTED]")
         }
         switch value {
@@ -87,23 +121,53 @@ public enum RecordedFixtureRedactor {
             var output: [String: JSONValue] = [:]
             for (index, entry) in object.sorted(by: { $0.key < $1.key }).enumerated() {
                 let field = entry.key
-                let safeKey = field.range(of: #"(?:\d{1,3}\.){3}\d{1,3}|(?:[0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}|@|secret|password|token"#, options: .regularExpression) == nil
-                    ? field : "redacted-key-\(index)"
+                let safeKey: String
+                if let alias = aliases.macAddresses[field] ?? aliases.ipAddresses[field] {
+                    safeKey = alias
+                } else if field.range(of: #"(?:\d{1,3}\.){3}\d{1,3}|(?:[0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}|@|secret|password|token"#, options: .regularExpression) == nil, !isIPAddress(field) {
+                    safeKey = field
+                } else {
+                    safeKey = "redacted-key-\(index)"
+                }
                 output[safeKey] = transform(entry.value, key: field, aliases: aliases)
             }
             return .object(output)
         case .array(let array): return .array(array.map { transform($0, key: key, aliases: aliases) })
         case .string(let string):
             let field = key?.lowercased() ?? ""
-            if ["token", "password", "sid", "cookie", "hash", "nonce", "salt", "secret", "auth"].contains(where: field.contains) { return .string("[REDACTED]") }
+            if secretFragments.contains(where: field.contains) { return .string("[REDACTED]") }
+            if string.isEmpty { return .string("") }
+            if isMAC(string) { return .string(aliases.macAddresses[string] ?? "02:00:00:00:00:01") }
+            if isIPAddress(string) { return .string(aliases.ipAddresses[string] ?? "198.51.100.1") }
             if field.contains("mac") { return .string(aliases.macAddresses[string] ?? "02:00:00:00:00:01") }
             if field.contains("ip") || field.contains("address") || field.contains("gateway") || field.contains("dns") { return .string(aliases.ipAddresses[string] ?? "198.51.100.1") }
-            if field.contains("ssid") || field.contains("name") || field.contains("host") { return .string(aliases.names[string] ?? "Example") }
+            if isNameField(field) { return .string(aliases.names[string] ?? "Example") }
             if ["enabled", "disabled", "running", "stopped", "online", "offline", "up", "down", "unknown"].contains(string.lowercased()) { return .string(string) }
+            if tokenFields.contains(field), string.range(of: #"^[A-Za-z0-9._:/+()-]{1,40}$"#, options: .regularExpression) != nil { return .string(string) }
+            if numericFields.contains(field), string.range(of: #"^-?\d{1,20}(\.\d{1,12})?$"#, options: .regularExpression) != nil { return .string(string) }
+            if timeFields.contains(field), string.range(of: #"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{1,9})?(Z|[+-]\d{2}:\d{2})$"#, options: .regularExpression) != nil { return .string(string) }
             return .string("[REDACTED TEXT]")
         default: return value
         }
     }
+
+    private static let secretFragments = ["token", "password", "sid", "cookie", "hash", "nonce", "salt", "secret", "auth"]
+    /// Router and AdGuard enum-like fields whose values are technical tokens,
+    /// never personal text: interface names, device class, vendor, AdGuard
+    /// client source, query result reason, DNS status, protocol, record type.
+    private static let tokenFields: Set<String> = ["iface", "class", "vendor", "source", "reason", "status", "client_proto", "type", "band", "time_units"]
+    private static let numericFields: Set<String> = ["total_rx", "total_tx", "total_rx_init", "total_tx_init", "online_time", "elapsedms"]
+    private static let timeFields: Set<String> = ["time", "oldest"]
+
+    private static func isNameField(_ field: String) -> Bool {
+        field.contains("ssid") || field.contains("name") || field.contains("host") || field == "alias"
+    }
+
+    static func isMAC(_ string: String) -> Bool {
+        string.range(of: #"^(?:[0-9A-Fa-f]{2}[:-]){5}[0-9A-Fa-f]{2}$"#, options: .regularExpression) != nil
+    }
+
+    static func isIPAddress(_ string: String) -> Bool { IPAddressText.isValid(string) }
 }
 
 public protocol FixtureRecordableBackend: Sendable {
