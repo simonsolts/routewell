@@ -79,10 +79,11 @@ private enum ServiceStub {
 
         let partial = try await ServiceStub.service(ServiceStub.transport(
             list: .fixture("clients-get_list-4.9.1", "glinet/clients"),
-            clients: .fixture("control-clients-4.9.1"), stats: .status(500))).inventory()
+            clients: .fixture("control-clients-persistent"), stats: .status(500))).inventory()
         guard case .success(let partialInventory, _, _) = partial.area else { Issue.record("expected success"); return }
         #expect(partialInventory.enrichment == .partial(.malformedResponse))
         #expect(partialInventory.clients.contains { $0.adGuardName != nil })
+        #expect(partialInventory.clients.allSatisfy { $0.dnsQueries == .unknown })
     }
 
     @Test func noAdGuardConfiguredIsNotAFailure() async throws {

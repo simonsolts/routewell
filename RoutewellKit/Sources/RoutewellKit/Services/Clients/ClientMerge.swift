@@ -21,7 +21,7 @@ public enum ClientMerge {
         return router.map { entry in
             var client = Client(
                 mac: entry.mac, ip: entry.ip, routerName: entry.routerName, hostname: entry.hostname,
-                online: entry.online, connection: ClientConnection(interface: entry.interface),
+                online: entry.online, connection: GLiNetClientListParser.connection(interface: entry.interface),
                 reportedVendor: entry.reportedVendor
             )
             let ownedIP = entry.ip.flatMap { owners[$0] == entry.mac ? $0 : nil }

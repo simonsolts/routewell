@@ -120,6 +120,10 @@ private func mac(_ raw: String) -> MACAddress { MACAddress(raw)! }
     let absent = ClientListEntry(mac: record.mac, client: nil, record: record)
     #expect(ClientsFormat.status(absent, now: now).text == "Offline · 6 d ago")
     #expect(ClientsFormat.rate(.unavailable) == "–")
+    let wired = Client(mac: mac("AA:00:00:00:00:02"), connection: GLiNetClientListParser.connection(interface: "cable"))
+    let wifi = Client(mac: mac("AA:00:00:00:00:03"), connection: GLiNetClientListParser.connection(interface: "5G"))
+    #expect(ClientsFormat.connection(wired) == "Ethernet")
+    #expect(ClientsFormat.connection(wifi) == "Wi-Fi · 5 GHz")
     #expect(ClientsFormat.newDevicesText(1) == "1 new device awaiting review")
     #expect(ClientsFormat.showingText(visible: 3, total: 14) == "Showing 3 of 14 clients")
 }

@@ -1,12 +1,12 @@
 {
  "clients": [
   {"name": "Studio", "ids": ["02:00:00:00:00:05", "client-7"]},
-  {"name": "Living room", "ids": ["198.51.100.12"]},
-  {"name": "", "ids": ["198.51.100.13"]}
+  {"name": "Living room", "ids": ["198.51.100.13"]},
+  {"name": "", "ids": ["198.51.100.14"]}
  ],
  "auto_clients": [
-  {"name": "phone.lan", "ip": "198.51.100.11", "source": "rDNS", "whois_info": {}},
-  {"name": "", "ip": "198.51.100.17", "source": "ARP", "whois_info": {}},
-  {"name": "shared.lan", "ip": "198.51.100.35", "source": "rDNS", "whois_info": {}}
+  {"name": "phone.lan", "ip": "198.51.100.12", "source": "rDNS", "whois_info": {}},
+  {"name": "", "ip": "198.51.100.16", "source": "ARP", "whois_info": {}},
+  {"name": "shared.lan", "ip": "198.51.100.36", "source": "rDNS", "whois_info": {}}
  ]
 }

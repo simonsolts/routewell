@@ -46,8 +46,21 @@ public struct RouterClientEntry: Sendable, Equatable {
 /// RPC `clients get_list` result: `clients[]` with `mac`, `ip`, `name`,
 /// `online`, `iface` `[verified live]` on firmware 4.9.1; `alias` appears on
 /// some entries `[verified live]`; `vendor` appears in the 2022 public client
-/// only. No signal, SSID, or band field exists in the live shape.
+/// only. No signal or SSID field exists in the live shape.
 public enum GLiNetClientListParser {
+    /// `iface` on 4.9.1 is `2.4G`, `5G`, `6G`, or `cable` `[verified live]`,
+    /// each always paired with the same `type` (0, 1, 11, 2). Other tokens,
+    /// such as `eth0` from the 2022 public client, stay verbatim.
+    public static func connection(interface: String?) -> ClientConnection {
+        switch interface?.lowercased() {
+        case "cable": ClientConnection(medium: .value(.wired))
+        case "2.4g": ClientConnection(medium: .value(.wifi), band: "2.4 GHz")
+        case "5g": ClientConnection(medium: .value(.wifi), band: "5 GHz")
+        case "6g": ClientConnection(medium: .value(.wifi), band: "6 GHz")
+        default: ClientConnection(interface: interface)
+        }
+    }
+
     public struct Parsed: Sendable, Equatable {
         public var entries: [RouterClientEntry]
         public var skippedEntries: Int

@@ -22,14 +22,18 @@ func mac(_ raw: String) -> MACAddress { MACAddress(raw)! }
     }
 
     /// Recorded on firmware 4.9.1 `[verified live]`: 37 entries, 11 online,
-    /// no vendor, signal, or SSID fields; `alias` on 3 entries.
+    /// no vendor, signal, or SSID fields; `alias` on 3 entries; `iface` is a
+    /// band token or `cable`.
     @Test func liveClientListParses() throws {
         let parsed = try #require(GLiNetClientListParser.parse(clientFixture("clients-get_list-4.9.1", "glinet/clients")))
         #expect(parsed.entries.count == 37)
         #expect(parsed.skippedEntries == 0)
         #expect(parsed.entries.filter { $0.online == .value(true) }.count == 11)
-        #expect(parsed.entries.allSatisfy { $0.reportedVendor == nil && $0.ip != nil && $0.interface != nil })
+        #expect(parsed.entries.allSatisfy { $0.reportedVendor == nil && $0.ip != nil })
+        #expect(Set(parsed.entries.compactMap(\.interface)) == ["2.4G", "5G", "6G", "cable"])
         #expect(parsed.entries.filter { $0.routerName != nil }.count == 3)
+        // Empty names are kept empty by the recorder and are not names.
+        #expect(parsed.entries.filter { $0.hostname == nil }.count == 9)
         #expect(parsed.entries.first?.mac == mac("02:00:00:00:00:01"))
     }
 
@@ -67,12 +71,13 @@ func mac(_ raw: String) -> MACAddress { MACAddress(raw)! }
     @Test func liveAdGuardDirectoryAndStatsParse() throws {
         let directory = try #require(AdGuardClientsParser.parse(clientFixture("control-clients-4.9.1", "adguard/clients")))
         #expect(directory.persistent.isEmpty)
-        #expect(directory.automaticNames.count == 22)
-        // Live `top_clients` keys were hidden by the recorder, so none look like
-        // an address and nothing can join; the counts are still read.
+        // 22 runtime clients, but only 4 carry a name.
+        #expect(directory.automaticNames.count == 4)
+        // `top_clients` keys are client IPs `[verified live]`.
         let stats = try #require(AdGuardStatsParser.topClientQueries(clientFixture("control-stats-4.9.1", "adguard/clients")))
-        #expect(stats.keys.allSatisfy { !IPAddressText.isValid($0) })
-        #expect(stats.values.reduce(0, +) == 45_750)
+        #expect(stats.count == 14)
+        #expect(stats.keys.allSatisfy { IPAddressText.isValid($0) })
+        #expect(stats.values.reduce(0, +) == 46_779)
         #expect(AdGuardStatsParser.topClientQueries(.object([:])) == nil)
         #expect(AdGuardClientsParser.parse(.object(["other": .bool(true)])) == nil)
     }
@@ -90,7 +95,7 @@ func mac(_ raw: String) -> MACAddress { MACAddress(raw)! }
 
     @Test func macJoinWinsOverIPJoin() throws {
         let clients = try mergedLive()
-        // 02:…:05 holds 198.51.100.13, whose persistent entry has no name; the MAC id names it.
+        // 02:…:05 holds 198.51.100.14, whose persistent entry has no name; the MAC id names it.
         #expect(clients[mac("02:00:00:00:00:05")]?.adGuardName == "Studio")
     }
 
@@ -101,16 +106,42 @@ func mac(_ raw: String) -> MACAddress { MACAddress(raw)! }
         #expect(clients[mac("02:00:00:00:00:03")]?.adGuardName == "phone.lan")
         #expect(clients[mac("02:00:00:00:00:03")]?.dnsQueries == .value(14_212))
         // Blank AdGuard names never become names.
-        #expect(clients[mac("02:00:00:00:00:09")]?.adGuardName == nil)
+        #expect(clients[mac("02:00:00:00:00:07")]?.adGuardName == nil)
     }
 
-    /// Two offline router entries share 198.51.100.35 `[verified live]`: no join.
+    /// Two offline router entries share 198.51.100.36 `[verified live]`: no join.
     @Test func ambiguousIPDoesNotJoin() throws {
         let clients = try mergedLive()
         for raw in ["02:00:00:00:00:1B", "02:00:00:00:00:1C"] {
             #expect(clients[mac(raw)]?.adGuardName == nil)
             #expect(clients[mac(raw)]?.dnsQueries == .unknown)
         }
+    }
+
+    /// 13 of the 14 live `top_clients` keys join. The 14th IP (441 queries)
+    /// is shared by two offline router entries, so it has no owner.
+    @Test func liveStatsJoinTheLiveList() throws {
+        let router = try #require(GLiNetClientListParser.parse(clientFixture("clients-get_list-4.9.1", "glinet/clients"))).entries
+        let stats = AdGuardStatsParser.topClientQueries(try clientFixture("control-stats-4.9.1", "adguard/clients"))
+        let clients = ClientMerge.merge(router: router, adGuardDirectory: nil, topClientQueries: stats)
+        let counted = clients.compactMap { client -> Int? in
+            if case .value(let queries) = client.dnsQueries { return queries }
+            return nil
+        }
+        #expect(counted.count == 13)
+        #expect(counted.reduce(0, +) == 46_779 - 441)
+    }
+
+    @Test func routerInterfaceTokensBecomeConnections() throws {
+        #expect(GLiNetClientListParser.connection(interface: "cable") == ClientConnection(medium: .value(.wired)))
+        #expect(GLiNetClientListParser.connection(interface: "5G") == ClientConnection(medium: .value(.wifi), band: "5 GHz"))
+        #expect(GLiNetClientListParser.connection(interface: "2.4G").band == "2.4 GHz")
+        #expect(GLiNetClientListParser.connection(interface: "6G").band == "6 GHz")
+        #expect(GLiNetClientListParser.connection(interface: "eth0") == ClientConnection(interface: "eth0"))
+        #expect(GLiNetClientListParser.connection(interface: nil) == ClientConnection())
+        let router = try #require(GLiNetClientListParser.parse(clientFixture("clients-get_list-4.9.1", "glinet/clients"))).entries
+        let clients = ClientMerge.merge(router: router, adGuardDirectory: nil, topClientQueries: nil)
+        #expect(clients.allSatisfy { $0.connection.medium != .unknown })
     }
 
     @Test func onlineHolderOwnsASharedIP() {
@@ -127,7 +158,7 @@ func mac(_ raw: String) -> MACAddress { MACAddress(raw)! }
         let router = try #require(GLiNetClientListParser.parse(clientFixture("clients-get_list-4.9.1", "glinet/clients"))).entries
         let clients = ClientMerge.merge(router: router, adGuardDirectory: nil, topClientQueries: nil)
         #expect(clients.allSatisfy { $0.adGuardName == nil && $0.dnsQueries == .unknown && $0.dnsBlocked == .unknown })
-        #expect(clients.allSatisfy { $0.signal == .unknown && $0.connection.medium == .unknown })
+        #expect(clients.allSatisfy { $0.signal == .unknown && $0.connection.ssid == nil })
     }
 }
 
