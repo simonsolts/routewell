@@ -93,6 +93,15 @@ public actor AdGuardClient {
         try await get(path: path.rawValue, method: path == .clients ? "clients" : "stats")
     }
 
+    /// `GET control/querylog?limit=<N>[&search=<text>]`: one bounded page of
+    /// the newest entries. `search` narrows the page on the server
+    /// `[assumed]`; callers still filter the result exactly.
+    public func queryLog(search: String?, limit: Int) async throws -> JSONValue {
+        var query = [URLQueryItem(name: "limit", value: String(limit))]
+        if let search, !search.isEmpty { query.append(URLQueryItem(name: "search", value: search)) }
+        return try await get(path: "control/querylog", query: query, method: "querylog", retried: false)
+    }
+
     public func recordRead(path: String) async -> JSONValue {
         guard path.hasPrefix("control/"), !path.contains("..") else {
             return .object(["error": .object(["category": .string("invalid path")])])
@@ -211,10 +220,10 @@ public actor AdGuardClient {
     // MARK: - Request plumbing
 
     private func get(path: String, method: String) async throws -> JSONValue {
-        try await get(path: path, method: method, retried: false)
+        try await get(path: path, query: [], method: method, retried: false)
     }
 
-    private func get(path: String, method: String, retried: Bool) async throws -> JSONValue {
+    private func get(path: String, query: [URLQueryItem], method: String, retried: Bool) async throws -> JSONValue {
         let headers: [String: String]
         do {
             headers = try await credentials.authorizationHeaders()
@@ -223,7 +232,7 @@ public actor AdGuardClient {
             throw AdGuardClientError.credentialUnavailable
         }
 
-        let url = requestURL(path: path)
+        let url = requestURL(path: path, query: query)
         var request = URLRequest(url: url)
         request.httpMethod = "GET"
         for (field, value) in headers {
@@ -241,7 +250,7 @@ public actor AdGuardClient {
 
         if response.statusCode == 401 || response.statusCode == 403 {
             if !retried, await credentials.handleUnauthorized() {
-                return try await get(path: path, method: method, retried: true)
+                return try await get(path: path, query: query, method: method, retried: true)
             }
             await log?.record(LogEvent(level: .warning, kind: .refresh, message: "adguard \(method) failed unauthorized"))
             throw AdGuardClientError.unauthorized(response.statusCode)
@@ -260,8 +269,9 @@ public actor AdGuardClient {
         return json
     }
 
-    private func requestURL(path: String) -> URL {
-        let url = baseURL.appendingPathComponent(path)
+    private func requestURL(path: String, query: [URLQueryItem] = []) -> URL {
+        var url = baseURL.appendingPathComponent(path)
+        if !query.isEmpty { url.append(queryItems: query) }
         precondition(url.host == baseURL.host && url.port == baseURL.port,
                      "AdGuardClient must never leave baseURL's host/port")
         return url

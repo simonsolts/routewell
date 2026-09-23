@@ -64,6 +64,11 @@ public actor LiveRouterBackend: RouterBackend, FixtureRecordableBackend {
     /// Reads the client inventory only when the Clients screen asks for it;
     /// `overview()` keeps its own client count.
     public nonisolated let clients: (any ClientsService)?
+    /// Read on demand by the Clients details pane. `nil` without AdGuard Home.
+    public nonisolated let queryLog: (any QueryLogService)?
+    /// Ping and Wake run over SSH; there is no client-scoped RPC. Without an
+    /// SSH runner (SSH is set up from chunk 15) the buttons explain that.
+    public nonisolated let clientActions: (any ClientActionsService)?
 
     public init(
         configuration: LiveBackendConfiguration,
@@ -72,7 +77,8 @@ public actor LiveRouterBackend: RouterBackend, FixtureRecordableBackend {
         trustStore: any EndpointTrustStore,
         trustPrompt: any TrustPromptHandler,
         clock: @Sendable @escaping () -> Date = { Date() },
-        log: SessionEventLog? = nil
+        log: SessionEventLog? = nil,
+        sshRunner: (any SSHCommandRunning)? = nil
     ) {
         self.configuration = configuration
         self.rpc = rpc
@@ -82,9 +88,13 @@ public actor LiveRouterBackend: RouterBackend, FixtureRecordableBackend {
         self.clock = clock
         self.log = log
         self.clients = LiveClientsService(rpc: rpc, adGuard: adGuard, clock: clock)
+        self.queryLog = adGuard.map { LiveQueryLogService(adGuard: $0, clock: clock) }
+        // One gate per router, shared by every write this backend runs.
+        let gate = MutationGate()
+        self.clientActions = sshRunner.map { SSHClientActions(runner: $0, gate: gate, clock: clock) } ?? SSHRequiredClientActions()
         if let adGuard {
             self.protection = ProtectionMutationExecutorService(
-                executor: ProtectionMutationExecutor(adGuard: adGuard, gate: MutationGate(), clock: clock, log: log)
+                executor: ProtectionMutationExecutor(adGuard: adGuard, gate: gate, clock: clock, log: log)
             )
         } else {
             self.protection = nil

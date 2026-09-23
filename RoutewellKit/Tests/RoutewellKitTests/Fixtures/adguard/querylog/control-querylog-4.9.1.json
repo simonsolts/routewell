@@ -1,0 +1,4688 @@
+{
+ "data": [
+  {
+   "answer_dnssec": false,
+   "cached": true,
+   "client": "198.51.100.41",
+   "client_info": {
+    "disallowed": false,
+    "disallowed_rule": "",
+    "name": "",
+    "whois": {}
+   },
+   "client_proto": "",
+   "elapsedMs": "0.346002",
+   "question": {
+    "class": "IN",
+    "name": "host1.example",
+    "type": "A"
+   },
+   "reason": "NotFilteredNotFound",
+   "rules": [],
+   "status": "NOERROR",
+   "time": "2026-09-23T14:34:40.610777106Z"
+  },
+  {
+   "answer_dnssec": false,
+   "cached": true,
+   "client": "198.51.100.41",
+   "client_info": {
+    "disallowed": false,
+    "disallowed_rule": "",
+    "name": "",
+    "whois": {}
+   },
+   "client_proto": "",
+   "elapsedMs": "0.341925",
+   "question": {
+    "class": "IN",
+    "name": "host1.example",
+    "type": "A"
+   },
+   "reason": "NotFilteredNotFound",
+   "rules": [],
+   "status": "NOERROR",
+   "time": "2026-09-23T14:34:36.013668651Z"
+  },
+  {
+   "answer_dnssec": false,
+   "cached": true,
+   "client": "198.51.100.41",
+   "client_info": {
+    "disallowed": false,
+    "disallowed_rule": "",
+    "name": "",
+    "whois": {}
+   },
+   "client_proto": "",
+   "elapsedMs": "0.362848",
+   "question": {
+    "class": "IN",
+    "name": "host1.example",
+    "type": "A"
+   },
+   "reason": "NotFilteredNotFound",
+   "rules": [],
+   "status": "NOERROR",
+   "time": "2026-09-23T14:34:31.813188236Z"
+  },
+  {
+   "answer_dnssec": false,
+   "cached": true,
+   "client": "198.51.100.27",
+   "client_info": {
+    "disallowed": false,
+    "disallowed_rule": "",
+    "name": "",
+    "whois": {}
+   },
+   "client_proto": "",
+   "elapsedMs": "0.275617",
+   "question": {
+    "class": "IN",
+    "name": "host2.example",
+    "type": "A"
+   },
+   "reason": "NotFilteredNotFound",
+   "rules": [],
+   "status": "NOERROR",
+   "time": "2026-09-23T14:34:28.982316627Z"
+  },
+  {
+   "answer_dnssec": false,
+   "cached": true,
+   "client": "198.51.100.27",
+   "client_info": {
+    "disallowed": false,
+    "disallowed_rule": "",
+    "name": "",
+    "whois": {}
+   },
+   "client_proto": "",
+   "elapsedMs": "0.263386",
+   "question": {
+    "class": "IN",
+    "name": "host3.example",
+    "type": "A"
+   },
+   "reason": "NotFilteredNotFound",
+   "rules": [],
+   "status": "NOERROR",
+   "time": "2026-09-23T14:34:28.982296011Z"
+  },
+  {
+   "answer_dnssec": false,
+   "cached": true,
+   "client": "198.51.100.27",
+   "client_info": {
+    "disallowed": false,
+    "disallowed_rule": "",
+    "name": "",
+    "whois": {}
+   },
+   "client_proto": "",
+   "elapsedMs": "[REDACTED TEXT]",
+   "question": {
+    "class": "IN",
+    "name": "host4.example",
+    "type": "A"
+   },
+   "reason": "NotFilteredNotFound",
+   "rules": [],
+   "status": "NOERROR",
+   "time": "2026-09-23T14:34:28.981911855Z"
+  },
+  {
+   "answer_dnssec": false,
+   "cached": true,
+   "client": "198.51.100.27",
+   "client_info": {
+    "disallowed": false,
+    "disallowed_rule": "",
+    "name": "",
+    "whois": {}
+   },
+   "client_proto": "",
+   "elapsedMs": "[REDACTED TEXT]",
+   "question": {
+    "class": "IN",
+    "name": "host2.example",
+    "type": "HTTPS"
+   },
+   "reason": "NotFilteredNotFound",
+   "rules": [],
+   "status": "NOERROR",
+   "time": "2026-09-23T14:34:28.981890855Z"
+  },
+  {
+   "answer_dnssec": false,
+   "cached": false,
+   "client": "198.51.100.27",
+   "client_info": {
+    "disallowed": false,
+    "disallowed_rule": "",
+    "name": "",
+    "whois": {}
+   },
+   "client_proto": "",
+   "elapsedMs": "0.104462",
+   "filterId": -2,
+   "question": {
+    "class": "IN",
+    "name": "host5.example",
+    "type": "HTTPS"
+   },
+   "reason": "FilteredBlockedService",
+   "rules": [],
+   "service_name": "example-service",
+   "status": "NOERROR",
+   "time": "2026-09-23T14:34:28.981756624Z"
+  },
+  {
+   "answer_dnssec": true,
+   "cached": true,
+   "client": "198.51.100.27",
+   "client_info": {
+    "disallowed": false,
+    "disallowed_rule": "",
+    "name": "",
+    "whois": {}
+   },
+   "client_proto": "",
+   "elapsedMs": "0.316078",
+   "question": {
+    "class": "IN",
+    "name": "host6.example",
+    "type": "PTR"
+   },
+   "reason": "NotFilteredNotFound",
+   "rules": [],
+   "status": "NXDOMAIN",
+   "time": "2026-09-23T14:34:28.980925619Z"
+  },
+  {
+   "answer_dnssec": false,
+   "cached": true,
+   "client": "198.51.100.41",
+   "client_info": {
+    "disallowed": false,
+    "disallowed_rule": "",
+    "name": "",
+    "whois": {}
+   },
+   "client_proto": "",
+   "elapsedMs": "0.364464",
+   "question": {
+    "class": "IN",
+    "name": "host1.example",
+    "type": "A"
+   },
+   "reason": "NotFilteredNotFound",
+   "rules": [],
+   "status": "NOERROR",
+   "time": "2026-09-23T14:34:28.317594491Z"
+  },
+  {
+   "answer_dnssec": false,
+   "cached": false,
+   "client": "198.51.100.27",
+   "client_info": {
+    "disallowed": false,
+    "disallowed_rule": "",
+    "name": "",
+    "whois": {}
+   },
+   "client_proto": "",
+   "elapsedMs": "2.832861",
+   "question": {
+    "class": "IN",
+    "name": "host7.example",
+    "type": "PTR"
+   },
+   "reason": "NotFilteredNotFound",
+   "rules": [],
+   "status": "NXDOMAIN",
+   "time": "2026-09-23T14:34:27.829724445Z"
+  },
+  {
+   "answer_dnssec": false,
+   "cached": true,
+   "client": "198.51.100.27",
+   "client_info": {
+    "disallowed": false,
+    "disallowed_rule": "",
+    "name": "",
+    "whois": {}
+   },
+   "client_proto": "",
+   "elapsedMs": "0.582773",
+   "question": {
+    "class": "IN",
+    "name": "host8.example",
+    "type": "A"
+   },
+   "reason": "NotFilteredNotFound",
+   "rules": [],
+   "status": "NOERROR",
+   "time": "2026-09-23T14:34:27.753053654Z"
+  },
+  {
+   "answer_dnssec": false,
+   "cached": true,
+   "client": "198.51.100.27",
+   "client_info": {
+    "disallowed": false,
+    "disallowed_rule": "",
+    "name": "",
+    "whois": {}
+   },
+   "client_proto": "",
+   "elapsedMs": "0.147308",
+   "question": {
+    "class": "IN",
+    "name": "host9.example",
+    "type": "A"
+   },
+   "reason": "NotFilteredNotFound",
+   "rules": [],
+   "status": "NOERROR",
+   "time": "2026-09-23T14:34:27.75291073Z"
+  },
+  {
+   "answer_dnssec": false,
+   "cached": true,
+   "client": "198.51.100.27",
+   "client_info": {
+    "disallowed": false,
+    "disallowed_rule": "",
+    "name": "",
+    "whois": {}
+   },
+   "client_proto": "",
+   "elapsedMs": "0.692465",
+   "question": {
+    "class": "IN",
+    "name": "host10.example",
+    "type": "A"
+   },
+   "reason": "NotFilteredNotFound",
+   "rules": [],
+   "status": "NOERROR",
+   "time": "2026-09-23T14:34:27.253558086Z"
+  },
+  {
+   "answer_dnssec": false,
+   "cached": true,
+   "client": "198.51.100.27",
+   "client_info": {
+    "disallowed": false,
+    "disallowed_rule": "",
+    "name": "",
+    "whois": {}
+   },
+   "client_proto": "",
+   "elapsedMs": "0.440002",
+   "question": {
+    "class": "IN",
+    "name": "host4.example",
+    "type": "HTTPS"
+   },
+   "reason": "NotFilteredNotFound",
+   "rules": [],
+   "status": "NOERROR",
+   "time": "2026-09-23T14:34:27.047145992Z"
+  },
+  {
+   "answer_dnssec": false,
+   "cached": false,
+   "client": "198.51.100.27",
+   "client_info": {
+    "disallowed": false,
+    "disallowed_rule": "",
+    "name": "",
+    "whois": {}
+   },
+   "client_proto": "",
+   "elapsedMs": "3.112709",
+   "question": {
+    "class": "IN",
+    "name": "host11.example",
+    "type": "PTR"
+   },
+   "reason": "NotFilteredNotFound",
+   "rules": [],
+   "status": "NXDOMAIN",
+   "time": "2026-09-23T14:34:26.71695009Z"
+  },
+  {
+   "answer_dnssec": false,
+   "cached": false,
+   "client": "198.51.100.27",
+   "client_info": {
+    "disallowed": false,
+    "disallowed_rule": "",
+    "name": "",
+    "whois": {}
+   },
+   "client_proto": "",
+   "elapsedMs": "2.402628",
+   "question": {
+    "class": "IN",
+    "name": "host12.example",
+    "type": "PTR"
+   },
+   "reason": "NotFilteredNotFound",
+   "rules": [],
+   "status": "NXDOMAIN",
+   "time": "2026-09-23T14:34:26.716722858Z"
+  },
+  {
+   "answer_dnssec": false,
+   "cached": false,
+   "client": "198.51.100.27",
+   "client_info": {
+    "disallowed": false,
+    "disallowed_rule": "",
+    "name": "",
+    "whois": {}
+   },
+   "client_proto": "",
+   "elapsedMs": "2.046627",
+   "question": {
+    "class": "IN",
+    "name": "host13.example",
+    "type": "PTR"
+   },
+   "reason": "NotFilteredNotFound",
+   "rules": [],
+   "status": "NXDOMAIN",
+   "time": "2026-09-23T14:34:26.716124931Z"
+  },
+  {
+   "answer_dnssec": false,
+   "cached": true,
+   "client": "198.51.100.27",
+   "client_info": {
+    "disallowed": false,
+    "disallowed_rule": "",
+    "name": "",
+    "whois": {}
+   },
+   "client_proto": "",
+   "elapsedMs": "[REDACTED TEXT]",
+   "question": {
+    "class": "IN",
+    "name": "host14.example",
+    "type": "A"
+   },
+   "reason": "NotFilteredNotFound",
+   "rules": [],
+   "status": "NOERROR",
+   "time": "2026-09-23T14:34:26.715304235Z"
+  },
+  {
+   "answer_dnssec": false,
+   "cached": true,
+   "client": "198.51.100.27",
+   "client_info": {
+    "disallowed": false,
+    "disallowed_rule": "",
+    "name": "",
+    "whois": {}
+   },
+   "client_proto": "",
+   "elapsedMs": "0.381079",
+   "question": {
+    "class": "IN",
+    "name": "host15.example",
+    "type": "A"
+   },
+   "reason": "NotFilteredNotFound",
+   "rules": [],
+   "status": "NOERROR",
+   "time": "2026-09-23T14:34:26.714457999Z"
+  },
+  {
+   "answer_dnssec": false,
+   "cached": false,
+   "client": "198.51.100.27",
+   "client_info": {
+    "disallowed": false,
+    "disallowed_rule": "",
+    "name": "",
+    "whois": {}
+   },
+   "client_proto": "",
+   "elapsedMs": "0.171463",
+   "filterId": -2,
+   "question": {
+    "class": "IN",
+    "name": "host5.example",
+    "type": "A"
+   },
+   "reason": "FilteredBlockedService",
+   "rules": [],
+   "service_name": "example-service",
+   "status": "NOERROR",
+   "time": "2026-09-23T14:34:26.714221383Z"
+  },
+  {
+   "answer_dnssec": true,
+   "cached": true,
+   "client": "198.51.100.27",
+   "client_info": {
+    "disallowed": false,
+    "disallowed_rule": "",
+    "name": "",
+    "whois": {}
+   },
+   "client_proto": "",
+   "elapsedMs": "[REDACTED TEXT]",
+   "question": {
+    "class": "IN",
+    "name": "host16.example",
+    "type": "PTR"
+   },
+   "reason": "NotFilteredNotFound",
+   "rules": [],
+   "status": "NXDOMAIN",
+   "time": "2026-09-23T14:34:26.713745073Z"
+  },
+  {
+   "answer_dnssec": false,
+   "cached": false,
+   "client": "198.51.100.27",
+   "client_info": {
+    "disallowed": false,
+    "disallowed_rule": "",
+    "name": "",
+    "whois": {}
+   },
+   "client_proto": "",
+   "elapsedMs": "0.095077",
+   "filterId": -2,
+   "question": {
+    "class": "IN",
+    "name": "host5.example",
+    "type": "A"
+   },
+   "reason": "FilteredBlockedService",
+   "rules": [],
+   "service_name": "example-service",
+   "status": "NOERROR",
+   "time": "2026-09-23T14:34:26.713651918Z"
+  },
+  {
+   "answer_dnssec": false,
+   "cached": true,
+   "client": "198.51.100.27",
+   "client_info": {
+    "disallowed": false,
+    "disallowed_rule": "",
+    "name": "",
+    "whois": {}
+   },
+   "client_proto": "",
+   "elapsedMs": "2.729246",
+   "question": {
+    "class": "IN",
+    "name": "host15.example",
+    "type": "A"
+   },
+   "reason": "NotFilteredNotFound",
+   "rules": [],
+   "status": "NOERROR",
+   "time": "2026-09-23T14:34:26.713604457Z"
+  },
+  {
+   "answer_dnssec": false,
+   "cached": false,
+   "client": "198.51.100.27",
+   "client_info": {
+    "disallowed": false,
+    "disallowed_rule": "",
+    "name": "",
+    "whois": {}
+   },
+   "client_proto": "",
+   "elapsedMs": "0.112463",
+   "filterId": -2,
+   "question": {
+    "class": "IN",
+    "name": "host5.example",
+    "type": "A"
+   },
+   "reason": "FilteredBlockedService",
+   "rules": [],
+   "service_name": "example-service",
+   "status": "NOERROR",
+   "time": "2026-09-23T14:34:26.713458225Z"
+  },
+  {
+   "answer_dnssec": true,
+   "cached": true,
+   "client": "198.51.100.27",
+   "client_info": {
+    "disallowed": false,
+    "disallowed_rule": "",
+    "name": "",
+    "whois": {}
+   },
+   "client_proto": "",
+   "elapsedMs": "[REDACTED TEXT]",
+   "question": {
+    "class": "IN",
+    "name": "host17.example",
+    "type": "PTR"
+   },
+   "reason": "NotFilteredNotFound",
+   "rules": [],
+   "status": "NXDOMAIN",
+   "time": "2026-09-23T14:34:26.713382148Z"
+  },
+  {
+   "answer_dnssec": false,
+   "cached": true,
+   "client": "198.51.100.27",
+   "client_info": {
+    "disallowed": false,
+    "disallowed_rule": "",
+    "name": "",
+    "whois": {}
+   },
+   "client_proto": "",
+   "elapsedMs": "[REDACTED TEXT]",
+   "question": {
+    "class": "IN",
+    "name": "host14.example",
+    "type": "A"
+   },
+   "reason": "NotFilteredNotFound",
+   "rules": [],
+   "status": "NOERROR",
+   "time": "2026-09-23T14:34:26.712377527Z"
+  },
+  {
+   "answer_dnssec": false,
+   "cached": true,
+   "client": "198.51.100.27",
+   "client_info": {
+    "disallowed": false,
+    "disallowed_rule": "",
+    "name": "",
+    "whois": {}
+   },
+   "client_proto": "",
+   "elapsedMs": "1.480931",
+   "question": {
+    "class": "IN",
+    "name": "host14.example",
+    "type": "A"
+   },
+   "reason": "NotFilteredNotFound",
+   "rules": [],
+   "status": "NOERROR",
+   "time": "2026-09-23T14:34:26.712334757Z"
+  },
+  {
+   "answer_dnssec": false,
+   "cached": true,
+   "client": "198.51.100.27",
+   "client_info": {
+    "disallowed": false,
+    "disallowed_rule": "",
+    "name": "",
+    "whois": {}
+   },
+   "client_proto": "",
+   "elapsedMs": "0.967697",
+   "question": {
+    "class": "IN",
+    "name": "host10.example",
+    "type": "A"
+   },
+   "reason": "NotFilteredNotFound",
+   "rules": [],
+   "status": "NOERROR",
+   "time": "2026-09-23T14:34:26.711854909Z"
+  },
+  {
+   "answer_dnssec": false,
+   "cached": true,
+   "client": "198.51.100.27",
+   "client_info": {
+    "disallowed": false,
+    "disallowed_rule": "",
+    "name": "",
+    "whois": {}
+   },
+   "client_proto": "",
+   "elapsedMs": "0.720465",
+   "question": {
+    "class": "IN",
+    "name": "host10.example",
+    "type": "A"
+   },
+   "reason": "NotFilteredNotFound",
+   "rules": [],
+   "status": "NOERROR",
+   "time": "2026-09-23T14:34:26.711606677Z"
+  },
+  {
+   "answer_dnssec": false,
+   "cached": true,
+   "client": "198.51.100.27",
+   "client_info": {
+    "disallowed": false,
+    "disallowed_rule": "",
+    "name": "",
+    "whois": {}
+   },
+   "client_proto": "",
+   "elapsedMs": "[REDACTED TEXT]",
+   "question": {
+    "class": "IN",
+    "name": "host15.example",
+    "type": "A"
+   },
+   "reason": "NotFilteredNotFound",
+   "rules": [],
+   "status": "NOERROR",
+   "time": "2026-09-23T14:34:26.711506599Z"
+  },
+  {
+   "answer_dnssec": false,
+   "cached": true,
+   "client": "198.51.100.27",
+   "client_info": {
+    "disallowed": false,
+    "disallowed_rule": "",
+    "name": "",
+    "whois": {}
+   },
+   "client_proto": "",
+   "elapsedMs": "0.222385",
+   "question": {
+    "class": "IN",
+    "name": "host4.example",
+    "type": "A"
+   },
+   "reason": "NotFilteredNotFound",
+   "rules": [],
+   "status": "NOERROR",
+   "time": "2026-09-23T14:34:26.711501984Z"
+  },
+  {
+   "answer_dnssec": false,
+   "cached": true,
+   "client": "198.51.100.27",
+   "client_info": {
+    "disallowed": false,
+    "disallowed_rule": "",
+    "name": "",
+    "whois": {}
+   },
+   "client_proto": "",
+   "elapsedMs": "0.299155",
+   "question": {
+    "class": "IN",
+    "name": "host4.example",
+    "type": "A"
+   },
+   "reason": "NotFilteredNotFound",
+   "rules": [],
+   "status": "NOERROR",
+   "time": "2026-09-23T14:34:26.711485907Z"
+  },
+  {
+   "answer_dnssec": false,
+   "cached": true,
+   "client": "198.51.100.41",
+   "client_info": {
+    "disallowed": false,
+    "disallowed_rule": "",
+    "name": "",
+    "whois": {}
+   },
+   "client_proto": "",
+   "elapsedMs": "0.534387",
+   "question": {
+    "class": "IN",
+    "name": "host18.example",
+    "type": "A"
+   },
+   "reason": "NotFilteredNotFound",
+   "rules": [],
+   "status": "NOERROR",
+   "time": "2026-09-23T14:34:25.908964195Z"
+  },
+  {
+   "answer_dnssec": false,
+   "cached": true,
+   "client": "198.51.100.41",
+   "client_info": {
+    "disallowed": false,
+    "disallowed_rule": "",
+    "name": "",
+    "whois": {}
+   },
+   "client_proto": "",
+   "elapsedMs": "[REDACTED TEXT]",
+   "question": {
+    "class": "IN",
+    "name": "host1.example",
+    "type": "A"
+   },
+   "reason": "NotFilteredNotFound",
+   "rules": [],
+   "status": "NOERROR",
+   "time": "2026-09-23T14:34:24.448404459Z"
+  },
+  {
+   "answer_dnssec": false,
+   "cached": true,
+   "client": "198.51.100.41",
+   "client_info": {
+    "disallowed": false,
+    "disallowed_rule": "",
+    "name": "",
+    "whois": {}
+   },
+   "client_proto": "",
+   "elapsedMs": "[REDACTED TEXT]",
+   "question": {
+    "class": "IN",
+    "name": "host19.example",
+    "type": "A"
+   },
+   "reason": "NotFilteredNotFound",
+   "rules": [],
+   "status": "NOERROR",
+   "time": "2026-09-23T14:34:24.346342149Z"
+  },
+  {
+   "answer_dnssec": false,
+   "cached": true,
+   "client": "198.51.100.41",
+   "client_info": {
+    "disallowed": false,
+    "disallowed_rule": "",
+    "name": "",
+    "whois": {}
+   },
+   "client_proto": "",
+   "elapsedMs": "[REDACTED TEXT]",
+   "question": {
+    "class": "IN",
+    "name": "host1.example",
+    "type": "A"
+   },
+   "reason": "NotFilteredNotFound",
+   "rules": [],
+   "status": "NOERROR",
+   "time": "2026-09-23T14:34:22.075927893Z"
+  },
+  {
+   "answer_dnssec": false,
+   "cached": true,
+   "client": "198.51.100.41",
+   "client_info": {
+    "disallowed": false,
+    "disallowed_rule": "",
+    "name": "",
+    "whois": {}
+   },
+   "client_proto": "",
+   "elapsedMs": "0.354694",
+   "question": {
+    "class": "IN",
+    "name": "host1.example",
+    "type": "A"
+   },
+   "reason": "NotFilteredNotFound",
+   "rules": [],
+   "status": "NOERROR",
+   "time": "2026-09-23T14:34:21.86936126Z"
+  },
+  {
+   "answer_dnssec": false,
+   "cached": true,
+   "client": "198.51.100.41",
+   "client_info": {
+    "disallowed": false,
+    "disallowed_rule": "",
+    "name": "",
+    "whois": {}
+   },
+   "client_proto": "",
+   "elapsedMs": "[REDACTED TEXT]",
+   "question": {
+    "class": "IN",
+    "name": "host20.example",
+    "type": "A"
+   },
+   "reason": "NotFilteredNotFound",
+   "rules": [],
+   "status": "NOERROR",
+   "time": "2026-09-23T14:34:13.666219812Z"
+  },
+  {
+   "answer_dnssec": false,
+   "cached": true,
+   "client": "198.51.100.41",
+   "client_info": {
+    "disallowed": false,
+    "disallowed_rule": "",
+    "name": "",
+    "whois": {}
+   },
+   "client_proto": "",
+   "elapsedMs": "[REDACTED TEXT]",
+   "question": {
+    "class": "IN",
+    "name": "host1.example",
+    "type": "A"
+   },
+   "reason": "NotFilteredNotFound",
+   "rules": [],
+   "status": "NOERROR",
+   "time": "2026-09-23T14:34:06.117218367Z"
+  },
+  {
+   "answer_dnssec": false,
+   "cached": true,
+   "client": "198.51.100.41",
+   "client_info": {
+    "disallowed": false,
+    "disallowed_rule": "",
+    "name": "",
+    "whois": {}
+   },
+   "client_proto": "",
+   "elapsedMs": "[REDACTED TEXT]",
+   "question": {
+    "class": "IN",
+    "name": "host1.example",
+    "type": "A"
+   },
+   "reason": "NotFilteredNotFound",
+   "rules": [],
+   "status": "NOERROR",
+   "time": "2026-09-23T14:33:56.359202068Z"
+  },
+  {
+   "answer_dnssec": false,
+   "cached": true,
+   "client": "198.51.100.41",
+   "client_info": {
+    "disallowed": false,
+    "disallowed_rule": "",
+    "name": "",
+    "whois": {}
+   },
+   "client_proto": "",
+   "elapsedMs": "[REDACTED TEXT]",
+   "question": {
+    "class": "IN",
+    "name": "host1.example",
+    "type": "A"
+   },
+   "reason": "NotFilteredNotFound",
+   "rules": [],
+   "status": "NOERROR",
+   "time": "2026-09-23T14:33:48.751593774Z"
+  },
+  {
+   "answer_dnssec": false,
+   "cached": true,
+   "client": "198.51.100.41",
+   "client_info": {
+    "disallowed": false,
+    "disallowed_rule": "",
+    "name": "",
+    "whois": {}
+   },
+   "client_proto": "",
+   "elapsedMs": "0.34654",
+   "question": {
+    "class": "IN",
+    "name": "host1.example",
+    "type": "A"
+   },
+   "reason": "NotFilteredNotFound",
+   "rules": [],
+   "status": "NOERROR",
+   "time": "2026-09-23T14:33:42.49635595Z"
+  },
+  {
+   "answer_dnssec": false,
+   "cached": true,
+   "client": "198.51.100.41",
+   "client_info": {
+    "disallowed": false,
+    "disallowed_rule": "",
+    "name": "",
+    "whois": {}
+   },
+   "client_proto": "",
+   "elapsedMs": "[REDACTED TEXT]",
+   "question": {
+    "class": "IN",
+    "name": "host1.example",
+    "type": "A"
+   },
+   "reason": "NotFilteredNotFound",
+   "rules": [],
+   "status": "NOERROR",
+   "time": "2026-09-23T14:33:36.155773598Z"
+  },
+  {
+   "answer_dnssec": false,
+   "cached": true,
+   "client": "198.51.100.41",
+   "client_info": {
+    "disallowed": false,
+    "disallowed_rule": "",
+    "name": "",
+    "whois": {}
+   },
+   "client_proto": "",
+   "elapsedMs": "0.641234",
+   "question": {
+    "class": "IN",
+    "name": "host21.example",
+    "type": "A"
+   },
+   "reason": "NotFilteredNotFound",
+   "rules": [],
+   "status": "NOERROR",
+   "time": "2026-09-23T14:33:32.253143235Z"
+  },
+  {
+   "answer_dnssec": false,
+   "cached": true,
+   "client": "198.51.100.41",
+   "client_info": {
+    "disallowed": false,
+    "disallowed_rule": "",
+    "name": "",
+    "whois": {}
+   },
+   "client_proto": "",
+   "elapsedMs": "0.333694",
+   "question": {
+    "class": "IN",
+    "name": "host1.example",
+    "type": "A"
+   },
+   "reason": "NotFilteredNotFound",
+   "rules": [],
+   "status": "NOERROR",
+   "time": "2026-09-23T14:33:31.582733761Z"
+  },
+  {
+   "answer_dnssec": false,
+   "cached": true,
+   "client": "198.51.100.41",
+   "client_info": {
+    "disallowed": false,
+    "disallowed_rule": "",
+    "name": "",
+    "whois": {}
+   },
+   "client_proto": "",
+   "elapsedMs": "0.343541",
+   "question": {
+    "class": "IN",
+    "name": "host1.example",
+    "type": "A"
+   },
+   "reason": "NotFilteredNotFound",
+   "rules": [],
+   "status": "NOERROR",
+   "time": "2026-09-23T14:33:27.604455229Z"
+  },
+  {
+   "answer_dnssec": false,
+   "cached": true,
+   "client": "198.51.100.41",
+   "client_info": {
+    "disallowed": false,
+    "disallowed_rule": "",
+    "name": "",
+    "whois": {}
+   },
+   "client_proto": "",
+   "elapsedMs": "0.369463",
+   "question": {
+    "class": "IN",
+    "name": "host1.example",
+    "type": "A"
+   },
+   "reason": "NotFilteredNotFound",
+   "rules": [],
+   "status": "NOERROR",
+   "time": "2026-09-23T14:33:25.014920744Z"
+  },
+  {
+   "answer_dnssec": false,
+   "cached": true,
+   "client": "198.51.100.41",
+   "client_info": {
+    "disallowed": false,
+    "disallowed_rule": "",
+    "name": "",
+    "whois": {}
+   },
+   "client_proto": "",
+   "elapsedMs": "0.626849",
+   "question": {
+    "class": "IN",
+    "name": "host19.example",
+    "type": "A"
+   },
+   "reason": "NotFilteredNotFound",
+   "rules": [],
+   "status": "NOERROR",
+   "time": "2026-09-23T14:33:24.294886161Z"
+  },
+  {
+   "answer_dnssec": false,
+   "cached": true,
+   "client": "198.51.100.41",
+   "client_info": {
+    "disallowed": false,
+    "disallowed_rule": "",
+    "name": "",
+    "whois": {}
+   },
+   "client_proto": "",
+   "elapsedMs": "[REDACTED TEXT]",
+   "question": {
+    "class": "IN",
+    "name": "host1.example",
+    "type": "A"
+   },
+   "reason": "NotFilteredNotFound",
+   "rules": [],
+   "status": "NOERROR",
+   "time": "2026-09-23T14:33:22.243852682Z"
+  },
+  {
+   "answer_dnssec": false,
+   "cached": true,
+   "client": "198.51.100.41",
+   "client_info": {
+    "disallowed": false,
+    "disallowed_rule": "",
+    "name": "",
+    "whois": {}
+   },
+   "client_proto": "",
+   "elapsedMs": "0.585618",
+   "question": {
+    "class": "IN",
+    "name": "host21.example",
+    "type": "A"
+   },
+   "reason": "NotFilteredNotFound",
+   "rules": [],
+   "status": "NOERROR",
+   "time": "2026-09-23T14:33:22.150456264Z"
+  },
+  {
+   "answer_dnssec": false,
+   "cached": true,
+   "client": "198.51.100.41",
+   "client_info": {
+    "disallowed": false,
+    "disallowed_rule": "",
+    "name": "",
+    "whois": {}
+   },
+   "client_proto": "",
+   "elapsedMs": "[REDACTED TEXT]",
+   "question": {
+    "class": "IN",
+    "name": "host22.example",
+    "type": "A"
+   },
+   "reason": "NotFilteredNotFound",
+   "rules": [],
+   "status": "NOERROR",
+   "time": "2026-09-23T14:33:21.770599022Z"
+  },
+  {
+   "answer_dnssec": false,
+   "cached": true,
+   "client": "198.51.100.41",
+   "client_info": {
+    "disallowed": false,
+    "disallowed_rule": "",
+    "name": "",
+    "whois": {}
+   },
+   "client_proto": "",
+   "elapsedMs": "0.400386",
+   "question": {
+    "class": "IN",
+    "name": "host20.example",
+    "type": "A"
+   },
+   "reason": "NotFilteredNotFound",
+   "rules": [],
+   "status": "NOERROR",
+   "time": "2026-09-23T14:33:13.636146322Z"
+  },
+  {
+   "answer_dnssec": false,
+   "cached": true,
+   "client": "198.51.100.41",
+   "client_info": {
+    "disallowed": false,
+    "disallowed_rule": "",
+    "name": "",
+    "whois": {}
+   },
+   "client_proto": "",
+   "elapsedMs": "[REDACTED TEXT]",
+   "question": {
+    "class": "IN",
+    "name": "host23.example",
+    "type": "A"
+   },
+   "reason": "NotFilteredNotFound",
+   "rules": [],
+   "status": "NOERROR",
+   "time": "2026-09-23T14:32:37.024667638Z"
+  },
+  {
+   "answer_dnssec": false,
+   "cached": true,
+   "client": "198.51.100.41",
+   "client_info": {
+    "disallowed": false,
+    "disallowed_rule": "",
+    "name": "",
+    "whois": {}
+   },
+   "client_proto": "",
+   "elapsedMs": "[REDACTED TEXT]",
+   "question": {
+    "class": "IN",
+    "name": "host19.example",
+    "type": "A"
+   },
+   "reason": "NotFilteredNotFound",
+   "rules": [],
+   "status": "NOERROR",
+   "time": "2026-09-23T14:32:24.231347263Z"
+  },
+  {
+   "answer_dnssec": false,
+   "cached": true,
+   "client": "198.51.100.41",
+   "client_info": {
+    "disallowed": false,
+    "disallowed_rule": "",
+    "name": "",
+    "whois": {}
+   },
+   "client_proto": "",
+   "elapsedMs": "0.406387",
+   "question": {
+    "class": "IN",
+    "name": "host20.example",
+    "type": "A"
+   },
+   "reason": "NotFilteredNotFound",
+   "rules": [],
+   "status": "NOERROR",
+   "time": "2026-09-23T14:32:13.613670872Z"
+  },
+  {
+   "answer_dnssec": false,
+   "cached": true,
+   "client": "198.51.100.41",
+   "client_info": {
+    "disallowed": false,
+    "disallowed_rule": "",
+    "name": "",
+    "whois": {}
+   },
+   "client_proto": "",
+   "elapsedMs": "[REDACTED TEXT]",
+   "question": {
+    "class": "IN",
+    "name": "host19.example",
+    "type": "A"
+   },
+   "reason": "NotFilteredNotFound",
+   "rules": [],
+   "status": "NOERROR",
+   "time": "2026-09-23T14:31:24.174355399Z"
+  },
+  {
+   "answer_dnssec": false,
+   "cached": true,
+   "client": "198.51.100.41",
+   "client_info": {
+    "disallowed": false,
+    "disallowed_rule": "",
+    "name": "",
+    "whois": {}
+   },
+   "client_proto": "",
+   "elapsedMs": "[REDACTED TEXT]",
+   "question": {
+    "class": "IN",
+    "name": "host20.example",
+    "type": "A"
+   },
+   "reason": "NotFilteredNotFound",
+   "rules": [],
+   "status": "NOERROR",
+   "time": "2026-09-23T14:31:13.585443545Z"
+  },
+  {
+   "answer_dnssec": false,
+   "cached": true,
+   "client": "198.51.100.41",
+   "client_info": {
+    "disallowed": false,
+    "disallowed_rule": "",
+    "name": "",
+    "whois": {}
+   },
+   "client_proto": "",
+   "elapsedMs": "[REDACTED TEXT]",
+   "question": {
+    "class": "IN",
+    "name": "host19.example",
+    "type": "A"
+   },
+   "reason": "NotFilteredNotFound",
+   "rules": [],
+   "status": "NOERROR",
+   "time": "2026-09-23T14:30:24.114521366Z"
+  },
+  {
+   "answer_dnssec": false,
+   "cached": true,
+   "client": "198.51.100.41",
+   "client_info": {
+    "disallowed": false,
+    "disallowed_rule": "",
+    "name": "",
+    "whois": {}
+   },
+   "client_proto": "",
+   "elapsedMs": "[REDACTED TEXT]",
+   "question": {
+    "class": "IN",
+    "name": "host20.example",
+    "type": "A"
+   },
+   "reason": "NotFilteredNotFound",
+   "rules": [],
+   "status": "NOERROR",
+   "time": "2026-09-23T14:30:13.545050308Z"
+  },
+  {
+   "answer_dnssec": false,
+   "cached": true,
+   "client": "198.51.100.41",
+   "client_info": {
+    "disallowed": false,
+    "disallowed_rule": "",
+    "name": "",
+    "whois": {}
+   },
+   "client_proto": "",
+   "elapsedMs": "0.538234",
+   "question": {
+    "class": "IN",
+    "name": "host18.example",
+    "type": "A"
+   },
+   "reason": "NotFilteredNotFound",
+   "rules": [],
+   "status": "NOERROR",
+   "time": "2026-09-23T14:29:55.236619413Z"
+  },
+  {
+   "answer_dnssec": false,
+   "cached": true,
+   "client": "198.51.100.41",
+   "client_info": {
+    "disallowed": false,
+    "disallowed_rule": "",
+    "name": "",
+    "whois": {}
+   },
+   "client_proto": "",
+   "elapsedMs": "[REDACTED TEXT]",
+   "question": {
+    "class": "IN",
+    "name": "host18.example",
+    "type": "A"
+   },
+   "reason": "NotFilteredNotFound",
+   "rules": [],
+   "status": "NOERROR",
+   "time": "2026-09-23T14:29:25.534314325Z"
+  },
+  {
+   "answer_dnssec": false,
+   "cached": true,
+   "client": "198.51.100.41",
+   "client_info": {
+    "disallowed": false,
+    "disallowed_rule": "",
+    "name": "",
+    "whois": {}
+   },
+   "client_proto": "",
+   "elapsedMs": "0.524618",
+   "question": {
+    "class": "IN",
+    "name": "host19.example",
+    "type": "A"
+   },
+   "reason": "NotFilteredNotFound",
+   "rules": [],
+   "status": "NOERROR",
+   "time": "2026-09-23T14:29:24.05627265Z"
+  },
+  {
+   "answer_dnssec": false,
+   "cached": true,
+   "client": "198.51.100.41",
+   "client_info": {
+    "disallowed": false,
+    "disallowed_rule": "",
+    "name": "",
+    "whois": {}
+   },
+   "client_proto": "",
+   "elapsedMs": "0.422925",
+   "question": {
+    "class": "IN",
+    "name": "host20.example",
+    "type": "A"
+   },
+   "reason": "NotFilteredNotFound",
+   "rules": [],
+   "status": "NOERROR",
+   "time": "2026-09-23T14:29:13.513847273Z"
+  },
+  {
+   "answer_dnssec": false,
+   "cached": true,
+   "client": "198.51.100.41",
+   "client_info": {
+    "disallowed": false,
+    "disallowed_rule": "",
+    "name": "",
+    "whois": {}
+   },
+   "client_proto": "",
+   "elapsedMs": "0.501695",
+   "question": {
+    "class": "IN",
+    "name": "host19.example",
+    "type": "A"
+   },
+   "reason": "NotFilteredNotFound",
+   "rules": [],
+   "status": "NOERROR",
+   "time": "2026-09-23T14:28:24.000592485Z"
+  },
+  {
+   "answer_dnssec": false,
+   "cached": true,
+   "client": "198.51.100.41",
+   "client_info": {
+    "disallowed": false,
+    "disallowed_rule": "",
+    "name": "",
+    "whois": {}
+   },
+   "client_proto": "",
+   "elapsedMs": "[REDACTED TEXT]",
+   "question": {
+    "class": "IN",
+    "name": "host20.example",
+    "type": "A"
+   },
+   "reason": "NotFilteredNotFound",
+   "rules": [],
+   "status": "NOERROR",
+   "time": "2026-09-23T14:28:13.488308345Z"
+  },
+  {
+   "answer_dnssec": false,
+   "cached": true,
+   "client": "198.51.100.41",
+   "client_info": {
+    "disallowed": false,
+    "disallowed_rule": "",
+    "name": "",
+    "whois": {}
+   },
+   "client_proto": "",
+   "elapsedMs": "0.557157",
+   "question": {
+    "class": "IN",
+    "name": "host22.example",
+    "type": "A"
+   },
+   "reason": "NotFilteredNotFound",
+   "rules": [],
+   "status": "NOERROR",
+   "time": "2026-09-23T14:27:43.663461761Z"
+  },
+  {
+   "answer_dnssec": false,
+   "cached": true,
+   "client": "198.51.100.41",
+   "client_info": {
+    "disallowed": false,
+    "disallowed_rule": "",
+    "name": "",
+    "whois": {}
+   },
+   "client_proto": "",
+   "elapsedMs": "[REDACTED TEXT]",
+   "question": {
+    "class": "IN",
+    "name": "host19.example",
+    "type": "A"
+   },
+   "reason": "NotFilteredNotFound",
+   "rules": [],
+   "status": "NOERROR",
+   "time": "2026-09-23T14:27:23.942265999Z"
+  },
+  {
+   "answer_dnssec": false,
+   "cached": true,
+   "client": "198.51.100.41",
+   "client_info": {
+    "disallowed": false,
+    "disallowed_rule": "",
+    "name": "",
+    "whois": {}
+   },
+   "client_proto": "",
+   "elapsedMs": "0.398848",
+   "question": {
+    "class": "IN",
+    "name": "host20.example",
+    "type": "A"
+   },
+   "reason": "NotFilteredNotFound",
+   "rules": [],
+   "status": "NOERROR",
+   "time": "2026-09-23T14:27:13.458868858Z"
+  },
+  {
+   "answer_dnssec": false,
+   "cached": true,
+   "client": "198.51.100.41",
+   "client_info": {
+    "disallowed": false,
+    "disallowed_rule": "",
+    "name": "",
+    "whois": {}
+   },
+   "client_proto": "",
+   "elapsedMs": "[REDACTED TEXT]",
+   "question": {
+    "class": "IN",
+    "name": "host19.example",
+    "type": "A"
+   },
+   "reason": "NotFilteredNotFound",
+   "rules": [],
+   "status": "NOERROR",
+   "time": "2026-09-23T14:26:23.880775342Z"
+  },
+  {
+   "answer_dnssec": false,
+   "cached": true,
+   "client": "198.51.100.41",
+   "client_info": {
+    "disallowed": false,
+    "disallowed_rule": "",
+    "name": "",
+    "whois": {}
+   },
+   "client_proto": "",
+   "elapsedMs": "0.506618",
+   "question": {
+    "class": "IN",
+    "name": "host20.example",
+    "type": "A"
+   },
+   "reason": "NotFilteredNotFound",
+   "rules": [],
+   "status": "NOERROR",
+   "time": "2026-09-23T14:26:13.423509263Z"
+  },
+  {
+   "answer_dnssec": false,
+   "cached": true,
+   "client": "198.51.100.41",
+   "client_info": {
+    "disallowed": false,
+    "disallowed_rule": "",
+    "name": "",
+    "whois": {}
+   },
+   "client_proto": "",
+   "elapsedMs": "0.550234",
+   "question": {
+    "class": "IN",
+    "name": "host19.example",
+    "type": "A"
+   },
+   "reason": "NotFilteredNotFound",
+   "rules": [],
+   "status": "NOERROR",
+   "time": "2026-09-23T14:25:23.822330899Z"
+  },
+  {
+   "answer_dnssec": false,
+   "cached": true,
+   "client": "198.51.100.41",
+   "client_info": {
+    "disallowed": false,
+    "disallowed_rule": "",
+    "name": "",
+    "whois": {}
+   },
+   "client_proto": "",
+   "elapsedMs": "[REDACTED TEXT]",
+   "question": {
+    "class": "IN",
+    "name": "host20.example",
+    "type": "A"
+   },
+   "reason": "NotFilteredNotFound",
+   "rules": [],
+   "status": "NOERROR",
+   "time": "2026-09-23T14:25:13.390135353Z"
+  },
+  {
+   "answer_dnssec": false,
+   "cached": true,
+   "client": "198.51.100.41",
+   "client_info": {
+    "disallowed": false,
+    "disallowed_rule": "",
+    "name": "",
+    "whois": {}
+   },
+   "client_proto": "",
+   "elapsedMs": "0.580695",
+   "question": {
+    "class": "IN",
+    "name": "host18.example",
+    "type": "A"
+   },
+   "reason": "NotFilteredNotFound",
+   "rules": [],
+   "status": "NOERROR",
+   "time": "2026-09-23T14:24:55.218218986Z"
+  },
+  {
+   "answer_dnssec": false,
+   "cached": true,
+   "client": "198.51.100.41",
+   "client_info": {
+    "disallowed": false,
+    "disallowed_rule": "",
+    "name": "",
+    "whois": {}
+   },
+   "client_proto": "",
+   "elapsedMs": "0.537773",
+   "question": {
+    "class": "IN",
+    "name": "host18.example",
+    "type": "A"
+   },
+   "reason": "NotFilteredNotFound",
+   "rules": [],
+   "status": "NOERROR",
+   "time": "2026-09-23T14:24:28.982668292Z"
+  },
+  {
+   "answer_dnssec": false,
+   "cached": true,
+   "client": "198.51.100.41",
+   "client_info": {
+    "disallowed": false,
+    "disallowed_rule": "",
+    "name": "",
+    "whois": {}
+   },
+   "client_proto": "",
+   "elapsedMs": "0.502465",
+   "question": {
+    "class": "IN",
+    "name": "host19.example",
+    "type": "A"
+   },
+   "reason": "NotFilteredNotFound",
+   "rules": [],
+   "status": "NOERROR",
+   "time": "2026-09-23T14:24:23.7586144Z"
+  },
+  {
+   "answer_dnssec": false,
+   "cached": true,
+   "client": "198.51.100.41",
+   "client_info": {
+    "disallowed": false,
+    "disallowed_rule": "",
+    "name": "",
+    "whois": {}
+   },
+   "client_proto": "",
+   "elapsedMs": "[REDACTED TEXT]",
+   "question": {
+    "class": "IN",
+    "name": "host20.example",
+    "type": "A"
+   },
+   "reason": "NotFilteredNotFound",
+   "rules": [],
+   "status": "NOERROR",
+   "time": "2026-09-23T14:24:13.364891368Z"
+  },
+  {
+   "answer_dnssec": false,
+   "cached": true,
+   "client": "198.51.100.41",
+   "client_info": {
+    "disallowed": false,
+    "disallowed_rule": "",
+    "name": "",
+    "whois": {}
+   },
+   "client_proto": "",
+   "elapsedMs": "0.59108",
+   "question": {
+    "class": "IN",
+    "name": "host19.example",
+    "type": "A"
+   },
+   "reason": "NotFilteredNotFound",
+   "rules": [],
+   "status": "NOERROR",
+   "time": "2026-09-23T14:23:23.695874214Z"
+  },
+  {
+   "answer_dnssec": false,
+   "cached": true,
+   "client": "198.51.100.41",
+   "client_info": {
+    "disallowed": false,
+    "disallowed_rule": "",
+    "name": "",
+    "whois": {}
+   },
+   "client_proto": "",
+   "elapsedMs": "0.432157",
+   "question": {
+    "class": "IN",
+    "name": "host20.example",
+    "type": "A"
+   },
+   "reason": "NotFilteredNotFound",
+   "rules": [],
+   "status": "NOERROR",
+   "time": "2026-09-23T14:23:13.333744505Z"
+  },
+  {
+   "answer_dnssec": false,
+   "cached": true,
+   "client": "198.51.100.41",
+   "client_info": {
+    "disallowed": false,
+    "disallowed_rule": "",
+    "name": "",
+    "whois": {}
+   },
+   "client_proto": "",
+   "elapsedMs": "0.516311",
+   "question": {
+    "class": "IN",
+    "name": "host19.example",
+    "type": "A"
+   },
+   "reason": "NotFilteredNotFound",
+   "rules": [],
+   "status": "NOERROR",
+   "time": "2026-09-23T14:22:23.625489525Z"
+  },
+  {
+   "answer_dnssec": false,
+   "cached": true,
+   "client": "198.51.100.41",
+   "client_info": {
+    "disallowed": false,
+    "disallowed_rule": "",
+    "name": "",
+    "whois": {}
+   },
+   "client_proto": "",
+   "elapsedMs": "[REDACTED TEXT]",
+   "question": {
+    "class": "IN",
+    "name": "host20.example",
+    "type": "A"
+   },
+   "reason": "NotFilteredNotFound",
+   "rules": [],
+   "status": "NOERROR",
+   "time": "2026-09-23T14:22:13.30146602Z"
+  },
+  {
+   "answer_dnssec": false,
+   "cached": true,
+   "client": "198.51.100.41",
+   "client_info": {
+    "disallowed": false,
+    "disallowed_rule": "",
+    "name": "",
+    "whois": {}
+   },
+   "client_proto": "",
+   "elapsedMs": "0.503079",
+   "question": {
+    "class": "IN",
+    "name": "host19.example",
+    "type": "A"
+   },
+   "reason": "NotFilteredNotFound",
+   "rules": [],
+   "status": "NOERROR",
+   "time": "2026-09-23T14:21:23.565885433Z"
+  },
+  {
+   "answer_dnssec": false,
+   "cached": true,
+   "client": "198.51.100.41",
+   "client_info": {
+    "disallowed": false,
+    "disallowed_rule": "",
+    "name": "",
+    "whois": {}
+   },
+   "client_proto": "",
+   "elapsedMs": "0.396848",
+   "question": {
+    "class": "IN",
+    "name": "host20.example",
+    "type": "A"
+   },
+   "reason": "NotFilteredNotFound",
+   "rules": [],
+   "status": "NOERROR",
+   "time": "2026-09-23T14:21:13.270950776Z"
+  },
+  {
+   "answer_dnssec": false,
+   "cached": true,
+   "client": "198.51.100.41",
+   "client_info": {
+    "disallowed": false,
+    "disallowed_rule": "",
+    "name": "",
+    "whois": {}
+   },
+   "client_proto": "",
+   "elapsedMs": "0.421617",
+   "question": {
+    "class": "IN",
+    "name": "host23.example",
+    "type": "A"
+   },
+   "reason": "NotFilteredNotFound",
+   "rules": [],
+   "status": "NOERROR",
+   "time": "2026-09-23T14:21:11.035866733Z"
+  },
+  {
+   "answer_dnssec": false,
+   "cached": true,
+   "client": "198.51.100.41",
+   "client_info": {
+    "disallowed": false,
+    "disallowed_rule": "",
+    "name": "",
+    "whois": {}
+   },
+   "client_proto": "",
+   "elapsedMs": "0.510157",
+   "question": {
+    "class": "IN",
+    "name": "host19.example",
+    "type": "A"
+   },
+   "reason": "NotFilteredNotFound",
+   "rules": [],
+   "status": "NOERROR",
+   "time": "2026-09-23T14:20:23.506670496Z"
+  },
+  {
+   "answer_dnssec": false,
+   "cached": false,
+   "client": "198.51.100.43",
+   "client_info": {
+    "disallowed": false,
+    "disallowed_rule": "",
+    "name": "",
+    "whois": {}
+   },
+   "client_proto": "",
+   "elapsedMs": "0.328079",
+   "filterId": 1,
+   "question": {
+    "class": "IN",
+    "name": "host24.example",
+    "type": "A"
+   },
+   "reason": "FilteredBlackList",
+   "rules": [],
+   "status": "NOERROR",
+   "time": "2026-09-23T14:20:18.147910883Z"
+  },
+  {
+   "answer_dnssec": false,
+   "cached": false,
+   "client": "198.51.100.43",
+   "client_info": {
+    "disallowed": false,
+    "disallowed_rule": "",
+    "name": "",
+    "whois": {}
+   },
+   "client_proto": "",
+   "elapsedMs": "2.505475",
+   "question": {
+    "class": "IN",
+    "name": "host12.example",
+    "type": "PTR"
+   },
+   "reason": "NotFilteredNotFound",
+   "rules": [],
+   "status": "NXDOMAIN",
+   "time": "2026-09-23T14:20:16.600512675Z"
+  },
+  {
+   "answer_dnssec": true,
+   "cached": true,
+   "client": "198.51.100.43",
+   "client_info": {
+    "disallowed": false,
+    "disallowed_rule": "",
+    "name": "",
+    "whois": {}
+   },
+   "client_proto": "",
+   "elapsedMs": "0.318156",
+   "question": {
+    "class": "IN",
+    "name": "host17.example",
+    "type": "PTR"
+   },
+   "reason": "NotFilteredNotFound",
+   "rules": [],
+   "status": "NXDOMAIN",
+   "time": "2026-09-23T14:20:16.598265279Z"
+  },
+  {
+   "answer_dnssec": false,
+   "cached": true,
+   "client": "198.51.100.41",
+   "client_info": {
+    "disallowed": false,
+    "disallowed_rule": "",
+    "name": "",
+    "whois": {}
+   },
+   "client_proto": "",
+   "elapsedMs": "[REDACTED TEXT]",
+   "question": {
+    "class": "IN",
+    "name": "host20.example",
+    "type": "A"
+   },
+   "reason": "NotFilteredNotFound",
+   "rules": [],
+   "status": "NOERROR",
+   "time": "2026-09-23T14:20:13.237316977Z"
+  },
+  {
+   "answer_dnssec": false,
+   "cached": true,
+   "client": "198.51.100.43",
+   "client_info": {
+    "disallowed": false,
+    "disallowed_rule": "",
+    "name": "",
+    "whois": {}
+   },
+   "client_proto": "",
+   "elapsedMs": "[REDACTED TEXT]",
+   "question": {
+    "class": "IN",
+    "name": "host25.example",
+    "type": "A"
+   },
+   "reason": "NotFilteredNotFound",
+   "rules": [],
+   "status": "NOERROR",
+   "time": "2026-09-23T14:20:09.263451932Z"
+  },
+  {
+   "answer_dnssec": false,
+   "cached": true,
+   "client": "198.51.100.43",
+   "client_info": {
+    "disallowed": false,
+    "disallowed_rule": "",
+    "name": "",
+    "whois": {}
+   },
+   "client_proto": "",
+   "elapsedMs": "[REDACTED TEXT]",
+   "question": {
+    "class": "IN",
+    "name": "host25.example",
+    "type": "HTTPS"
+   },
+   "reason": "NotFilteredNotFound",
+   "rules": [],
+   "status": "NOERROR",
+   "time": "2026-09-23T14:20:09.262364387Z"
+  },
+  {
+   "answer_dnssec": false,
+   "cached": false,
+   "client": "198.51.100.43",
+   "client_info": {
+    "disallowed": false,
+    "disallowed_rule": "",
+    "name": "",
+    "whois": {}
+   },
+   "client_proto": "",
+   "elapsedMs": "0.327771",
+   "filterId": 1,
+   "question": {
+    "class": "IN",
+    "name": "host24.example",
+    "type": "A"
+   },
+   "reason": "FilteredBlackList",
+   "rules": [],
+   "status": "NOERROR",
+   "time": "2026-09-23T14:20:07.881260685Z"
+  },
+  {
+   "answer_dnssec": false,
+   "cached": false,
+   "client": "198.51.100.43",
+   "client_info": {
+    "disallowed": false,
+    "disallowed_rule": "",
+    "name": "",
+    "whois": {}
+   },
+   "client_proto": "",
+   "elapsedMs": "2.039396",
+   "question": {
+    "class": "IN",
+    "name": "host12.example",
+    "type": "PTR"
+   },
+   "reason": "NotFilteredNotFound",
+   "rules": [],
+   "status": "NXDOMAIN",
+   "time": "2026-09-23T14:20:07.305664835Z"
+  },
+  {
+   "answer_dnssec": true,
+   "cached": true,
+   "client": "198.51.100.43",
+   "client_info": {
+    "disallowed": false,
+    "disallowed_rule": "",
+    "name": "",
+    "whois": {}
+   },
+   "client_proto": "",
+   "elapsedMs": "[REDACTED TEXT]",
+   "question": {
+    "class": "IN",
+    "name": "host17.example",
+    "type": "PTR"
+   },
+   "reason": "NotFilteredNotFound",
+   "rules": [],
+   "status": "NXDOMAIN",
+   "time": "2026-09-23T14:20:07.303962133Z"
+  },
+  {
+   "answer_dnssec": false,
+   "cached": true,
+   "client": "198.51.100.41",
+   "client_info": {
+    "disallowed": false,
+    "disallowed_rule": "",
+    "name": "",
+    "whois": {}
+   },
+   "client_proto": "",
+   "elapsedMs": "0.536618",
+   "question": {
+    "class": "IN",
+    "name": "host18.example",
+    "type": "A"
+   },
+   "reason": "NotFilteredNotFound",
+   "rules": [],
+   "status": "NOERROR",
+   "time": "2026-09-23T14:19:55.213536787Z"
+  },
+  {
+   "answer_dnssec": false,
+   "cached": false,
+   "client": "198.51.100.43",
+   "client_info": {
+    "disallowed": false,
+    "disallowed_rule": "",
+    "name": "",
+    "whois": {}
+   },
+   "client_proto": "",
+   "elapsedMs": "0.329079",
+   "filterId": 1,
+   "question": {
+    "class": "IN",
+    "name": "host24.example",
+    "type": "A"
+   },
+   "reason": "FilteredBlackList",
+   "rules": [],
+   "status": "NOERROR",
+   "time": "2026-09-23T14:19:44.579379545Z"
+  },
+  {
+   "answer_dnssec": false,
+   "cached": false,
+   "client": "198.51.100.43",
+   "client_info": {
+    "disallowed": false,
+    "disallowed_rule": "",
+    "name": "",
+    "whois": {}
+   },
+   "client_proto": "",
+   "elapsedMs": "0.268386",
+   "filterId": 1,
+   "question": {
+    "class": "IN",
+    "name": "host24.example",
+    "type": "HTTPS"
+   },
+   "reason": "FilteredBlackList",
+   "rules": [],
+   "status": "NOERROR",
+   "time": "2026-09-23T14:19:44.57931839Z"
+  },
+  {
+   "answer_dnssec": true,
+   "cached": true,
+   "client": "198.51.100.43",
+   "client_info": {
+    "disallowed": false,
+    "disallowed_rule": "",
+    "name": "",
+    "whois": {}
+   },
+   "client_proto": "",
+   "elapsedMs": "[REDACTED TEXT]",
+   "question": {
+    "class": "IN",
+    "name": "host26.example",
+    "type": "HTTPS"
+   },
+   "reason": "NotFilteredNotFound",
+   "rules": [],
+   "status": "NOERROR",
+   "time": "2026-09-23T14:19:44.274930992Z"
+  },
+  {
+   "answer_dnssec": false,
+   "cached": true,
+   "client": "198.51.100.43",
+   "client_info": {
+    "disallowed": false,
+    "disallowed_rule": "",
+    "name": "",
+    "whois": {}
+   },
+   "client_proto": "",
+   "elapsedMs": "0.925005",
+   "question": {
+    "class": "IN",
+    "name": "host25.example",
+    "type": "HTTPS"
+   },
+   "reason": "NotFilteredNotFound",
+   "rules": [],
+   "status": "NOERROR",
+   "time": "2026-09-23T14:19:44.268762805Z"
+  },
+  {
+   "answer_dnssec": false,
+   "cached": true,
+   "client": "198.51.100.43",
+   "client_info": {
+    "disallowed": false,
+    "disallowed_rule": "",
+    "name": "",
+    "whois": {}
+   },
+   "client_proto": "",
+   "elapsedMs": "0.861081",
+   "question": {
+    "class": "IN",
+    "name": "host25.example",
+    "type": "A"
+   },
+   "reason": "NotFilteredNotFound",
+   "rules": [],
+   "status": "NOERROR",
+   "time": "2026-09-23T14:19:44.268702958Z"
+  },
+  {
+   "answer_dnssec": false,
+   "cached": true,
+   "client": "198.51.100.43",
+   "client_info": {
+    "disallowed": false,
+    "disallowed_rule": "",
+    "name": "",
+    "whois": {}
+   },
+   "client_proto": "",
+   "elapsedMs": "[REDACTED TEXT]",
+   "question": {
+    "class": "IN",
+    "name": "host27.example",
+    "type": "A"
+   },
+   "reason": "NotFilteredNotFound",
+   "rules": [],
+   "status": "NOERROR",
+   "time": "2026-09-23T14:19:42.370736027Z"
+  },
+  {
+   "answer_dnssec": false,
+   "cached": true,
+   "client": "198.51.100.43",
+   "client_info": {
+    "disallowed": false,
+    "disallowed_rule": "",
+    "name": "",
+    "whois": {}
+   },
+   "client_proto": "",
+   "elapsedMs": "[REDACTED TEXT]",
+   "question": {
+    "class": "IN",
+    "name": "host28.example",
+    "type": "A"
+   },
+   "reason": "NotFilteredNotFound",
+   "rules": [],
+   "status": "NOERROR",
+   "time": "2026-09-23T14:19:42.013510653Z"
+  },
+  {
+   "answer_dnssec": false,
+   "cached": true,
+   "client": "198.51.100.43",
+   "client_info": {
+    "disallowed": false,
+    "disallowed_rule": "",
+    "name": "",
+    "whois": {}
+   },
+   "client_proto": "",
+   "elapsedMs": "0.502849",
+   "question": {
+    "class": "IN",
+    "name": "host29.example",
+    "type": "A"
+   },
+   "reason": "NotFilteredNotFound",
+   "rules": [],
+   "status": "NOERROR",
+   "time": "2026-09-23T14:19:41.998235802Z"
+  },
+  {
+   "answer_dnssec": false,
+   "cached": false,
+   "client": "198.51.100.43",
+   "client_info": {
+    "disallowed": false,
+    "disallowed_rule": "",
+    "name": "",
+    "whois": {}
+   },
+   "client_proto": "",
+   "elapsedMs": "[REDACTED TEXT]",
+   "question": {
+    "class": "IN",
+    "name": "host12.example",
+    "type": "PTR"
+   },
+   "reason": "NotFilteredNotFound",
+   "rules": [],
+   "status": "NXDOMAIN",
+   "time": "2026-09-23T14:19:41.922290165Z"
+  },
+  {
+   "answer_dnssec": true,
+   "cached": true,
+   "client": "198.51.100.43",
+   "client_info": {
+    "disallowed": false,
+    "disallowed_rule": "",
+    "name": "",
+    "whois": {}
+   },
+   "client_proto": "",
+   "elapsedMs": "[REDACTED TEXT]",
+   "question": {
+    "class": "IN",
+    "name": "host17.example",
+    "type": "PTR"
+   },
+   "reason": "NotFilteredNotFound",
+   "rules": [],
+   "status": "NXDOMAIN",
+   "time": "2026-09-23T14:19:41.920736387Z"
+  },
+  {
+   "answer_dnssec": false,
+   "cached": true,
+   "client": "198.51.100.43",
+   "client_info": {
+    "disallowed": false,
+    "disallowed_rule": "",
+    "name": "",
+    "whois": {}
+   },
+   "client_proto": "",
+   "elapsedMs": "[REDACTED TEXT]",
+   "question": {
+    "class": "IN",
+    "name": "host8.example",
+    "type": "A"
+   },
+   "reason": "NotFilteredNotFound",
+   "rules": [],
+   "status": "NOERROR",
+   "time": "2026-09-23T14:19:33.446083169Z"
+  },
+  {
+   "answer_dnssec": false,
+   "cached": false,
+   "client": "198.51.100.43",
+   "client_info": {
+    "disallowed": false,
+    "disallowed_rule": "",
+    "name": "",
+    "whois": {}
+   },
+   "client_proto": "",
+   "elapsedMs": "2.668706",
+   "question": {
+    "class": "IN",
+    "name": "host12.example",
+    "type": "PTR"
+   },
+   "reason": "NotFilteredNotFound",
+   "rules": [],
+   "status": "NXDOMAIN",
+   "time": "2026-09-23T14:19:33.357350155Z"
+  },
+  {
+   "answer_dnssec": true,
+   "cached": true,
+   "client": "198.51.100.43",
+   "client_info": {
+    "disallowed": false,
+    "disallowed_rule": "",
+    "name": "",
+    "whois": {}
+   },
+   "client_proto": "",
+   "elapsedMs": "0.304771",
+   "question": {
+    "class": "IN",
+    "name": "host17.example",
+    "type": "PTR"
+   },
+   "reason": "NotFilteredNotFound",
+   "rules": [],
+   "status": "NXDOMAIN",
+   "time": "2026-09-23T14:19:33.354552756Z"
+  },
+  {
+   "answer_dnssec": false,
+   "cached": false,
+   "client": "198.51.100.43",
+   "client_info": {
+    "disallowed": false,
+    "disallowed_rule": "",
+    "name": "",
+    "whois": {}
+   },
+   "client_proto": "",
+   "elapsedMs": "[REDACTED TEXT]",
+   "filterId": 1,
+   "question": {
+    "class": "IN",
+    "name": "host24.example",
+    "type": "A"
+   },
+   "reason": "FilteredBlackList",
+   "rules": [],
+   "status": "NOERROR",
+   "time": "2026-09-23T14:19:33.354502448Z"
+  },
+  {
+   "answer_dnssec": false,
+   "cached": true,
+   "client": "198.51.100.41",
+   "client_info": {
+    "disallowed": false,
+    "disallowed_rule": "",
+    "name": "",
+    "whois": {}
+   },
+   "client_proto": "",
+   "elapsedMs": "[REDACTED TEXT]",
+   "question": {
+    "class": "IN",
+    "name": "host18.example",
+    "type": "A"
+   },
+   "reason": "NotFilteredNotFound",
+   "rules": [],
+   "status": "NOERROR",
+   "time": "2026-09-23T14:19:25.507540282Z"
+  },
+  {
+   "answer_dnssec": false,
+   "cached": true,
+   "client": "198.51.100.41",
+   "client_info": {
+    "disallowed": false,
+    "disallowed_rule": "",
+    "name": "",
+    "whois": {}
+   },
+   "client_proto": "",
+   "elapsedMs": "0.51308",
+   "question": {
+    "class": "IN",
+    "name": "host19.example",
+    "type": "A"
+   },
+   "reason": "NotFilteredNotFound",
+   "rules": [],
+   "status": "NOERROR",
+   "time": "2026-09-23T14:19:23.446818018Z"
+  },
+  {
+   "answer_dnssec": false,
+   "cached": false,
+   "client": "198.51.100.43",
+   "client_info": {
+    "disallowed": false,
+    "disallowed_rule": "",
+    "name": "",
+    "whois": {}
+   },
+   "client_proto": "",
+   "elapsedMs": "[REDACTED TEXT]",
+   "filterId": 1,
+   "question": {
+    "class": "IN",
+    "name": "host24.example",
+    "type": "A"
+   },
+   "reason": "FilteredBlackList",
+   "rules": [],
+   "status": "NOERROR",
+   "time": "2026-09-23T14:19:16.269994671Z"
+  },
+  {
+   "answer_dnssec": false,
+   "cached": true,
+   "client": "198.51.100.43",
+   "client_info": {
+    "disallowed": false,
+    "disallowed_rule": "",
+    "name": "",
+    "whois": {}
+   },
+   "client_proto": "",
+   "elapsedMs": "0.330156",
+   "question": {
+    "class": "IN",
+    "name": "host28.example",
+    "type": "A"
+   },
+   "reason": "NotFilteredNotFound",
+   "rules": [],
+   "status": "NOERROR",
+   "time": "2026-09-23T14:19:15.969267599Z"
+  },
+  {
+   "answer_dnssec": false,
+   "cached": true,
+   "client": "198.51.100.43",
+   "client_info": {
+    "disallowed": false,
+    "disallowed_rule": "",
+    "name": "",
+    "whois": {}
+   },
+   "client_proto": "",
+   "elapsedMs": "0.33654",
+   "question": {
+    "class": "IN",
+    "name": "host27.example",
+    "type": "A"
+   },
+   "reason": "NotFilteredNotFound",
+   "rules": [],
+   "status": "NOERROR",
+   "time": "2026-09-23T14:19:15.903511478Z"
+  },
+  {
+   "answer_dnssec": false,
+   "cached": true,
+   "client": "198.51.100.43",
+   "client_info": {
+    "disallowed": false,
+    "disallowed_rule": "",
+    "name": "",
+    "whois": {}
+   },
+   "client_proto": "",
+   "elapsedMs": "0.585542",
+   "question": {
+    "class": "IN",
+    "name": "host29.example",
+    "type": "A"
+   },
+   "reason": "NotFilteredNotFound",
+   "rules": [],
+   "status": "NOERROR",
+   "time": "2026-09-23T14:19:15.900533231Z"
+  },
+  {
+   "answer_dnssec": false,
+   "cached": false,
+   "client": "198.51.100.43",
+   "client_info": {
+    "disallowed": false,
+    "disallowed_rule": "",
+    "name": "",
+    "whois": {}
+   },
+   "client_proto": "",
+   "elapsedMs": "1.977857",
+   "question": {
+    "class": "IN",
+    "name": "host12.example",
+    "type": "PTR"
+   },
+   "reason": "NotFilteredNotFound",
+   "rules": [],
+   "status": "NXDOMAIN",
+   "time": "2026-09-23T14:19:15.810553365Z"
+  },
+  {
+   "answer_dnssec": true,
+   "cached": true,
+   "client": "198.51.100.43",
+   "client_info": {
+    "disallowed": false,
+    "disallowed_rule": "",
+    "name": "",
+    "whois": {}
+   },
+   "client_proto": "",
+   "elapsedMs": "[REDACTED TEXT]",
+   "question": {
+    "class": "IN",
+    "name": "host17.example",
+    "type": "PTR"
+   },
+   "reason": "NotFilteredNotFound",
+   "rules": [],
+   "status": "NXDOMAIN",
+   "time": "2026-09-23T14:19:15.80885174Z"
+  },
+  {
+   "answer_dnssec": false,
+   "cached": true,
+   "client": "198.51.100.41",
+   "client_info": {
+    "disallowed": false,
+    "disallowed_rule": "",
+    "name": "",
+    "whois": {}
+   },
+   "client_proto": "",
+   "elapsedMs": "0.41531",
+   "question": {
+    "class": "IN",
+    "name": "host20.example",
+    "type": "A"
+   },
+   "reason": "NotFilteredNotFound",
+   "rules": [],
+   "status": "NOERROR",
+   "time": "2026-09-23T14:19:13.210256289Z"
+  },
+  {
+   "answer_dnssec": false,
+   "cached": false,
+   "client": "198.51.100.43",
+   "client_info": {
+    "disallowed": false,
+    "disallowed_rule": "",
+    "name": "",
+    "whois": {}
+   },
+   "client_proto": "",
+   "elapsedMs": "[REDACTED TEXT]",
+   "filterId": 1788256523,
+   "question": {
+    "class": "IN",
+    "name": "host30.example",
+    "type": "A"
+   },
+   "reason": "FilteredBlackList",
+   "rules": [],
+   "status": "NOERROR",
+   "time": "2026-09-23T14:18:57.891900584Z"
+  },
+  {
+   "answer_dnssec": false,
+   "cached": false,
+   "client": "198.51.100.43",
+   "client_info": {
+    "disallowed": false,
+    "disallowed_rule": "",
+    "name": "",
+    "whois": {}
+   },
+   "client_proto": "",
+   "elapsedMs": "0.197155",
+   "filterId": 1788256523,
+   "question": {
+    "class": "IN",
+    "name": "host30.example",
+    "type": "HTTPS"
+   },
+   "reason": "FilteredBlackList",
+   "rules": [],
+   "status": "NOERROR",
+   "time": "2026-09-23T14:18:57.891265042Z"
+  },
+  {
+   "answer_dnssec": false,
+   "cached": false,
+   "client": "198.51.100.43",
+   "client_info": {
+    "disallowed": false,
+    "disallowed_rule": "",
+    "name": "",
+    "whois": {}
+   },
+   "client_proto": "",
+   "elapsedMs": "0.197001",
+   "filterId": 1,
+   "question": {
+    "class": "IN",
+    "name": "host31.example",
+    "type": "A"
+   },
+   "reason": "FilteredBlackList",
+   "rules": [],
+   "status": "NOERROR",
+   "time": "2026-09-23T14:18:57.882413225Z"
+  },
+  {
+   "answer_dnssec": false,
+   "cached": false,
+   "client": "198.51.100.43",
+   "client_info": {
+    "disallowed": false,
+    "disallowed_rule": "",
+    "name": "",
+    "whois": {}
+   },
+   "client_proto": "",
+   "elapsedMs": "0.350387",
+   "filterId": 1,
+   "question": {
+    "class": "IN",
+    "name": "host31.example",
+    "type": "HTTPS"
+   },
+   "reason": "FilteredBlackList",
+   "rules": [],
+   "status": "NOERROR",
+   "time": "2026-09-23T14:18:57.882164993Z"
+  },
+  {
+   "answer_dnssec": false,
+   "cached": true,
+   "client": "198.51.100.43",
+   "client_info": {
+    "disallowed": false,
+    "disallowed_rule": "",
+    "name": "",
+    "whois": {}
+   },
+   "client_proto": "",
+   "elapsedMs": "[REDACTED TEXT]",
+   "question": {
+    "class": "IN",
+    "name": "host8.example",
+    "type": "A"
+   },
+   "reason": "NotFilteredNotFound",
+   "rules": [],
+   "status": "NOERROR",
+   "time": "2026-09-23T14:18:54.550207231Z"
+  },
+  {
+   "answer_dnssec": false,
+   "cached": false,
+   "client": "198.51.100.43",
+   "client_info": {
+    "disallowed": false,
+    "disallowed_rule": "",
+    "name": "",
+    "whois": {}
+   },
+   "client_proto": "",
+   "elapsedMs": "[REDACTED TEXT]",
+   "question": {
+    "class": "IN",
+    "name": "host12.example",
+    "type": "PTR"
+   },
+   "reason": "NotFilteredNotFound",
+   "rules": [],
+   "status": "NXDOMAIN",
+   "time": "2026-09-23T14:18:54.493494312Z"
+  },
+  {
+   "answer_dnssec": true,
+   "cached": true,
+   "client": "198.51.100.43",
+   "client_info": {
+    "disallowed": false,
+    "disallowed_rule": "",
+    "name": "",
+    "whois": {}
+   },
+   "client_proto": "",
+   "elapsedMs": "0.396309",
+   "question": {
+    "class": "IN",
+    "name": "host17.example",
+    "type": "PTR"
+   },
+   "reason": "NotFilteredNotFound",
+   "rules": [],
+   "status": "NXDOMAIN",
+   "time": "2026-09-23T14:18:54.49130907Z"
+  },
+  {
+   "answer_dnssec": false,
+   "cached": false,
+   "client": "198.51.100.43",
+   "client_info": {
+    "disallowed": false,
+    "disallowed_rule": "",
+    "name": "",
+    "whois": {}
+   },
+   "client_proto": "",
+   "elapsedMs": "0.198539",
+   "filterId": 1,
+   "question": {
+    "class": "IN",
+    "name": "host24.example",
+    "type": "A"
+   },
+   "reason": "FilteredBlackList",
+   "rules": [],
+   "status": "NOERROR",
+   "time": "2026-09-23T14:18:54.49118953Z"
+  },
+  {
+   "answer_dnssec": false,
+   "cached": true,
+   "client": "198.51.100.43",
+   "client_info": {
+    "disallowed": false,
+    "disallowed_rule": "",
+    "name": "",
+    "whois": {}
+   },
+   "client_proto": "",
+   "elapsedMs": "0.547003",
+   "question": {
+    "class": "IN",
+    "name": "host8.example",
+    "type": "A"
+   },
+   "reason": "NotFilteredNotFound",
+   "rules": [],
+   "status": "NOERROR",
+   "time": "2026-09-23T14:18:39.786314033Z"
+  },
+  {
+   "answer_dnssec": false,
+   "cached": false,
+   "client": "198.51.100.43",
+   "client_info": {
+    "disallowed": false,
+    "disallowed_rule": "",
+    "name": "",
+    "whois": {}
+   },
+   "client_proto": "",
+   "elapsedMs": "1.890395",
+   "question": {
+    "class": "IN",
+    "name": "host12.example",
+    "type": "PTR"
+   },
+   "reason": "NotFilteredNotFound",
+   "rules": [],
+   "status": "NXDOMAIN",
+   "time": "2026-09-23T14:18:39.706168527Z"
+  },
+  {
+   "answer_dnssec": true,
+   "cached": true,
+   "client": "198.51.100.43",
+   "client_info": {
+    "disallowed": false,
+    "disallowed_rule": "",
+    "name": "",
+    "whois": {}
+   },
+   "client_proto": "",
+   "elapsedMs": "0.275617",
+   "question": {
+    "class": "IN",
+    "name": "host17.example",
+    "type": "PTR"
+   },
+   "reason": "NotFilteredNotFound",
+   "rules": [],
+   "status": "NXDOMAIN",
+   "time": "2026-09-23T14:18:39.704535979Z"
+  },
+  {
+   "answer_dnssec": false,
+   "cached": false,
+   "client": "198.51.100.43",
+   "client_info": {
+    "disallowed": false,
+    "disallowed_rule": "",
+    "name": "",
+    "whois": {}
+   },
+   "client_proto": "",
+   "elapsedMs": "0.250693",
+   "filterId": 1,
+   "question": {
+    "class": "IN",
+    "name": "host24.example",
+    "type": "HTTPS"
+   },
+   "reason": "FilteredBlackList",
+   "rules": [],
+   "status": "NOERROR",
+   "time": "2026-09-23T14:18:39.704470902Z"
+  },
+  {
+   "answer_dnssec": false,
+   "cached": false,
+   "client": "198.51.100.43",
+   "client_info": {
+    "disallowed": false,
+    "disallowed_rule": "",
+    "name": "",
+    "whois": {}
+   },
+   "client_proto": "",
+   "elapsedMs": "[REDACTED TEXT]",
+   "filterId": 1,
+   "question": {
+    "class": "IN",
+    "name": "host24.example",
+    "type": "A"
+   },
+   "reason": "FilteredBlackList",
+   "rules": [],
+   "status": "NOERROR",
+   "time": "2026-09-23T14:18:39.704470825Z"
+  },
+  {
+   "answer_dnssec": false,
+   "cached": true,
+   "client": "198.51.100.41",
+   "client_info": {
+    "disallowed": false,
+    "disallowed_rule": "",
+    "name": "",
+    "whois": {}
+   },
+   "client_proto": "",
+   "elapsedMs": "[REDACTED TEXT]",
+   "question": {
+    "class": "IN",
+    "name": "host19.example",
+    "type": "A"
+   },
+   "reason": "NotFilteredNotFound",
+   "rules": [],
+   "status": "NOERROR",
+   "time": "2026-09-23T14:18:24.385713579Z"
+  },
+  {
+   "answer_dnssec": false,
+   "cached": true,
+   "client": "198.51.100.43",
+   "client_info": {
+    "disallowed": false,
+    "disallowed_rule": "",
+    "name": "",
+    "whois": {}
+   },
+   "client_proto": "",
+   "elapsedMs": "[REDACTED TEXT]",
+   "question": {
+    "class": "IN",
+    "name": "host32.example",
+    "type": "A"
+   },
+   "reason": "NotFilteredNotFound",
+   "rules": [],
+   "status": "NOERROR",
+   "time": "2026-09-23T14:18:16.54133035Z"
+  },
+  {
+   "answer_dnssec": false,
+   "cached": true,
+   "client": "198.51.100.43",
+   "client_info": {
+    "disallowed": false,
+    "disallowed_rule": "",
+    "name": "",
+    "whois": {}
+   },
+   "client_proto": "",
+   "elapsedMs": "[REDACTED TEXT]",
+   "question": {
+    "class": "IN",
+    "name": "host32.example",
+    "type": "HTTPS"
+   },
+   "reason": "NotFilteredNotFound",
+   "rules": [],
+   "status": "NOERROR",
+   "time": "2026-09-23T14:18:16.540169882Z"
+  },
+  {
+   "answer_dnssec": false,
+   "cached": false,
+   "client": "198.51.100.43",
+   "client_info": {
+    "disallowed": false,
+    "disallowed_rule": "",
+    "name": "",
+    "whois": {}
+   },
+   "client_proto": "",
+   "elapsedMs": "0.328541",
+   "filterId": 1,
+   "question": {
+    "class": "IN",
+    "name": "host24.example",
+    "type": "A"
+   },
+   "reason": "FilteredBlackList",
+   "rules": [],
+   "status": "NOERROR",
+   "time": "2026-09-23T14:18:14.251338628Z"
+  },
+  {
+   "answer_dnssec": false,
+   "cached": true,
+   "client": "198.51.100.41",
+   "client_info": {
+    "disallowed": false,
+    "disallowed_rule": "",
+    "name": "",
+    "whois": {}
+   },
+   "client_proto": "",
+   "elapsedMs": "[REDACTED TEXT]",
+   "question": {
+    "class": "IN",
+    "name": "host20.example",
+    "type": "A"
+   },
+   "reason": "NotFilteredNotFound",
+   "rules": [],
+   "status": "NOERROR",
+   "time": "2026-09-23T14:18:13.185211843Z"
+  },
+  {
+   "answer_dnssec": false,
+   "cached": false,
+   "client": "198.51.100.43",
+   "client_info": {
+    "disallowed": false,
+    "disallowed_rule": "",
+    "name": "",
+    "whois": {}
+   },
+   "client_proto": "",
+   "elapsedMs": "2.394013",
+   "question": {
+    "class": "IN",
+    "name": "host12.example",
+    "type": "PTR"
+   },
+   "reason": "NotFilteredNotFound",
+   "rules": [],
+   "status": "NXDOMAIN",
+   "time": "2026-09-23T14:18:11.988374205Z"
+  },
+  {
+   "answer_dnssec": true,
+   "cached": true,
+   "client": "198.51.100.43",
+   "client_info": {
+    "disallowed": false,
+    "disallowed_rule": "",
+    "name": "",
+    "whois": {}
+   },
+   "client_proto": "",
+   "elapsedMs": "0.357925",
+   "question": {
+    "class": "IN",
+    "name": "host17.example",
+    "type": "PTR"
+   },
+   "reason": "NotFilteredNotFound",
+   "rules": [],
+   "status": "NXDOMAIN",
+   "time": "2026-09-23T14:18:11.986383348Z"
+  },
+  {
+   "answer_dnssec": false,
+   "cached": true,
+   "client": "198.51.100.41",
+   "client_info": {
+    "disallowed": false,
+    "disallowed_rule": "",
+    "name": "",
+    "whois": {}
+   },
+   "client_proto": "",
+   "elapsedMs": "0.394848",
+   "question": {
+    "class": "IN",
+    "name": "host20.example",
+    "type": "A"
+   },
+   "reason": "NotFilteredNotFound",
+   "rules": [],
+   "status": "NOERROR",
+   "time": "2026-09-23T14:18:03.593590644Z"
+  },
+  {
+   "answer_dnssec": false,
+   "cached": false,
+   "client": "198.51.100.43",
+   "client_info": {
+    "disallowed": false,
+    "disallowed_rule": "",
+    "name": "",
+    "whois": {}
+   },
+   "client_proto": "",
+   "elapsedMs": "0.323002",
+   "filterId": 1,
+   "question": {
+    "class": "IN",
+    "name": "host24.example",
+    "type": "A"
+   },
+   "reason": "FilteredBlackList",
+   "rules": [],
+   "status": "NOERROR",
+   "time": "2026-09-23T14:18:02.936170817Z"
+  },
+  {
+   "answer_dnssec": false,
+   "cached": false,
+   "client": "198.51.100.43",
+   "client_info": {
+    "disallowed": false,
+    "disallowed_rule": "",
+    "name": "",
+    "whois": {}
+   },
+   "client_proto": "",
+   "elapsedMs": "2.713015",
+   "question": {
+    "class": "IN",
+    "name": "host12.example",
+    "type": "PTR"
+   },
+   "reason": "NotFilteredNotFound",
+   "rules": [],
+   "status": "NXDOMAIN",
+   "time": "2026-09-23T14:17:58.390110709Z"
+  },
+  {
+   "answer_dnssec": true,
+   "cached": true,
+   "client": "198.51.100.43",
+   "client_info": {
+    "disallowed": false,
+    "disallowed_rule": "",
+    "name": "",
+    "whois": {}
+   },
+   "client_proto": "",
+   "elapsedMs": "0.277925",
+   "question": {
+    "class": "IN",
+    "name": "host17.example",
+    "type": "PTR"
+   },
+   "reason": "NotFilteredNotFound",
+   "rules": [],
+   "status": "NXDOMAIN",
+   "time": "2026-09-23T14:17:58.387722234Z"
+  },
+  {
+   "answer_dnssec": false,
+   "cached": true,
+   "client": "198.51.100.43",
+   "client_info": {
+    "disallowed": false,
+    "disallowed_rule": "",
+    "name": "",
+    "whois": {}
+   },
+   "client_proto": "",
+   "elapsedMs": "[REDACTED TEXT]",
+   "question": {
+    "class": "IN",
+    "name": "host33.example",
+    "type": "A"
+   },
+   "reason": "NotFilteredNotFound",
+   "rules": [],
+   "status": "NOERROR",
+   "time": "2026-09-23T14:17:40.657137691Z"
+  },
+  {
+   "answer_dnssec": false,
+   "cached": true,
+   "client": "198.51.100.43",
+   "client_info": {
+    "disallowed": false,
+    "disallowed_rule": "",
+    "name": "",
+    "whois": {}
+   },
+   "client_proto": "",
+   "elapsedMs": "0.490464",
+   "question": {
+    "class": "IN",
+    "name": "host34.example",
+    "type": "A"
+   },
+   "reason": "NotFilteredNotFound",
+   "rules": [],
+   "status": "NOERROR",
+   "time": "2026-09-23T14:17:40.560293172Z"
+  },
+  {
+   "answer_dnssec": false,
+   "cached": false,
+   "client": "198.51.100.43",
+   "client_info": {
+    "disallowed": false,
+    "disallowed_rule": "",
+    "name": "",
+    "whois": {}
+   },
+   "client_proto": "",
+   "elapsedMs": "0.319156",
+   "filterId": 1,
+   "question": {
+    "class": "IN",
+    "name": "host24.example",
+    "type": "A"
+   },
+   "reason": "FilteredBlackList",
+   "rules": [],
+   "status": "NOERROR",
+   "time": "2026-09-23T14:17:40.491717267Z"
+  },
+  {
+   "answer_dnssec": false,
+   "cached": false,
+   "client": "198.51.100.43",
+   "client_info": {
+    "disallowed": false,
+    "disallowed_rule": "",
+    "name": "",
+    "whois": {}
+   },
+   "client_proto": "",
+   "elapsedMs": "0.263617",
+   "filterId": 1,
+   "question": {
+    "class": "IN",
+    "name": "host24.example",
+    "type": "HTTPS"
+   },
+   "reason": "FilteredBlackList",
+   "rules": [],
+   "status": "NOERROR",
+   "time": "2026-09-23T14:17:40.491544497Z"
+  },
+  {
+   "answer_dnssec": false,
+   "cached": false,
+   "client": "198.51.100.43",
+   "client_info": {
+    "disallowed": false,
+    "disallowed_rule": "",
+    "name": "",
+    "whois": {}
+   },
+   "client_proto": "",
+   "elapsedMs": "1.76147",
+   "question": {
+    "class": "IN",
+    "name": "host12.example",
+    "type": "PTR"
+   },
+   "reason": "NotFilteredNotFound",
+   "rules": [],
+   "status": "NXDOMAIN",
+   "time": "2026-09-23T14:17:40.273331559Z"
+  },
+  {
+   "answer_dnssec": true,
+   "cached": true,
+   "client": "198.51.100.43",
+   "client_info": {
+    "disallowed": false,
+    "disallowed_rule": "",
+    "name": "",
+    "whois": {}
+   },
+   "client_proto": "",
+   "elapsedMs": "0.272155",
+   "question": {
+    "class": "IN",
+    "name": "host17.example",
+    "type": "PTR"
+   },
+   "reason": "NotFilteredNotFound",
+   "rules": [],
+   "status": "NXDOMAIN",
+   "time": "2026-09-23T14:17:40.271886321Z"
+  },
+  {
+   "answer_dnssec": false,
+   "cached": true,
+   "client": "198.51.100.41",
+   "client_info": {
+    "disallowed": false,
+    "disallowed_rule": "",
+    "name": "",
+    "whois": {}
+   },
+   "client_proto": "",
+   "elapsedMs": "0.518542",
+   "question": {
+    "class": "IN",
+    "name": "host19.example",
+    "type": "A"
+   },
+   "reason": "NotFilteredNotFound",
+   "rules": [],
+   "status": "NOERROR",
+   "time": "2026-09-23T14:17:24.319678757Z"
+  },
+  {
+   "answer_dnssec": false,
+   "cached": true,
+   "client": "198.51.100.43",
+   "client_info": {
+    "disallowed": false,
+    "disallowed_rule": "",
+    "name": "",
+    "whois": {}
+   },
+   "client_proto": "",
+   "elapsedMs": "0.32931",
+   "question": {
+    "class": "IN",
+    "name": "host35.example",
+    "type": "HTTPS"
+   },
+   "reason": "NotFilteredNotFound",
+   "rules": [],
+   "status": "NOERROR",
+   "time": "2026-09-23T14:17:20.369407802Z"
+  },
+  {
+   "answer_dnssec": false,
+   "cached": true,
+   "client": "198.51.100.27",
+   "client_info": {
+    "disallowed": false,
+    "disallowed_rule": "",
+    "name": "",
+    "whois": {}
+   },
+   "client_proto": "",
+   "elapsedMs": "[REDACTED TEXT]",
+   "question": {
+    "class": "IN",
+    "name": "host36.example",
+    "type": "A"
+   },
+   "reason": "NotFilteredNotFound",
+   "rules": [],
+   "status": "NOERROR",
+   "time": "2026-09-23T14:17:18.518491722Z"
+  },
+  {
+   "answer_dnssec": false,
+   "cached": true,
+   "client": "198.51.100.27",
+   "client_info": {
+    "disallowed": false,
+    "disallowed_rule": "",
+    "name": "",
+    "whois": {}
+   },
+   "client_proto": "",
+   "elapsedMs": "0.317848",
+   "question": {
+    "class": "IN",
+    "name": "host36.example",
+    "type": "HTTPS"
+   },
+   "reason": "NotFilteredNotFound",
+   "rules": [],
+   "status": "NOERROR",
+   "time": "2026-09-23T14:17:18.51824549Z"
+  },
+  {
+   "answer_dnssec": false,
+   "cached": false,
+   "client": "198.51.100.43",
+   "client_info": {
+    "disallowed": false,
+    "disallowed_rule": "",
+    "name": "",
+    "whois": {}
+   },
+   "client_proto": "",
+   "elapsedMs": "0.325079",
+   "filterId": 1,
+   "question": {
+    "class": "IN",
+    "name": "host24.example",
+    "type": "A"
+   },
+   "reason": "FilteredBlackList",
+   "rules": [],
+   "status": "NOERROR",
+   "time": "2026-09-23T14:17:17.866727689Z"
+  },
+  {
+   "answer_dnssec": false,
+   "cached": false,
+   "client": "198.51.100.43",
+   "client_info": {
+    "disallowed": false,
+    "disallowed_rule": "",
+    "name": "",
+    "whois": {}
+   },
+   "client_proto": "",
+   "elapsedMs": "3.072324",
+   "question": {
+    "class": "IN",
+    "name": "host12.example",
+    "type": "PTR"
+   },
+   "reason": "NotFilteredNotFound",
+   "rules": [],
+   "status": "NXDOMAIN",
+   "time": "2026-09-23T14:17:17.024915405Z"
+  },
+  {
+   "answer_dnssec": true,
+   "cached": true,
+   "client": "198.51.100.43",
+   "client_info": {
+    "disallowed": false,
+    "disallowed_rule": "",
+    "name": "",
+    "whois": {}
+   },
+   "client_proto": "",
+   "elapsedMs": "0.245232",
+   "question": {
+    "class": "IN",
+    "name": "host17.example",
+    "type": "PTR"
+   },
+   "reason": "NotFilteredNotFound",
+   "rules": [],
+   "status": "NXDOMAIN",
+   "time": "2026-09-23T14:17:17.022260544Z"
+  },
+  {
+   "answer_dnssec": false,
+   "cached": true,
+   "client": "198.51.100.41",
+   "client_info": {
+    "disallowed": false,
+    "disallowed_rule": "",
+    "name": "",
+    "whois": {}
+   },
+   "client_proto": "",
+   "elapsedMs": "0.451156",
+   "question": {
+    "class": "IN",
+    "name": "host20.example",
+    "type": "A"
+   },
+   "reason": "NotFilteredNotFound",
+   "rules": [],
+   "status": "NOERROR",
+   "time": "2026-09-23T14:17:13.154431878Z"
+  },
+  {
+   "answer_dnssec": false,
+   "cached": true,
+   "client": "198.51.100.27",
+   "client_info": {
+    "disallowed": false,
+    "disallowed_rule": "",
+    "name": "",
+    "whois": {}
+   },
+   "client_proto": "",
+   "elapsedMs": "0.394694",
+   "question": {
+    "class": "IN",
+    "name": "host37.example",
+    "type": "A"
+   },
+   "reason": "NotFilteredNotFound",
+   "rules": [],
+   "status": "NOERROR",
+   "time": "2026-09-23T14:17:08.078961198Z"
+  },
+  {
+   "answer_dnssec": false,
+   "cached": true,
+   "client": "198.51.100.27",
+   "client_info": {
+    "disallowed": false,
+    "disallowed_rule": "",
+    "name": "",
+    "whois": {}
+   },
+   "client_proto": "",
+   "elapsedMs": "0.386233",
+   "question": {
+    "class": "IN",
+    "name": "host37.example",
+    "type": "HTTPS"
+   },
+   "reason": "NotFilteredNotFound",
+   "rules": [],
+   "status": "NOERROR",
+   "time": "2026-09-23T14:17:08.078024808Z"
+  },
+  {
+   "answer_dnssec": false,
+   "cached": false,
+   "client": "198.51.100.43",
+   "client_info": {
+    "disallowed": false,
+    "disallowed_rule": "",
+    "name": "",
+    "whois": {}
+   },
+   "client_proto": "",
+   "elapsedMs": "0.305386",
+   "filterId": 1788256523,
+   "question": {
+    "class": "IN",
+    "name": "host38.example",
+    "type": "A"
+   },
+   "reason": "FilteredBlackList",
+   "rules": [],
+   "status": "NOERROR",
+   "time": "2026-09-23T14:17:04.347295031Z"
+  },
+  {
+   "answer_dnssec": false,
+   "cached": false,
+   "client": "198.51.100.43",
+   "client_info": {
+    "disallowed": false,
+    "disallowed_rule": "",
+    "name": "",
+    "whois": {}
+   },
+   "client_proto": "",
+   "elapsedMs": "2.767092",
+   "question": {
+    "class": "IN",
+    "name": "host12.example",
+    "type": "PTR"
+   },
+   "reason": "NotFilteredNotFound",
+   "rules": [],
+   "status": "NXDOMAIN",
+   "time": "2026-09-23T14:16:59.589478823Z"
+  },
+  {
+   "answer_dnssec": true,
+   "cached": true,
+   "client": "198.51.100.43",
+   "client_info": {
+    "disallowed": false,
+    "disallowed_rule": "",
+    "name": "",
+    "whois": {}
+   },
+   "client_proto": "",
+   "elapsedMs": "0.332155",
+   "question": {
+    "class": "IN",
+    "name": "host17.example",
+    "type": "PTR"
+   },
+   "reason": "NotFilteredNotFound",
+   "rules": [],
+   "status": "NXDOMAIN",
+   "time": "2026-09-23T14:16:59.587101349Z"
+  },
+  {
+   "answer_dnssec": false,
+   "cached": false,
+   "client": "198.51.100.43",
+   "client_info": {
+    "disallowed": false,
+    "disallowed_rule": "",
+    "name": "",
+    "whois": {}
+   },
+   "client_proto": "",
+   "elapsedMs": "0.346002",
+   "filterId": 1,
+   "question": {
+    "class": "IN",
+    "name": "host24.example",
+    "type": "A"
+   },
+   "reason": "FilteredBlackList",
+   "rules": [],
+   "status": "NOERROR",
+   "time": "2026-09-23T14:16:56.607184906Z"
+  },
+  {
+   "answer_dnssec": false,
+   "cached": false,
+   "client": "198.51.100.43",
+   "client_info": {
+    "disallowed": false,
+    "disallowed_rule": "",
+    "name": "",
+    "whois": {}
+   },
+   "client_proto": "",
+   "elapsedMs": "[REDACTED TEXT]",
+   "filterId": 1788256523,
+   "question": {
+    "class": "IN",
+    "name": "host30.example",
+    "type": "HTTPS"
+   },
+   "reason": "FilteredBlackList",
+   "rules": [],
+   "status": "NOERROR",
+   "time": "2026-09-23T14:16:55.987853662Z"
+  },
+  {
+   "answer_dnssec": false,
+   "cached": false,
+   "client": "198.51.100.43",
+   "client_info": {
+    "disallowed": false,
+    "disallowed_rule": "",
+    "name": "",
+    "whois": {}
+   },
+   "client_proto": "",
+   "elapsedMs": "0.215694",
+   "filterId": 1788256523,
+   "question": {
+    "class": "IN",
+    "name": "host30.example",
+    "type": "A"
+   },
+   "reason": "FilteredBlackList",
+   "rules": [],
+   "status": "NOERROR",
+   "time": "2026-09-23T14:16:55.987795969Z"
+  },
+  {
+   "answer_dnssec": false,
+   "cached": false,
+   "client": "198.51.100.43",
+   "client_info": {
+    "disallowed": false,
+    "disallowed_rule": "",
+    "name": "",
+    "whois": {}
+   },
+   "client_proto": "",
+   "elapsedMs": "0.211309",
+   "filterId": 1,
+   "question": {
+    "class": "IN",
+    "name": "host31.example",
+    "type": "A"
+   },
+   "reason": "FilteredBlackList",
+   "rules": [],
+   "status": "NOERROR",
+   "time": "2026-09-23T14:16:55.978902537Z"
+  },
+  {
+   "answer_dnssec": false,
+   "cached": false,
+   "client": "198.51.100.43",
+   "client_info": {
+    "disallowed": false,
+    "disallowed_rule": "",
+    "name": "",
+    "whois": {}
+   },
+   "client_proto": "",
+   "elapsedMs": "0.351694",
+   "filterId": 1,
+   "question": {
+    "class": "IN",
+    "name": "host31.example",
+    "type": "HTTPS"
+   },
+   "reason": "FilteredBlackList",
+   "rules": [],
+   "status": "NOERROR",
+   "time": "2026-09-23T14:16:55.97858515Z"
+  },
+  {
+   "answer_dnssec": false,
+   "cached": true,
+   "client": "198.51.100.43",
+   "client_info": {
+    "disallowed": false,
+    "disallowed_rule": "",
+    "name": "",
+    "whois": {}
+   },
+   "client_proto": "",
+   "elapsedMs": "0.395233",
+   "question": {
+    "class": "IN",
+    "name": "host35.example",
+    "type": "A"
+   },
+   "reason": "NotFilteredNotFound",
+   "rules": [],
+   "status": "NOERROR",
+   "time": "2026-09-23T14:16:54.244576466Z"
+  },
+  {
+   "answer_dnssec": false,
+   "cached": false,
+   "client": "198.51.100.43",
+   "client_info": {
+    "disallowed": false,
+    "disallowed_rule": "",
+    "name": "",
+    "whois": {}
+   },
+   "client_proto": "",
+   "elapsedMs": "[REDACTED TEXT]",
+   "question": {
+    "class": "IN",
+    "name": "host12.example",
+    "type": "PTR"
+   },
+   "reason": "NotFilteredNotFound",
+   "rules": [],
+   "status": "NXDOMAIN",
+   "time": "2026-09-23T14:16:52.72820218Z"
+  },
+  {
+   "answer_dnssec": true,
+   "cached": true,
+   "client": "198.51.100.43",
+   "client_info": {
+    "disallowed": false,
+    "disallowed_rule": "",
+    "name": "",
+    "whois": {}
+   },
+   "client_proto": "",
+   "elapsedMs": "0.312617",
+   "question": {
+    "class": "IN",
+    "name": "host17.example",
+    "type": "PTR"
+   },
+   "reason": "NotFilteredNotFound",
+   "rules": [],
+   "status": "NXDOMAIN",
+   "time": "2026-09-23T14:16:52.72649594Z"
+  },
+  {
+   "answer_dnssec": false,
+   "cached": false,
+   "client": "198.51.100.43",
+   "client_info": {
+    "disallowed": false,
+    "disallowed_rule": "",
+    "name": "",
+    "whois": {}
+   },
+   "client_proto": "",
+   "elapsedMs": "0.282771",
+   "filterId": 1788256523,
+   "question": {
+    "class": "IN",
+    "name": "host38.example",
+    "type": "HTTPS"
+   },
+   "reason": "FilteredBlackList",
+   "rules": [],
+   "status": "NOERROR",
+   "time": "2026-09-23T14:16:49.663397898Z"
+  },
+  {
+   "answer_dnssec": false,
+   "cached": false,
+   "client": "198.51.100.43",
+   "client_info": {
+    "disallowed": false,
+    "disallowed_rule": "",
+    "name": "",
+    "whois": {}
+   },
+   "client_proto": "",
+   "elapsedMs": "[REDACTED TEXT]",
+   "filterId": 1788256523,
+   "question": {
+    "class": "IN",
+    "name": "host38.example",
+    "type": "A"
+   },
+   "reason": "FilteredBlackList",
+   "rules": [],
+   "status": "NOERROR",
+   "time": "2026-09-23T14:16:49.663338359Z"
+  },
+  {
+   "answer_dnssec": false,
+   "cached": false,
+   "client": "198.51.100.43",
+   "client_info": {
+    "disallowed": false,
+    "disallowed_rule": "",
+    "name": "",
+    "whois": {}
+   },
+   "client_proto": "",
+   "elapsedMs": "5.857416",
+   "question": {
+    "class": "IN",
+    "name": "host39.example",
+    "type": "A"
+   },
+   "reason": "NotFilteredNotFound",
+   "rules": [],
+   "status": "NOERROR",
+   "time": "2026-09-23T14:16:48.82622187Z"
+  },
+  {
+   "answer_dnssec": false,
+   "cached": false,
+   "client": "198.51.100.43",
+   "client_info": {
+    "disallowed": false,
+    "disallowed_rule": "",
+    "name": "",
+    "whois": {}
+   },
+   "client_proto": "",
+   "elapsedMs": "[REDACTED TEXT]",
+   "question": {
+    "class": "IN",
+    "name": "host39.example",
+    "type": "HTTPS"
+   },
+   "reason": "NotFilteredNotFound",
+   "rules": [],
+   "status": "NOERROR",
+   "time": "2026-09-23T14:16:48.825398019Z"
+  },
+  {
+   "answer_dnssec": false,
+   "cached": false,
+   "client": "198.51.100.43",
+   "client_info": {
+    "disallowed": false,
+    "disallowed_rule": "",
+    "name": "",
+    "whois": {}
+   },
+   "client_proto": "",
+   "elapsedMs": "6.045032",
+   "question": {
+    "class": "IN",
+    "name": "host40.example",
+    "type": "A"
+   },
+   "reason": "NotFilteredNotFound",
+   "rules": [],
+   "status": "NOERROR",
+   "time": "2026-09-23T14:16:48.738940556Z"
+  },
+  {
+   "answer_dnssec": false,
+   "cached": false,
+   "client": "198.51.100.43",
+   "client_info": {
+    "disallowed": false,
+    "disallowed_rule": "",
+    "name": "",
+    "whois": {}
+   },
+   "client_proto": "",
+   "elapsedMs": "5.937263",
+   "question": {
+    "class": "IN",
+    "name": "host40.example",
+    "type": "HTTPS"
+   },
+   "reason": "NotFilteredNotFound",
+   "rules": [],
+   "status": "NOERROR",
+   "time": "2026-09-23T14:16:48.738925017Z"
+  },
+  {
+   "answer_dnssec": false,
+   "cached": true,
+   "client": "198.51.100.27",
+   "client_info": {
+    "disallowed": false,
+    "disallowed_rule": "",
+    "name": "",
+    "whois": {}
+   },
+   "client_proto": "",
+   "elapsedMs": "0.526003",
+   "question": {
+    "class": "IN",
+    "name": "host4.example",
+    "type": "A"
+   },
+   "reason": "NotFilteredNotFound",
+   "rules": [],
+   "status": "NOERROR",
+   "time": "2026-09-23T14:16:41.937707773Z"
+  },
+  {
+   "answer_dnssec": false,
+   "cached": false,
+   "client": "198.51.100.43",
+   "client_info": {
+    "disallowed": false,
+    "disallowed_rule": "",
+    "name": "",
+    "whois": {}
+   },
+   "client_proto": "",
+   "elapsedMs": "0.194539",
+   "filterId": 1,
+   "question": {
+    "class": "IN",
+    "name": "host24.example",
+    "type": "A"
+   },
+   "reason": "FilteredBlackList",
+   "rules": [],
+   "status": "NOERROR",
+   "time": "2026-09-23T14:16:37.51661491Z"
+  },
+  {
+   "answer_dnssec": false,
+   "cached": false,
+   "client": "198.51.100.43",
+   "client_info": {
+    "disallowed": false,
+    "disallowed_rule": "",
+    "name": "",
+    "whois": {}
+   },
+   "client_proto": "",
+   "elapsedMs": "0.332002",
+   "filterId": 1,
+   "question": {
+    "class": "IN",
+    "name": "host24.example",
+    "type": "HTTPS"
+   },
+   "reason": "FilteredBlackList",
+   "rules": [],
+   "status": "NOERROR",
+   "time": "2026-09-23T14:16:37.51517721Z"
+  },
+  {
+   "answer_dnssec": false,
+   "cached": false,
+   "client": "198.51.100.43",
+   "client_info": {
+    "disallowed": false,
+    "disallowed_rule": "",
+    "name": "",
+    "whois": {}
+   },
+   "client_proto": "",
+   "elapsedMs": "2.088165",
+   "question": {
+    "class": "IN",
+    "name": "host12.example",
+    "type": "PTR"
+   },
+   "reason": "NotFilteredNotFound",
+   "rules": [],
+   "status": "NXDOMAIN",
+   "time": "2026-09-23T14:16:37.031323153Z"
+  },
+  {
+   "answer_dnssec": true,
+   "cached": true,
+   "client": "198.51.100.43",
+   "client_info": {
+    "disallowed": false,
+    "disallowed_rule": "",
+    "name": "",
+    "whois": {}
+   },
+   "client_proto": "",
+   "elapsedMs": "0.303771",
+   "question": {
+    "class": "IN",
+    "name": "host17.example",
+    "type": "PTR"
+   },
+   "reason": "NotFilteredNotFound",
+   "rules": [],
+   "status": "NXDOMAIN",
+   "time": "2026-09-23T14:16:37.029482528Z"
+  },
+  {
+   "answer_dnssec": false,
+   "cached": true,
+   "client": "198.51.100.27",
+   "client_info": {
+    "disallowed": false,
+    "disallowed_rule": "",
+    "name": "",
+    "whois": {}
+   },
+   "client_proto": "",
+   "elapsedMs": "0.860544",
+   "question": {
+    "class": "IN",
+    "name": "host14.example",
+    "type": "A"
+   },
+   "reason": "NotFilteredNotFound",
+   "rules": [],
+   "status": "NOERROR",
+   "time": "2026-09-23T14:16:36.922176029Z"
+  },
+  {
+   "answer_dnssec": false,
+   "cached": true,
+   "client": "198.51.100.27",
+   "client_info": {
+    "disallowed": false,
+    "disallowed_rule": "",
+    "name": "",
+    "whois": {}
+   },
+   "client_proto": "",
+   "elapsedMs": "0.764696",
+   "question": {
+    "class": "IN",
+    "name": "host10.example",
+    "type": "A"
+   },
+   "reason": "NotFilteredNotFound",
+   "rules": [],
+   "status": "NOERROR",
+   "time": "2026-09-23T14:16:36.920716945Z"
+  },
+  {
+   "answer_dnssec": false,
+   "cached": true,
+   "client": "198.51.100.27",
+   "client_info": {
+    "disallowed": false,
+    "disallowed_rule": "",
+    "name": "",
+    "whois": {}
+   },
+   "client_proto": "",
+   "elapsedMs": "0.399925",
+   "question": {
+    "class": "IN",
+    "name": "host15.example",
+    "type": "A"
+   },
+   "reason": "NotFilteredNotFound",
+   "rules": [],
+   "status": "NOERROR",
+   "time": "2026-09-23T14:16:35.899089312Z"
+  },
+  {
+   "answer_dnssec": false,
+   "cached": true,
+   "client": "198.51.100.27",
+   "client_info": {
+    "disallowed": false,
+    "disallowed_rule": "",
+    "name": "",
+    "whois": {}
+   },
+   "client_proto": "",
+   "elapsedMs": "0.197155",
+   "question": {
+    "class": "IN",
+    "name": "host9.example",
+    "type": "A"
+   },
+   "reason": "NotFilteredNotFound",
+   "rules": [],
+   "status": "NOERROR",
+   "time": "2026-09-23T14:16:35.894540441Z"
+  },
+  {
+   "answer_dnssec": false,
+   "cached": false,
+   "client": "198.51.100.27",
+   "client_info": {
+    "disallowed": false,
+    "disallowed_rule": "",
+    "name": "",
+    "whois": {}
+   },
+   "client_proto": "",
+   "elapsedMs": "0.111154",
+   "filterId": -2,
+   "question": {
+    "class": "IN",
+    "name": "host5.example",
+    "type": "A"
+   },
+   "reason": "FilteredBlockedService",
+   "rules": [],
+   "service_name": "example-service",
+   "status": "NOERROR",
+   "time": "2026-09-23T14:16:35.894397133Z"
+  },
+  {
+   "answer_dnssec": false,
+   "cached": false,
+   "client": "198.51.100.27",
+   "client_info": {
+    "disallowed": false,
+    "disallowed_rule": "",
+    "name": "",
+    "whois": {}
+   },
+   "client_proto": "",
+   "elapsedMs": "0.204001",
+   "filterId": -2,
+   "question": {
+    "class": "IN",
+    "name": "host5.example",
+    "type": "HTTPS"
+   },
+   "reason": "FilteredBlockedService",
+   "rules": [],
+   "service_name": "example-service",
+   "status": "NOERROR",
+   "time": "2026-09-23T14:16:35.894250978Z"
+  },
+  {
+   "answer_dnssec": false,
+   "cached": true,
+   "client": "198.51.100.27",
+   "client_info": {
+    "disallowed": false,
+    "disallowed_rule": "",
+    "name": "",
+    "whois": {}
+   },
+   "client_proto": "",
+   "elapsedMs": "[REDACTED TEXT]",
+   "question": {
+    "class": "IN",
+    "name": "host8.example",
+    "type": "A"
+   },
+   "reason": "NotFilteredNotFound",
+   "rules": [],
+   "status": "NOERROR",
+   "time": "2026-09-23T14:16:35.892988356Z"
+  },
+  {
+   "answer_dnssec": false,
+   "cached": true,
+   "client": "198.51.100.27",
+   "client_info": {
+    "disallowed": false,
+    "disallowed_rule": "",
+    "name": "",
+    "whois": {}
+   },
+   "client_proto": "",
+   "elapsedMs": "0.32754",
+   "question": {
+    "class": "IN",
+    "name": "host41.example",
+    "type": "HTTPS"
+   },
+   "reason": "NotFilteredNotFound",
+   "rules": [],
+   "status": "NOERROR",
+   "time": "2026-09-23T14:16:35.74327263Z"
+  },
+  {
+   "answer_dnssec": false,
+   "cached": true,
+   "client": "198.51.100.27",
+   "client_info": {
+    "disallowed": false,
+    "disallowed_rule": "",
+    "name": "",
+    "whois": {}
+   },
+   "client_proto": "",
+   "elapsedMs": "[REDACTED TEXT]",
+   "question": {
+    "class": "IN",
+    "name": "host42.example",
+    "type": "A"
+   },
+   "reason": "NotFilteredNotFound",
+   "rules": [],
+   "status": "NOERROR",
+   "time": "2026-09-23T14:16:35.737372906Z"
+  },
+  {
+   "answer_dnssec": false,
+   "cached": true,
+   "client": "198.51.100.27",
+   "client_info": {
+    "disallowed": false,
+    "disallowed_rule": "",
+    "name": "",
+    "whois": {}
+   },
+   "client_proto": "",
+   "elapsedMs": "[REDACTED TEXT]",
+   "question": {
+    "class": "IN",
+    "name": "host43.example",
+    "type": "A"
+   },
+   "reason": "NotFilteredNotFound",
+   "rules": [],
+   "status": "NOERROR",
+   "time": "2026-09-23T14:16:35.737236136Z"
+  },
+  {
+   "answer_dnssec": false,
+   "cached": true,
+   "client": "198.51.100.27",
+   "client_info": {
+    "disallowed": false,
+    "disallowed_rule": "",
+    "name": "",
+    "whois": {}
+   },
+   "client_proto": "",
+   "elapsedMs": "[REDACTED TEXT]",
+   "question": {
+    "class": "IN",
+    "name": "host42.example",
+    "type": "HTTPS"
+   },
+   "reason": "NotFilteredNotFound",
+   "rules": [],
+   "status": "NOERROR",
+   "time": "2026-09-23T14:16:35.737235444Z"
+  },
+  {
+   "answer_dnssec": false,
+   "cached": false,
+   "client": "198.51.100.27",
+   "client_info": {
+    "disallowed": false,
+    "disallowed_rule": "",
+    "name": "",
+    "whois": {}
+   },
+   "client_proto": "",
+   "elapsedMs": "2.677937",
+   "question": {
+    "class": "IN",
+    "name": "host12.example",
+    "type": "PTR"
+   },
+   "reason": "NotFilteredNotFound",
+   "rules": [],
+   "status": "NXDOMAIN",
+   "time": "2026-09-23T14:16:35.734195735Z"
+  },
+  {
+   "answer_dnssec": false,
+   "cached": false,
+   "client": "198.51.100.27",
+   "client_info": {
+    "disallowed": false,
+    "disallowed_rule": "",
+    "name": "",
+    "whois": {}
+   },
+   "client_proto": "",
+   "elapsedMs": "[REDACTED TEXT]",
+   "question": {
+    "class": "IN",
+    "name": "host13.example",
+    "type": "PTR"
+   },
+   "reason": "NotFilteredNotFound",
+   "rules": [],
+   "status": "NXDOMAIN",
+   "time": "2026-09-23T14:16:35.734147427Z"
+  },
+  {
+   "answer_dnssec": false,
+   "cached": false,
+   "client": "198.51.100.27",
+   "client_info": {
+    "disallowed": false,
+    "disallowed_rule": "",
+    "name": "",
+    "whois": {}
+   },
+   "client_proto": "",
+   "elapsedMs": "2.469475",
+   "question": {
+    "class": "IN",
+    "name": "host11.example",
+    "type": "PTR"
+   },
+   "reason": "NotFilteredNotFound",
+   "rules": [],
+   "status": "NXDOMAIN",
+   "time": "2026-09-23T14:16:35.733766348Z"
+  },
+  {
+   "answer_dnssec": false,
+   "cached": true,
+   "client": "198.51.100.27",
+   "client_info": {
+    "disallowed": false,
+    "disallowed_rule": "",
+    "name": "",
+    "whois": {}
+   },
+   "client_proto": "",
+   "elapsedMs": "[REDACTED TEXT]",
+   "question": {
+    "class": "IN",
+    "name": "host2.example",
+    "type": "A"
+   },
+   "reason": "NotFilteredNotFound",
+   "rules": [],
+   "status": "NOERROR",
+   "time": "2026-09-23T14:16:35.733017344Z"
+  },
+  {
+   "answer_dnssec": true,
+   "cached": true,
+   "client": "198.51.100.27",
+   "client_info": {
+    "disallowed": false,
+    "disallowed_rule": "",
+    "name": "",
+    "whois": {}
+   },
+   "client_proto": "",
+   "elapsedMs": "[REDACTED TEXT]",
+   "question": {
+    "class": "IN",
+    "name": "host6.example",
+    "type": "PTR"
+   },
+   "reason": "NotFilteredNotFound",
+   "rules": [],
+   "status": "NXDOMAIN",
+   "time": "2026-09-23T14:16:35.732917421Z"
+  },
+  {
+   "answer_dnssec": false,
+   "cached": true,
+   "client": "198.51.100.27",
+   "client_info": {
+    "disallowed": false,
+    "disallowed_rule": "",
+    "name": "",
+    "whois": {}
+   },
+   "client_proto": "",
+   "elapsedMs": "0.184308",
+   "question": {
+    "class": "IN",
+    "name": "host2.example",
+    "type": "HTTPS"
+   },
+   "reason": "NotFilteredNotFound",
+   "rules": [],
+   "status": "NOERROR",
+   "time": "2026-09-23T14:16:35.732864882Z"
+  },
+  {
+   "answer_dnssec": true,
+   "cached": true,
+   "client": "198.51.100.27",
+   "client_info": {
+    "disallowed": false,
+    "disallowed_rule": "",
+    "name": "",
+    "whois": {}
+   },
+   "client_proto": "",
+   "elapsedMs": "0.220462",
+   "question": {
+    "class": "IN",
+    "name": "host16.example",
+    "type": "PTR"
+   },
+   "reason": "NotFilteredNotFound",
+   "rules": [],
+   "status": "NXDOMAIN",
+   "time": "2026-09-23T14:16:35.732793266Z"
+  },
+  {
+   "answer_dnssec": true,
+   "cached": true,
+   "client": "198.51.100.27",
+   "client_info": {
+    "disallowed": false,
+    "disallowed_rule": "",
+    "name": "",
+    "whois": {}
+   },
+   "client_proto": "",
+   "elapsedMs": "0.207078",
+   "question": {
+    "class": "IN",
+    "name": "host17.example",
+    "type": "PTR"
+   },
+   "reason": "NotFilteredNotFound",
+   "rules": [],
+   "status": "NXDOMAIN",
+   "time": "2026-09-23T14:16:35.732245725Z"
+  },
+  {
+   "answer_dnssec": false,
+   "cached": true,
+   "client": "198.51.100.27",
+   "client_info": {
+    "disallowed": false,
+    "disallowed_rule": "",
+    "name": "",
+    "whois": {}
+   },
+   "client_proto": "",
+   "elapsedMs": "0.933082",
+   "question": {
+    "class": "IN",
+    "name": "host44.example",
+    "type": "A"
+   },
+   "reason": "NotFilteredNotFound",
+   "rules": [],
+   "status": "NOERROR",
+   "time": "2026-09-23T14:16:35.732209032Z"
+  },
+  {
+   "answer_dnssec": false,
+   "cached": true,
+   "client": "198.51.100.27",
+   "client_info": {
+    "disallowed": false,
+    "disallowed_rule": "",
+    "name": "",
+    "whois": {}
+   },
+   "client_proto": "",
+   "elapsedMs": "[REDACTED TEXT]",
+   "question": {
+    "class": "IN",
+    "name": "host44.example",
+    "type": "A"
+   },
+   "reason": "NotFilteredNotFound",
+   "rules": [],
+   "status": "NOERROR",
+   "time": "2026-09-23T14:16:35.731619798Z"
+  },
+  {
+   "answer_dnssec": false,
+   "cached": true,
+   "client": "198.51.100.41",
+   "client_info": {
+    "disallowed": false,
+    "disallowed_rule": "",
+    "name": "",
+    "whois": {}
+   },
+   "client_proto": "",
+   "elapsedMs": "0.515311",
+   "question": {
+    "class": "IN",
+    "name": "host19.example",
+    "type": "A"
+   },
+   "reason": "NotFilteredNotFound",
+   "rules": [],
+   "status": "NOERROR",
+   "time": "2026-09-23T14:16:24.257126338Z"
+  },
+  {
+   "answer_dnssec": false,
+   "cached": false,
+   "client": "198.51.100.43",
+   "client_info": {
+    "disallowed": false,
+    "disallowed_rule": "",
+    "name": "",
+    "whois": {}
+   },
+   "client_proto": "",
+   "elapsedMs": "0.320925",
+   "filterId": 1,
+   "question": {
+    "class": "IN",
+    "name": "host24.example",
+    "type": "A"
+   },
+   "reason": "FilteredBlackList",
+   "rules": [],
+   "status": "NOERROR",
+   "time": "2026-09-23T14:16:16.116648297Z"
+  },
+  {
+   "answer_dnssec": false,
+   "cached": true,
+   "client": "198.51.100.43",
+   "client_info": {
+    "disallowed": false,
+    "disallowed_rule": "",
+    "name": "",
+    "whois": {}
+   },
+   "client_proto": "",
+   "elapsedMs": "0.334156",
+   "question": {
+    "class": "IN",
+    "name": "host9.example",
+    "type": "A"
+   },
+   "reason": "NotFilteredNotFound",
+   "rules": [],
+   "status": "NOERROR",
+   "time": "2026-09-23T14:16:16.098831894Z"
+  },
+  {
+   "answer_dnssec": false,
+   "cached": true,
+   "client": "198.51.100.43",
+   "client_info": {
+    "disallowed": false,
+    "disallowed_rule": "",
+    "name": "",
+    "whois": {}
+   },
+   "client_proto": "",
+   "elapsedMs": "[REDACTED TEXT]",
+   "question": {
+    "class": "IN",
+    "name": "host35.example",
+    "type": "A"
+   },
+   "reason": "NotFilteredNotFound",
+   "rules": [],
+   "status": "NOERROR",
+   "time": "2026-09-23T14:16:15.959587147Z"
+  },
+  {
+   "answer_dnssec": false,
+   "cached": true,
+   "client": "198.51.100.43",
+   "client_info": {
+    "disallowed": false,
+    "disallowed_rule": "",
+    "name": "",
+    "whois": {}
+   },
+   "client_proto": "",
+   "elapsedMs": "0.156308",
+   "question": {
+    "class": "IN",
+    "name": "host35.example",
+    "type": "HTTPS"
+   },
+   "reason": "NotFilteredNotFound",
+   "rules": [],
+   "status": "NOERROR",
+   "time": "2026-09-23T14:16:15.959482839Z"
+  },
+  {
+   "answer_dnssec": false,
+   "cached": true,
+   "client": "198.51.100.43",
+   "client_info": {
+    "disallowed": false,
+    "disallowed_rule": "",
+    "name": "",
+    "whois": {}
+   },
+   "client_proto": "",
+   "elapsedMs": "0.853928",
+   "question": {
+    "class": "IN",
+    "name": "host25.example",
+    "type": "A"
+   },
+   "reason": "NotFilteredNotFound",
+   "rules": [],
+   "status": "NOERROR",
+   "time": "2026-09-23T14:16:15.952098415Z"
+  },
+  {
+   "answer_dnssec": false,
+   "cached": true,
+   "client": "198.51.100.43",
+   "client_info": {
+    "disallowed": false,
+    "disallowed_rule": "",
+    "name": "",
+    "whois": {}
+   },
+   "client_proto": "",
+   "elapsedMs": "[REDACTED TEXT]",
+   "question": {
+    "class": "IN",
+    "name": "host25.example",
+    "type": "HTTPS"
+   },
+   "reason": "NotFilteredNotFound",
+   "rules": [],
+   "status": "NOERROR",
+   "time": "2026-09-23T14:16:15.952035568Z"
+  },
+  {
+   "answer_dnssec": false,
+   "cached": false,
+   "client": "198.51.100.43",
+   "client_info": {
+    "disallowed": false,
+    "disallowed_rule": "",
+    "name": "",
+    "whois": {}
+   },
+   "client_proto": "",
+   "elapsedMs": "2.486475",
+   "question": {
+    "class": "IN",
+    "name": "host12.example",
+    "type": "PTR"
+   },
+   "reason": "NotFilteredNotFound",
+   "rules": [],
+   "status": "NXDOMAIN",
+   "time": "2026-09-23T14:16:15.811805893Z"
+  },
+  {
+   "answer_dnssec": true,
+   "cached": true,
+   "client": "198.51.100.43",
+   "client_info": {
+    "disallowed": false,
+    "disallowed_rule": "",
+    "name": "",
+    "whois": {}
+   },
+   "client_proto": "",
+   "elapsedMs": "[REDACTED TEXT]",
+   "question": {
+    "class": "IN",
+    "name": "host17.example",
+    "type": "PTR"
+   },
+   "reason": "NotFilteredNotFound",
+   "rules": [],
+   "status": "NXDOMAIN",
+   "time": "2026-09-23T14:16:15.809641805Z"
+  },
+  {
+   "answer_dnssec": false,
+   "cached": true,
+   "client": "198.51.100.41",
+   "client_info": {
+    "disallowed": false,
+    "disallowed_rule": "",
+    "name": "",
+    "whois": {}
+   },
+   "client_proto": "",
+   "elapsedMs": "0.421079",
+   "question": {
+    "class": "IN",
+    "name": "host20.example",
+    "type": "A"
+   },
+   "reason": "NotFilteredNotFound",
+   "rules": [],
+   "status": "NOERROR",
+   "time": "2026-09-23T14:16:13.119520224Z"
+  }
+ ],
+ "oldest": "2026-09-23T14:16:13.119520224Z"
+}

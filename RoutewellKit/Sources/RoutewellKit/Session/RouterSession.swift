@@ -74,6 +74,40 @@ public actor RouterSession {
         return try result.get()
     }
 
+    /// Reads one query-log page, fenced like `overview(using:)`. `nil` when
+    /// the backend has no query-log service (no AdGuard Home configured).
+    public func recentQueries(using lease: SessionLease, search: String?, limit: Int) async throws -> AreaRefreshResult<QueryLogPage>? {
+        try validateBefore(lease)
+        guard let service = lease.backend.queryLog else { return nil }
+        let result: Result<AreaRefreshResult<QueryLogPage>, any Error>
+        do { result = .success(try await service.recentQueries(search: search, limit: min(max(limit, 1), QueryLogLimits.maximum))) }
+        catch { result = .failure(error) }
+        try validateAfter(lease)
+        return try result.get()
+    }
+
+    /// Pings one client from the router, fenced like a read. `nil` when the
+    /// backend offers no client actions.
+    public func ping(using lease: SessionLease, address: IPv4Literal) async throws -> Result<PingResult, RefreshFailureCategory>? {
+        try validateBefore(lease)
+        guard let service = lease.backend.clientActions else { return nil }
+        let result: Result<Result<PingResult, RefreshFailureCategory>, any Error>
+        do { result = .success(try await service.ping(address)) }
+        catch { result = .failure(error) }
+        try validateAfter(lease)
+        return try result.get()
+    }
+
+    /// Sends one Wake-on-LAN packet. Like `setProtection`, a `.stale` from
+    /// `validateAfter` means the packet may have been sent.
+    public func wake(using lease: SessionLease, mac: MACAddress) async throws -> MutationReport<WakeResult>? {
+        try validateBefore(lease)
+        guard let service = lease.backend.clientActions else { return nil }
+        let report = await service.wake(mac)
+        try validateAfter(lease)
+        return report
+    }
+
     /// Runs one Protection mutation against `lease.backend`. `validateBefore`
     /// fences it against a lease that's already stale or mid-switch;
     /// `validateAfter` fences the result. If `validateAfter` throws

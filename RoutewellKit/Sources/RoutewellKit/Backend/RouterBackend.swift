@@ -15,6 +15,9 @@ public protocol RouterBackend: Sendable {
     var vpn: (any VPNService)? { get }
     var plugins: (any PluginsService)? { get }
     var telemetry: (any TelemetryService)? { get }
+    /// Ping and Wake for one client. `nil` hides both buttons: no mechanism
+    /// exists for this router.
+    var clientActions: (any ClientActionsService)? { get }
 }
 
 public extension RouterBackend {
@@ -25,6 +28,7 @@ public extension RouterBackend {
     var vpn: (any VPNService)? { nil }
     var plugins: (any PluginsService)? { nil }
     var telemetry: (any TelemetryService)? { nil }
+    var clientActions: (any ClientActionsService)? { nil }
 
     func service(for area: DataArea) -> (any FeatureService)? {
         switch area {

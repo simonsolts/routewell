@@ -16,13 +16,16 @@ public struct DeviceObservation: Sendable, Equatable {
     public let saveFailure: StoreError?
 }
 
-public enum DeviceRegistryLoad: Sendable, Equatable {
+/// How a local store file loaded at launch.
+public enum LocalStoreLoad: Sendable, Equatable {
     case empty, loaded
     /// A damaged file was moved aside; defaults are in use.
     case recovered
     /// The file cannot be read or is from a newer app; saving is blocked.
     case blocked(StoreError)
 }
+
+public typealias DeviceRegistryLoad = LocalStoreLoad
 
 /// Owns `devices.json` (decision 8). New-device rule: the first non-empty
 /// client list is recorded as the baseline with no events; after that, each
@@ -42,6 +45,9 @@ public actor DeviceRegistry {
     /// two calls can never both treat one MAC as new, and a review flag
     /// cleared during an observation is not written back.
     private let gate = MutationGate()
+    /// Devices forgotten in this app session. If the router still lists one,
+    /// it comes back as a plain known device, not as a new one.
+    private var forgotten: Set<MACAddress> = []
 
     public init(store: AtomicJSONStore?, initial: DeviceRegistryState = .init(), lastSeenSaveInterval: TimeInterval = 600) {
         self.store = store
@@ -77,7 +83,7 @@ public actor DeviceRegistry {
         let baselineNow = !next.baselineEstablished && !clients.isEmpty
         for client in clients {
             var record = next.records[client.mac] ?? DeviceRecord(mac: client.mac, firstSeen: now)
-            if next.records[client.mac] == nil, next.baselineEstablished {
+            if next.records[client.mac] == nil, next.baselineEstablished, !forgotten.contains(client.mac) {
                 record.awaitingReview = true
                 events.append(NewDeviceEvent(mac: client.mac, firstSeen: now))
             }
@@ -111,6 +117,64 @@ public actor DeviceRegistry {
         var next = state
         next.records[mac] = record
         return await persist(next) == nil
+    }
+
+    /// Edits one device's profile, recovery class `none`: gate, before-state
+    /// (the record), one save, then a read-back of the saved record. A failed
+    /// save keeps the old record and reports `unknownAfterDispatch`.
+    public func edit(_ mac: MACAddress, _ edit: DeviceProfileEdit, at now: Date) async -> MutationReport<DeviceProfile> {
+        if let rejection = edit.validate() {
+            return Self.report(.rejected(rejection), dispatched: false, startedAt: now, failure: nil)
+        }
+        guard let token = try? await gate.acquire() else {
+            return Self.report(.rejected(.preconditionFailed("Cancelled before dispatch")), dispatched: false, startedAt: now, failure: nil)
+        }
+        defer { Task { await gate.release(token) } }
+        guard var record = state.records[mac] else {
+            return Self.report(.rejected(.preconditionFailed("Device is not known")), dispatched: false, startedAt: now, failure: nil)
+        }
+        let intended = edit.applied(to: record.profile, at: now)
+        guard intended != record.profile else {
+            return Self.report(.verifiedSuccess(intended), dispatched: false, startedAt: now, failure: nil)
+        }
+        record.apply(intended)
+        var next = state
+        next.records[mac] = record
+        if await persist(next) != nil {
+            return Self.report(.unknownAfterDispatch, dispatched: true, startedAt: now, failure: .unavailable)
+        }
+        guard let saved = state.records[mac]?.profile else {
+            return Self.report(.unknownAfterDispatch, dispatched: true, startedAt: now, failure: nil)
+        }
+        let outcome: MutationOutcome<DeviceProfile> = saved == intended ? .verifiedSuccess(saved) : .verifiedMismatch(expected: intended, actual: saved)
+        return Self.report(outcome, dispatched: true, startedAt: now, failure: nil)
+    }
+
+    /// Removes one device record, recovery class `none`. Rejected unless the
+    /// latest client list shows the device offline or no longer lists it.
+    public func forget(_ mac: MACAddress, online: Observed<Bool>, at now: Date) async -> MutationReport<MACAddress> {
+        guard online == .value(false) else {
+            return Self.report(.rejected(.preconditionFailed("Device is online or its state is unknown")), dispatched: false, startedAt: now, failure: nil)
+        }
+        guard let token = try? await gate.acquire() else {
+            return Self.report(.rejected(.preconditionFailed("Cancelled before dispatch")), dispatched: false, startedAt: now, failure: nil)
+        }
+        defer { Task { await gate.release(token) } }
+        guard state.records[mac] != nil else {
+            return Self.report(.rejected(.preconditionFailed("Device is not known")), dispatched: false, startedAt: now, failure: nil)
+        }
+        var next = state
+        next.records[mac] = nil
+        if await persist(next) != nil {
+            return Self.report(.unknownAfterDispatch, dispatched: true, startedAt: now, failure: .unavailable)
+        }
+        forgotten.insert(mac)
+        let outcome: MutationOutcome<MACAddress> = state.records[mac] == nil ? .verifiedSuccess(mac) : .unknownAfterDispatch
+        return Self.report(outcome, dispatched: true, startedAt: now, failure: nil)
+    }
+
+    private static func report<Value>(_ outcome: MutationOutcome<Value>, dispatched: Bool, startedAt: Date, failure: RefreshFailureCategory?) -> MutationReport<Value> {
+        MutationReport(outcome: outcome, dispatched: dispatched, startedAt: startedAt, finishedAt: Date(), failure: failure)
     }
 
     /// Saves `next` and makes it current, or leaves both states untouched.

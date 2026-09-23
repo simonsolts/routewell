@@ -67,6 +67,9 @@ public enum GLiNetStatusParser {
         if let clients = clientList?["clients"]?.array {
             let activeCount = clients.filter { $0["online"]?.bool == true }.count
             status.activeCount = .value(activeCount)
+            if let parsed = clientList.flatMap(GLiNetClientListParser.parse) {
+                status.listed = Dictionary(parsed.entries.map { ($0.mac, $0.online) }, uniquingKeysWith: { first, _ in first })
+            }
         } else if let entry = getStatus?["client"]?.array?.first,
                   let wireless = entry["wireless_total"]?.int,
                   let cable = entry["cable_total"]?.int {

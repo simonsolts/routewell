@@ -36,7 +36,17 @@ public protocol FeatureService: Sendable {
 public protocol ClientsService: FeatureService {
     func inventory() async throws -> ClientInventoryResult
 }
-public protocol QueryLogService: FeatureService {}
+/// The AdGuard Home query log (chunk 13 reads it per client; chunk 16 adds
+/// the DNS Activity screen). One bounded page per call, never persisted.
+public protocol QueryLogService: FeatureService {
+    /// Throws only `CancellationError`; every other failure is a result.
+    func recentQueries(search: String?, limit: Int) async throws -> AreaRefreshResult<QueryLogPage>
+}
+
+public enum QueryLogLimits {
+    /// One fetch never asks for more than this many entries.
+    public static let maximum = 500
+}
 public protocol NetworkService: FeatureService {}
 public protocol MaintenanceService: FeatureService {}
 public protocol VPNService: FeatureService {}
