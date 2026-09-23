@@ -119,10 +119,19 @@ struct SettingsView: View {
                             Text("AdGuard join mismatch").tag(MockClientsService.Scenario.adGuardMismatch)
                             Text("Router list fails").tag(MockClientsService.Scenario.primaryFailure)
                         }
+                        Picker("Ping and Wake", selection: Binding(
+                            get: { environment.mockClientActionsMechanism },
+                            set: { environment.setMockClientActions($0) }
+                        )) {
+                            Text("Router RPC").tag(ClientActionMechanism?.some(.rpc))
+                            Text("SSH").tag(ClientActionMechanism?.some(.ssh))
+                            Text("SSH not set up").tag(ClientActionMechanism?.some(.sshRequired))
+                            Text("Hidden (no mechanism)").tag(ClientActionMechanism?.none)
+                        }
                     } header: {
                         Text("Mock clients")
                     } footer: {
-                        Text("Device history in mock mode stays in memory. Each device the seed history has not seen is reported once per app session.")
+                        Text("Device and presence history in mock mode stay in memory. Each device the seed history has not seen is reported once per app session. DNS activity uses the query-log capability above.")
                     }
                     #endif
                 }

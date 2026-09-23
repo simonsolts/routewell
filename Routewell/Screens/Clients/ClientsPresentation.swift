@@ -1,8 +1,7 @@
 import Foundation
 import RoutewellKit
 
-/// The six sections in the details pane's source list. Only Overview has
-/// content in chunk 12; the rest arrive in chunk 13.
+/// The six sections in the details pane's source list.
 enum ClientDetailsSection: String, CaseIterable, Identifiable {
     case overview, availability, dnsActivity, vpnRouting, personalise, forgetDevice
 
@@ -27,7 +26,6 @@ enum ClientDetailsSection: String, CaseIterable, Identifiable {
         case .forgetDevice: "trash"
         }
     }
-    var isAvailable: Bool { self == .overview }
 }
 
 /// What the details pane shows for the table selection. More than one

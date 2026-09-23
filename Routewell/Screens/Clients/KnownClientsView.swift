@@ -58,13 +58,15 @@ struct KnownClientsFilter: Equatable {
 }
 
 /// Known Clients (from the v1 mockup): stat strip, category filter, table of
-/// remembered devices, and the selected client. Editing actions are shown
-/// disabled until chunk 13.
+/// remembered devices, and the selected client. Edit… opens Personalise in
+/// the All Clients pane; − and Forget Device… use the pane's forget path.
 struct KnownClientsView: View {
     let search: String
     @Environment(AppModel.self) private var model
+    @Environment(AppEnvironment.self) private var environment
     @State private var filter = KnownClientsFilter()
     @State private var selection: MACAddress?
+    @State private var confirmingForget = false
     @State private var sortOrder = [KeyPathComparator(\KnownClientRow.lastSeenKey, order: .reverse)]
 
     var body: some View {
@@ -91,7 +93,7 @@ struct KnownClientsView: View {
             table(rows)
                 .frame(minHeight: 160)
                 .layoutPriority(1)
-            actionBar
+            actionBar(selected: rows.first { $0.id == selection })
             if let selection, let row = rows.first(where: { $0.id == selection }) {
                 selectedClient(row)
             }
@@ -100,6 +102,11 @@ struct KnownClientsView: View {
                 .fixedSize(horizontal: false, vertical: true)
         }
         .padding(20)
+        .forgetDeviceAlert(isPresented: $confirmingForget, entry: rows.first { $0.id == selection }.map(entry(for:)))
+    }
+
+    private func entry(for row: KnownClientRow) -> ClientListEntry {
+        ClientListEntry(mac: row.record.mac, client: row.client, record: row.record)
     }
 
     private var filterRow: some View {
@@ -157,23 +164,37 @@ struct KnownClientsView: View {
         }
     }
 
-    /// Adding, removing, importing, exporting, and editing arrive with
-    /// personalisation in chunk 13.
-    private var actionBar: some View {
-        HStack(spacing: 8) {
+    /// Add, Import…, and Export… stay disabled: Routewell learns devices
+    /// from the router, and backup arrives with chunk 33.
+    private func actionBar(selected: KnownClientRow?) -> some View {
+        let forget = selected.map { ClientDetailsFormat.forgetState(entry(for: $0), inventoryLoaded: model.clientInventory != nil) }
+        return HStack(spacing: 8) {
             ControlGroup {
                 Button("Add", systemImage: "plus") {}
-                Button("Remove", systemImage: "minus") {}
+                    .disabled(true)
+                    .help("Devices are added when the router lists them")
+                Button("Remove", systemImage: "minus") { confirmingForget = true }
+                    .disabled(forget?.enabled != true)
+                    .help(forget?.status ?? "Forget the selected device")
             }
             .fixedSize()
             Spacer()
-            Button("Import…") {}
-            Button("Export…") {}
-            Button("Forget Device…") {}
-            Button("Edit…") {}.keyboardShortcut(.defaultAction)
+            Group {
+                Button("Import…") {}
+                Button("Export…") {}
+            }
+            .disabled(true)
+            .help("Import and export arrive with Routewell backups")
+            Button("Forget Device…") { confirmingForget = true }
+                .disabled(forget?.enabled != true)
+                .help(forget?.status ?? "Forget the selected device")
+            Button("Edit…") {
+                guard let selected else { return }
+                model.revealClient(selected.record.mac, section: .personalise)
+            }
+            .keyboardShortcut(.defaultAction)
+            .disabled(selected == nil)
         }
-        .disabled(true)
-        .help("Editing known clients is not available yet")
     }
 
     private func selectedClient(_ row: KnownClientRow) -> some View {
@@ -189,14 +210,15 @@ struct KnownClientsView: View {
             Divider()
             LabelValueRow(label: "Notes", value: row.record.notes.isEmpty ? "No notes" : row.record.notes)
             Divider()
-            Toggle(isOn: .constant(row.record.monitored)) {
+            Toggle(isOn: Binding(get: { row.record.monitored }, set: { value in
+                Task { await environment.clients.edit(row.record.mac, .setMonitored(value)) }
+            })) {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Monitor availability")
-                    Text("Notify when offline for more than 5 minutes").font(.subheadline).foregroundStyle(.secondary)
+                    Text("Notify when offline for more than 5 minutes. Notifications are not sent yet.").font(.subheadline).foregroundStyle(.secondary)
                 }
             }
             .toggleStyle(.switch)
-            .disabled(true)
             .padding(12)
         }
     }
