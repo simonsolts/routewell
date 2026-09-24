@@ -21,7 +21,8 @@ public enum GLiNetStatusParser {
 
         let system = getStatus?["system"]
         status.lanAddress = system?["lan_ip"]?.string
-        status.uptimeSeconds = system?["uptime"]?.int
+        // 4.9.1 reports fractional seconds (`413388.56`) `[verified live]`.
+        status.uptimeSeconds = numericDouble(system?["uptime"]).flatMap { $0 >= 0 && $0.isFinite ? Int($0) : nil }
         status.loadAverages = system?["load_average"]?.array?.compactMap(numericDouble) ?? []
 
         let memoryTotal = system?["memory_total"]?.int

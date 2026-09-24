@@ -3,7 +3,7 @@
  "dfs_support": true,
  "res": [
   {
-   "band": "2g",
+   "band": "2G",
    "channel": 0,
    "channels": [
     {
@@ -72,24 +72,24 @@
      "psc": false
     }
    ],
-   "device": "mt7990_1_1",
+   "device": "MT7990_1_1",
    "encryptions": [
-    "psk2",
-    "psk2",
-    "psk2",
-    "psk2",
-    "psk2"
+    "example",
+    "example",
+    "example",
+    "example",
+    "example"
    ],
-   "htmode": "EHT40",
+   "htmode": "auto",
    "htmodes": {
     "11ax/be": 40,
     "11b/g/n/ax/be": 40,
     "auto": true
    },
-   "hwmode": "11be",
+   "hwmode": "11b/g/n/ax/be",
    "hwmodes": [
-    "11be",
-    "11be"
+    "example",
+    "example"
    ],
    "ifaces": [
     {
@@ -132,10 +132,10 @@
      "ssid": "Example SSID 1-3"
     }
    ],
-   "txpower": "max"
+   "txpower": "Max"
   },
   {
-   "band": "5g",
+   "band": "5G",
    "channel": 0,
    "channels": [
     {
@@ -234,26 +234,26 @@
      "psc": false
     }
    ],
-   "device": "mt7990_1_2",
+   "device": "MT7990_1_2",
    "encryptions": [
-    "psk2",
-    "psk2",
-    "psk2",
-    "psk2",
-    "psk2"
+    "example",
+    "example",
+    "example",
+    "example",
+    "example"
    ],
-   "htmode": "EHT160",
+   "htmode": "80",
    "htmodes": {
     "11a/n/ac/ax/be": 160,
     "11ac/ax/be": 160,
     "11ax/be": 160,
     "auto": false
    },
-   "hwmode": "11be",
+   "hwmode": "11a/n/ac/ax/be",
    "hwmodes": [
-    "11be",
-    "11be",
-    "11be"
+    "example",
+    "example",
+    "example"
    ],
    "ifaces": [
     {
@@ -296,10 +296,10 @@
      "ssid": "Example SSID 2-3"
     }
    ],
-   "txpower": "max"
+   "txpower": "Max"
   },
   {
-   "band": "6g",
+   "band": "6G",
    "chan_6g_only_psc": true,
    "channel": 0,
    "channels": [
@@ -424,18 +424,18 @@
      "psc": false
     }
    ],
-   "device": "mt7990_1_3",
+   "device": "MT7990_1_3",
    "encryptions": [
-    "psk2"
+    "example"
    ],
-   "htmode": "EHT320",
+   "htmode": "160",
    "htmodes": {
     "11ax/be": 320,
     "auto": false
    },
-   "hwmode": "11be",
+   "hwmode": "11ax/be",
    "hwmodes": [
-    "11be"
+    "example"
    ],
    "ifaces": [
     {
@@ -465,7 +465,7 @@
      "ssid": "Example SSID 3-2"
     }
    ],
-   "txpower": "max"
+   "txpower": "Max"
   }
  ]
 }

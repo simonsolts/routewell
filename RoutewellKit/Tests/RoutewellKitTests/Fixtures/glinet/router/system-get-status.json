@@ -2,23 +2,33 @@
  "client": [
   {
    "auto_remove_offline": false,
-   "cable_total": 2,
-   "wireless_total": 9
+   "cable_total": 4,
+   "wireless_total": 7
   }
  ],
  "network": [
-  {
-   "interface": "wwan",
-   "online": true,
-   "up": false
-  },
   {
    "interface": "tethering",
    "online": true,
    "up": false
   },
   {
-   "interface": "modem_1_1_2",
+   "interface": "wan6",
+   "online": true,
+   "up": false
+  },
+  {
+   "interface": "wwan6",
+   "online": true,
+   "up": false
+  },
+  {
+   "interface": "tethering6",
+   "online": true,
+   "up": false
+  },
+  {
+   "interface": "wwan",
    "online": true,
    "up": false
   },
@@ -28,22 +38,12 @@
    "up": false
   },
   {
-   "interface": "wan2",
-   "online": true,
-   "up": false
-  },
-  {
-   "interface": "repeater",
-   "online": true,
-   "up": false
-  },
-  {
    "interface": "wan",
    "online": true,
    "up": true
   },
   {
-   "interface": "modem_1_1_3",
+   "interface": "secondwan6",
    "online": true,
    "up": false
   }
@@ -89,32 +89,32 @@
  "system": {
   "content_protection_enabled": false,
   "cpu": {
-   "temperature": 57
+   "temperature": 55
   },
   "ddns_enabled": false,
   "dpi_info": {
    "lib_update_time": "example",
    "lib_version": "example",
-   "status": "example"
+   "status": "1"
   },
-  "flash_app": 1437868032,
-  "flash_free": 60738560000,
+  "flash_app": 1437122560,
+  "flash_free": 60739305472,
   "flash_total": 62176428032,
   "flow_statistics_enabled": false,
   "guest_ip": "198.51.100.1",
-  "guest_netmask": "255.255.255.0",
-  "iot_ip": "198.51.100.2",
-  "iot_netmask": "255.255.255.0",
+  "guest_netmask": "198.51.100.2",
+  "iot_ip": "198.51.100.3",
+  "iot_netmask": "198.51.100.2",
   "ipv6_enabled": false,
-  "lan_ip": "198.51.100.3",
-  "lan_netmask": "255.255.255.0",
+  "lan_ip": "198.51.100.4",
+  "lan_netmask": "198.51.100.2",
   "load_average": [
    2.41,
-   2.34,
-   2.29
+   2.39,
+   2.31
   ],
-  "memory_buff_cache": 364122112,
-  "memory_free": 889991168,
+  "memory_buff_cache": 423473152,
+  "memory_free": 810254336,
   "memory_total": 2082811904,
   "mode": 0,
   "netnat_enabled": true,
@@ -123,28 +123,28 @@
   "sqm_enabled": false,
   "subnets": [
    {
-    "ip": "198.51.100.3",
-    "netmask": "255.255.255.0"
+    "ip": "198.51.100.4",
+    "netmask": "198.51.100.2"
    },
    {
     "ip": "198.51.100.1",
-    "netmask": "255.255.255.0"
+    "netmask": "198.51.100.2"
    },
    {
-    "ip": "198.51.100.2",
-    "netmask": "255.255.255.0"
+    "ip": "198.51.100.3",
+    "netmask": "198.51.100.2"
    }
   ],
   "time_sync_status": true,
-  "timestamp": 1790109457,
-  "tzoffset": "+0100",
-  "uptime": 271194.64
+  "timestamp": 1790251651,
+  "tzoffset": "example",
+  "uptime": 413388.56
  },
  "wifi": [
   {
-   "band": "2g",
+   "band": "2G",
    "channel": 0,
-   "encryption": "psk2",
+   "encryption": "example",
    "guest": false,
    "hidden": false,
    "init": true,
@@ -156,9 +156,9 @@
    "up": true
   },
   {
-   "band": "5g",
+   "band": "5G",
    "channel": 0,
-   "encryption": "psk2",
+   "encryption": "example",
    "guest": false,
    "hidden": false,
    "init": true,
@@ -170,9 +170,9 @@
    "up": true
   },
   {
-   "band": "6g",
+   "band": "6G",
    "channel": 0,
-   "encryption": "psk2",
+   "encryption": "example",
    "guest": false,
    "hidden": false,
    "init": true,
@@ -184,9 +184,9 @@
    "up": true
   },
   {
-   "band": "2g",
+   "band": "2G",
    "channel": 0,
-   "encryption": "psk2",
+   "encryption": "example",
    "guest": true,
    "hidden": false,
    "init": false,
@@ -198,9 +198,9 @@
    "up": false
   },
   {
-   "band": "5g",
+   "band": "5G",
    "channel": 0,
-   "encryption": "psk2",
+   "encryption": "example",
    "guest": true,
    "hidden": false,
    "init": false,
@@ -212,9 +212,9 @@
    "up": false
   },
   {
-   "band": "6g",
+   "band": "6G",
    "channel": 0,
-   "encryption": "psk2",
+   "encryption": "example",
    "guest": true,
    "hidden": false,
    "init": false,
@@ -226,9 +226,9 @@
    "up": false
   },
   {
-   "band": "2g",
+   "band": "2G",
    "channel": 0,
-   "encryption": "psk2",
+   "encryption": "example",
    "guest": false,
    "hidden": false,
    "init": false,
@@ -240,9 +240,9 @@
    "up": false
   },
   {
-   "band": "5g",
+   "band": "5G",
    "channel": 0,
-   "encryption": "psk2",
+   "encryption": "example",
    "guest": false,
    "hidden": false,
    "init": false,

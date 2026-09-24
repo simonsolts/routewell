@@ -57,17 +57,19 @@ private enum RouterStub {
         #expect(router.kernelVersion == "5.4.281")
         #expect(router.architecture == "mediatek/mt7988")
         #expect(router.memoryTotalBytes == 2_082_811_904)
-        #expect(router.memoryFreeBytes == 889_991_168)
-        #expect(router.memoryBuffersAndCacheBytes == 364_122_112)
+        #expect(router.memoryFreeBytes == 810_254_336)
+        #expect(router.memoryBuffersAndCacheBytes == 423_473_152)
         // Buffers and cache are not "used".
-        #expect(router.memoryUsedBytes == Int64(828_698_624)) // total − free − buffers and cache
-        #expect(router.memoryAvailableBytes == Int64(1_254_113_280))
+        #expect(router.memoryUsedBytes == Int64(849_084_416)) // total − free − buffers and cache
+        #expect(router.memoryAvailableBytes == Int64(1_233_727_488))
         #expect(router.storageTotalBytes == 62_176_428_032)
-        #expect(router.storageUsedBytes == Int64(1_437_868_032)) // equals the recorded flash_app
-        #expect(router.routerTime == Date(timeIntervalSince1970: 1_790_109_457))
-        #expect(router.uptimeSeconds == nil || router.lastBoot != nil)
+        #expect(router.storageUsedBytes == Int64(1_437_122_560)) // equals the recorded flash_app
+        #expect(router.routerTime == Date(timeIntervalSince1970: 1_790_251_651))
+        // `uptime` is fractional on 4.9.1 (413388.56).
+        #expect(router.uptimeSeconds == 413_388)
+        #expect(router.lastBoot == Date(timeIntervalSince1970: 1_790_251_651 - 413_388))
         #expect(router.sqmEnabled == .value(false))
-        #expect(router.temperatureCelsius == .value(57))
+        #expect(router.temperatureCelsius == .value(55))
         // No RPC field reports CPU utilization.
         #expect(router.cpuUtilizationPercent == .unknown)
     }
@@ -87,9 +89,10 @@ private enum RouterStub {
         #expect(internet.uplinks.count == 8)
         #expect(internet.uplinks.first { $0.name == "wan" }?.up == .value(true))
         #expect(internet.uplinks.filter { $0.up == .value(true) }.count == 1)
-        #expect(internet.wanProtocol == "dhcp")
-        #expect(internet.gateway == "198.51.100.7")
-        #expect(internet.dnsServers == ["198.51.100.5", "198.51.100.6"])
+        #expect(internet.uplinks.map(\.name) == ["tethering", "wan6", "wwan6", "tethering6", "wwan", "secondwan", "wan", "secondwan6"])
+        #expect(internet.wanProtocol == "pppoe")
+        #expect(internet.gateway == "198.51.100.8")
+        #expect(internet.dnsServers == ["198.51.100.6", "198.51.100.7"])
     }
 
     @Test func onlineWiFiClientsAreCountedPerBand() throws {
@@ -132,7 +135,7 @@ private enum RouterStub {
 
     @Test func activePathNeedsTheWANUpAndAGateway() throws {
         let internet = GLiNetStatusParser.internetStatus(getStatus: try routerFixture("system-get-status"), cableStatus: try routerFixture("cable-get-status"))
-        #expect(MultiWANStatus.derive(from: internet).activePath == WANPath(interface: "wan", gateway: "198.51.100.7"))
+        #expect(MultiWANStatus.derive(from: internet).activePath == WANPath(interface: "wan", gateway: "198.51.100.8"))
         var noGateway = internet
         noGateway.gateway = nil
         #expect(MultiWANStatus.derive(from: noGateway).activePath == nil)
@@ -159,9 +162,10 @@ private enum RouterStub {
         #expect(status.radios.map(\.band) == [.ghz2_4, .ghz5, .ghz6])
         #expect(status.radios.map(\.currentChannel) == [9, 44, 37])
         #expect(status.radios.map(\.configuredChannel) == [0, 0, 0])
-        #expect(status.radios.map(\.widthMHz) == [40, 160, 320])
-        #expect(status.radios.map(\.device) == ["mt7990_1_1", "mt7990_1_2", "mt7990_1_3"])
-        #expect(status.radios.allSatisfy { $0.txPower == "max" })
+        #expect(status.radios.map(\.htmode) == ["auto", "80", "160"])
+        #expect(status.radios.map(\.widthMHz) == [nil, 80, 160])
+        #expect(status.radios.map(\.device) == ["MT7990_1_1", "MT7990_1_2", "MT7990_1_3"])
+        #expect(status.radios.allSatisfy { $0.txPower == "Max" })
         #expect(status.networks.count == 8)
         #expect(status.enabledNetworkCount == 3)
         #expect(status.radios[0].networks[1].guest == true)
@@ -251,8 +255,12 @@ private enum RouterStub {
         #expect(upToDate.status == .upToDate)
         #expect(upToDate.latest == .value("4.9.1"))
 
-        let (ambiguous, _) = RouterStub.service(["upgrade.check_firmware_online": .fixture("upgrade-check-firmware-online-ambiguous")])
-        #expect(try await ambiguous.checkFirmware().status == .unableToCheck(.ambiguousReply))
+        // The 4.9.1 reply with no update names only the current version.
+        let (recorded, _) = RouterStub.service(["upgrade.check_firmware_online": .fixture("upgrade-check-firmware-online-4.9.1")])
+        let live = try await recorded.checkFirmware()
+        #expect(live.status == .unableToCheck(.ambiguousReply))
+        #expect(live.current == .value("4.9.1"))
+        #expect(live.latest == .unknown)
 
         let (missing, _) = RouterStub.service([:])
         #expect(try await missing.checkFirmware().status == .unableToCheck(.notSupported))
