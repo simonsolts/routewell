@@ -1,0 +1,21 @@
+{
+ "ipv4": {
+  "dns": [
+   "198.51.100.5",
+   "198.51.100.6"
+  ],
+  "gateway": "198.51.100.7",
+  "ip": "198.51.100.8"
+ },
+ "mode": 0,
+ "protocol": "dhcp",
+ "secondwan": {
+  "mode": 1,
+  "status": 3
+ },
+ "status": 1,
+ "usbwan": {
+  "err_code": -4,
+  "err_msg": "example"
+ }
+}

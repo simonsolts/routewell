@@ -27,6 +27,8 @@ public actor MockRouterBackend: RouterBackend {
     public nonisolated let queryLog: (any QueryLogService)?
     public nonisolated let mockQueryLog = MockQueryLogService()
     public nonisolated let mockClientActions = MockClientActions()
+    public nonisolated let mockRouter = MockRouterService()
+    public nonisolated var router: (any RouterService)? { mockRouter }
     public nonisolated let network: (any NetworkService)?
     public nonisolated let maintenance: (any MaintenanceService)?
     public nonisolated let vpn: (any VPNService)?
@@ -227,7 +229,16 @@ public actor MockRouterBackend: RouterBackend {
         router.loadAverages = [0.18, 0.24, 0.21]
         router.memoryUsedBytes = 418_759_311
         router.memoryTotalBytes = 1_073_741_824
-        router.temperatureCelsius = .value(52)
+        router.temperatureCelsius = .value(54.1)
+        router.kernelVersion = "5.4.281"
+        router.architecture = "mediatek/mt7988"
+        router.memoryFreeBytes = 350_000_000
+        router.memoryBuffersAndCacheBytes = 304_982_513
+        router.storageTotalBytes = 62_176_428_032
+        router.storageFreeBytes = 60_738_560_000
+        router.routerTime = date
+        router.cpuUtilizationPercent = .value(2.9)
+        router.sqmEnabled = .value(false)
 
         var internet = InternetStatus()
         internet.reachability = .connected
@@ -235,6 +246,9 @@ public actor MockRouterBackend: RouterBackend {
         internet.gateway = "192.0.2.1"
         internet.gatewayLatencyMilliseconds = 2.6
         internet.dnsServers = ["192.0.2.53", "192.0.2.54"]
+        internet.wanProtocol = "dhcp"
+        // Honest unknown: the mock reports no up/down state for any uplink.
+        internet.uplinks = [UplinkInterface(name: "wan"), UplinkInterface(name: "wwan")]
 
         var adGuard = AdGuardStatus()
         adGuard.reachability = .connected
@@ -242,9 +256,13 @@ public actor MockRouterBackend: RouterBackend {
         adGuard.protection = .paused(until: date.addingTimeInterval(1800))
         adGuard.queriesToday = 45_852
         adGuard.blockedToday = 6_438
+        adGuard.running = .value(true)
+        adGuard.dnsPort = 3053
+        adGuard.handlesClientRequests = .value(true)
 
         var clients = ClientStatus()
         clients.activeCount = .value(MockClientsService.defaultOnlineCount)
+        clients.onlineByBand = [.ghz2_4: 5, .ghz6: 3]
         return OverviewSnapshot(router: router, internet: internet, adGuard: adGuard,
                                 clients: clients, observedAt: date)
     }

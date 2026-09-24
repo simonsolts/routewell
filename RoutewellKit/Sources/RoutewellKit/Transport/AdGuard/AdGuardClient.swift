@@ -8,6 +8,8 @@ public struct AdGuardStatusResponse: Sendable, Equatable {
     public var protectionEnabled: Bool?
     public var protectionDisabledDurationMilliseconds: Int?
     public var dnsAddresses: [String] = []
+    /// `dns_port` `[verified live]`: 3053 on 4.9.1, behind the router's dnsmasq.
+    public var dnsPort: Int?
 
     public init(
         version: String? = nil,
@@ -86,6 +88,7 @@ public actor AdGuardClient {
         response.protectionEnabled = json["protection_enabled"]?.bool
         response.protectionDisabledDurationMilliseconds = json["protection_disabled_duration"]?.int
         response.dnsAddresses = json["dns_addresses"]?.array?.compactMap(\.string) ?? []
+        response.dnsPort = json["dns_port"]?.int
         return response
     }
 
@@ -198,6 +201,8 @@ public actor AdGuardClient {
         var result = AdGuardStatus()
         result.reachability = status != nil ? .connected : .unknown
         result.version = status?.version
+        result.running = status?.running.map(Observed.value) ?? .unknown
+        result.dnsPort = status?.dnsPort
 
         switch status?.protectionEnabled {
         case true:

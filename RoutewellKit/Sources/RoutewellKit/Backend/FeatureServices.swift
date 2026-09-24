@@ -47,6 +47,30 @@ public enum QueryLogLimits {
     /// One fetch never asks for more than this many entries.
     public static let maximum = 500
 }
+/// The Router screen's RPC reads beyond the Overview areas (chunk 14).
+/// Both calls throw only `CancellationError`; every other failure is a result.
+public protocol RouterService: FeatureService {
+    /// Wi-Fi radios and SSIDs, and the native SQM configuration.
+    func details() async throws -> RouterDetailsResult
+    /// Asks the router whether newer firmware exists. Nothing is downloaded
+    /// or installed; Routewell never installs firmware.
+    func checkFirmware() async throws -> FirmwareCheck
+}
+
+public struct RouterDetailsResult: Sendable {
+    public var wireless: AreaRefreshResult<WirelessStatus>
+    public var sqm: AreaRefreshResult<SQMConfiguration>
+    /// `unsupported` only from `-32601` on `sqm.get_config`; any other
+    /// error keeps it unknown (fail closed, as RouterPilot does).
+    public var sqmCapability: Capability
+
+    public init(wireless: AreaRefreshResult<WirelessStatus>, sqm: AreaRefreshResult<SQMConfiguration>, sqmCapability: Capability) {
+        self.wireless = wireless
+        self.sqm = sqm
+        self.sqmCapability = sqmCapability
+    }
+}
+
 public protocol NetworkService: FeatureService {}
 public protocol MaintenanceService: FeatureService {}
 public protocol VPNService: FeatureService {}
