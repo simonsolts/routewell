@@ -148,10 +148,14 @@ final class RefreshController {
                             let history = await telemetry.append(TelemetrySample(
                                 capturedAt: observedAt,
                                 cpuLoad: router.loadAverages.first.map(Observed.value) ?? .unknown,
+                                cpuUtilizationPercent: router.cpuUtilizationPercent,
                                 memoryUsedBytes: used.map { .value(Double($0)) } ?? .unknown,
+                                memoryTotalBytes: total.map { .value(Double($0)) } ?? .unknown,
                                 temperatureCelsius: router.temperatureCelsius
                             ))
+                            let summary = await telemetry.session()
                             guard !Task.isCancelled, model.session.expectedToken == lease.token else { return }
+                            model.acceptTelemetry(history: history, session: summary, token: lease.token)
                             router.memoryHistory = history.memoryUsedBytes.compactMap {
                                 guard let total, total > 0 else { return nil }
                                 return $0.value / Double(total)
@@ -192,6 +196,15 @@ final class RefreshController {
                                     self?.logging?.record(kind: .refresh, message: "New devices found", fields: ["count": String(count)])
                                 }
                                 self?.featureElapsed[.clients] = .zero
+                                continue
+                            }
+                            if request.area == .routerDetail {
+                                // Wi-Fi and SQM are read only while the Router screen is visible.
+                                guard model.selection == .router else { continue }
+                                guard let result = try await model.session.routerSession.routerDetails(using: lease) else { continue }
+                                guard !Task.isCancelled, model.session.expectedToken == lease.token else { return }
+                                model.acceptRouterDetails(result, token: lease.token)
+                                self?.featureElapsed[.routerDetail] = .zero
                                 continue
                             }
                             guard let service = lease.backend.service(for: request.area) else { continue }
@@ -238,6 +251,16 @@ final class RefreshController {
     }
 
     func waitForRefresh() async { await task?.value }
+
+    /// Reset Session…: peaks and the observation count start from now. A
+    /// reset that finishes after a session switch is dropped.
+    func resetTelemetrySession() async {
+        guard let token = model.session.expectedToken else { return }
+        let sampler = telemetry
+        let summary = await sampler.resetSession(at: wallClock.now())
+        guard sampler === telemetry else { return }
+        model.acceptTelemetry(history: nil, session: summary, token: token)
+    }
 
     deinit { task?.cancel() }
 }

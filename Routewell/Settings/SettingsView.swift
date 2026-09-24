@@ -133,6 +133,29 @@ struct SettingsView: View {
                     } footer: {
                         Text("Device and presence history in mock mode stay in memory. Each device the seed history has not seen is reported once per app session. DNS activity uses the query-log capability above.")
                     }
+                    Section {
+                        Picker("SQM", selection: Binding(
+                            get: { environment.mockSQMBehavior },
+                            set: { environment.setMockSQMBehavior($0) }
+                        )) {
+                            Text("Unavailable (method not found)").tag(MockRouterService.SQMBehavior.unavailable)
+                            Text("Available, off").tag(MockRouterService.SQMBehavior.available)
+                            Text("Available, on with limits").tag(MockRouterService.SQMBehavior.enabled)
+                            Text("Read fails").tag(MockRouterService.SQMBehavior.failing)
+                        }
+                        Picker("Firmware check", selection: Binding(
+                            get: { environment.mockFirmwareBehavior },
+                            set: { environment.setMockFirmwareBehavior($0) }
+                        )) {
+                            Text("Unable to check").tag(MockRouterService.FirmwareBehavior.unableToCheck)
+                            Text("Update available").tag(MockRouterService.FirmwareBehavior.updateAvailable)
+                            Text("Up to date").tag(MockRouterService.FirmwareBehavior.upToDate)
+                        }
+                    } header: {
+                        Text("Mock router")
+                    } footer: {
+                        Text("Wi-Fi always shows three populated bands. Multi-WAN reports no interface state. SSH is not set up, so Ports, Storage, and Logs ask for it. The firmware check runs when you press Check for Updates.")
+                    }
                     #endif
                 }
                 if model.mode == .mock, let profile = environment.persistence.selectedProfile {

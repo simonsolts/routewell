@@ -17,6 +17,7 @@ final class AppEnvironment {
     let clients: ClientsController
     let clientDNS: ClientDNSController
     let clientActions: ClientActionsController
+    let router: RouterController
     let trustPrompt = TrustPromptController()
     private let credentials: any CredentialStore
     /// Builds one `HTTPTransport` for a lease, given the trust store it
@@ -28,6 +29,8 @@ final class AppEnvironment {
     private var mockBackend: MockRouterBackend?
     private(set) var mockClientsScenario: MockClientsService.Scenario = .newDevices
     private(set) var mockClientActionsMechanism: ClientActionMechanism? = .ssh
+    private(set) var mockSQMBehavior: MockRouterService.SQMBehavior = .unavailable
+    private(set) var mockFirmwareBehavior: MockRouterService.FirmwareBehavior = .unableToCheck
     #endif
     /// Set when `transportFactory` was actually called. Tests use this to
     /// prove mock mode never constructs a live transport.
@@ -51,17 +54,24 @@ final class AppEnvironment {
         self.refresh = RefreshController(model: model, logging: logging, registry: deviceRegistry, presence: presenceLog)
         self.clientDNS = ClientDNSController(model: model)
         self.clientActions = ClientActionsController(model: model)
+        // Mock baselines stay in memory; live ones use `snapshots.json`.
+        self.router = RouterController(model: model, baselines: UpgradeBaselineStore(store: model.mode == .live ? store : nil))
         self.persistence = PersistenceController(model: model, store: store, credentials: credentials)
         self.trust = TrustController(atomicStore: store, mode: model.mode)
         self.mutation = MutationController(model: model, refresh: refresh)
         #if DEBUG
         mockBackend = backend as? MockRouterBackend
         #endif
+        router.routerURL = { [weak self] in
+            guard let self, self.model.mode == .live else { return nil }
+            return self.persistence.selectedProfile?.liveEndpoint?.url
+        }
         setup = Task { [weak self] in
             guard let self else { return }
             await persistence.load()
             await trust.load()
             await clients.load()
+            await router.load()
             // `liveEndpoint != nil` alone is enough here: `PersistenceController
             // .addLiveProfile` now saves the Keychain secret before it ever
             // appends or persists the profile, so a saved live profile always
@@ -191,6 +201,21 @@ final class AppEnvironment {
         clientActions.mechanismChanged()
     }
 
+    func setMockSQMBehavior(_ behavior: MockRouterService.SQMBehavior) {
+        guard model.mode == .mock, let mockBackend else { return }
+        mockSQMBehavior = behavior
+        Task {
+            await mockBackend.mockRouter.setSQMBehavior(behavior)
+            refresh.refreshNow()
+        }
+    }
+
+    func setMockFirmwareBehavior(_ behavior: MockRouterService.FirmwareBehavior) {
+        guard model.mode == .mock, let mockBackend else { return }
+        mockFirmwareBehavior = behavior
+        Task { await mockBackend.mockRouter.setFirmwareBehavior(behavior) }
+    }
+
     func setMockClientsScenario(_ scenario: MockClientsService.Scenario) {
         guard model.mode == .mock, let mockBackend else { return }
         mockClientsScenario = scenario
@@ -236,8 +261,12 @@ final class AppEnvironment {
         backend.mockClientActions.setMechanism(mockClientActionsMechanism)
         mockBackend = backend
         let clientsScenario = mockClientsScenario
+        let sqm = mockSQMBehavior
+        let firmware = mockFirmwareBehavior
         setup = model.session.switchProfile(profile, model: model, refresh: refresh) {
             await backend.setClientsScenario(clientsScenario)
+            await backend.mockRouter.setSQMBehavior(sqm)
+            await backend.mockRouter.setFirmwareBehavior(firmware)
             return SessionLease(token: $0, backend: backend)
         }
     }
