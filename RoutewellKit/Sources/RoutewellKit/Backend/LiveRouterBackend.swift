@@ -69,6 +69,8 @@ public actor LiveRouterBackend: RouterBackend, FixtureRecordableBackend {
     /// Ping and Wake run over SSH; there is no client-scoped RPC. Without an
     /// SSH runner (SSH is set up from chunk 15) the buttons explain that.
     public nonisolated let clientActions: (any ClientActionsService)?
+    /// Wi-Fi, SQM, and the firmware check for the Router screen.
+    public nonisolated let router: (any RouterService)?
 
     public init(
         configuration: LiveBackendConfiguration,
@@ -89,6 +91,7 @@ public actor LiveRouterBackend: RouterBackend, FixtureRecordableBackend {
         self.log = log
         self.clients = LiveClientsService(rpc: rpc, adGuard: adGuard, clock: clock)
         self.queryLog = adGuard.map { LiveQueryLogService(adGuard: $0, clock: clock) }
+        self.router = LiveRouterService(rpc: rpc, clock: clock)
         // One gate per router, shared by every write this backend runs.
         let gate = MutationGate()
         self.clientActions = sshRunner.map { SSHClientActions(runner: $0, gate: gate, clock: clock) } ?? SSHRequiredClientActions()
@@ -284,7 +287,8 @@ public actor LiveRouterBackend: RouterBackend, FixtureRecordableBackend {
                         stats = nil // best-effort: a missing stats window never fails the area
                     }
                 }
-                let mapped = AdGuardClient.adGuardStatus(status: status, stats: stats, now: clock())
+                var mapped = AdGuardClient.adGuardStatus(status: status, stats: stats, now: clock())
+                mapped.handlesClientRequests = configJSON["dns_enabled"]?.bool.map(Observed.value) ?? .unknown
                 return (.success(mapped, observedAt: attemptedAt, source: .adGuardAPI), nil)
             } catch let error as AdGuardClientError {
                 try Self.rethrowIfCancelled(error)

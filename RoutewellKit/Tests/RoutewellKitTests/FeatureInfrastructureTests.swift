@@ -143,3 +143,32 @@ private struct FixtureBackend: RouterBackend, FixtureRecordableBackend {
     #expect(!text.contains("Kitchen iPad"))
     #expect(!text.contains("Simons iPhone"))
 }
+
+@Test func recorderAllowsTheNamedFirmwareCheckOnly() {
+    #expect(FixtureRecordingPlan.calls.contains { $0.object == "upgrade" && $0.method == "check_firmware_online" })
+    #expect(FixtureRecordingPlan.isReadOnly(.init(.rpc, object: "upgrade", method: "check_firmware_online", fileName: "a.json")))
+    #expect(!FixtureRecordingPlan.isReadOnly(.init(.rpc, object: "system", method: "check_firmware_online", fileName: "b.json")))
+    #expect(!FixtureRecordingPlan.isReadOnly(.init(.rpc, object: "upgrade", method: "upgrade_online", fileName: "c.json")))
+    #expect(!FixtureRecordingPlan.isReadOnly(.init(.rpc, object: "sqm", method: "set_config", fileName: "d.json")))
+    #expect(!FixtureRecordingPlan.isReadOnly(.init(.rpc, method: "check_firmware_online", fileName: "e.json")))
+}
+
+@Test func recorderKeepsVersionAndRadioTokens() {
+    let payload: JSONValue = .object([
+        "firmware_version": .string("4.9.1"), "new_firmware_version": .string("4.9.2"),
+        "board_info": .object(["kernel_version": .string("5.4.281"), "architecture": .string("mediatek/mt7988"),
+                               "hostname": .string("Simons router")]),
+        "txpower": .string("max"), "htmode": .string("EHT160"), "upload": .string("100"),
+        "release_note": .string("Fixes for Simon's home")
+    ])
+    let redacted = RecordedFixtureRedactor.redact(payload)
+    #expect(redacted["firmware_version"]?.string == "4.9.1")
+    #expect(redacted["new_firmware_version"]?.string == "4.9.2")
+    #expect(redacted["board_info"]?["kernel_version"]?.string == "5.4.281")
+    #expect(redacted["board_info"]?["architecture"]?.string == "mediatek/mt7988")
+    #expect(redacted["board_info"]?["hostname"]?.string == "Example")
+    #expect(redacted["txpower"]?.string == "max")
+    #expect(redacted["htmode"]?.string == "EHT160")
+    #expect(redacted["upload"]?.string == "100")
+    #expect(redacted["release_note"]?.string == "[REDACTED TEXT]")
+}

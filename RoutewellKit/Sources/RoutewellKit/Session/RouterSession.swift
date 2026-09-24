@@ -86,6 +86,30 @@ public actor RouterSession {
         return try result.get()
     }
 
+    /// Reads the Router screen's Wi-Fi and SQM, fenced like `overview(using:)`.
+    /// `nil` when the backend has no Router service.
+    public func routerDetails(using lease: SessionLease) async throws -> RouterDetailsResult? {
+        try validateBefore(lease)
+        guard let service = lease.backend.router else { return nil }
+        let result: Result<RouterDetailsResult, any Error>
+        do { result = .success(try await service.details()) }
+        catch { result = .failure(error) }
+        try validateAfter(lease)
+        return try result.get()
+    }
+
+    /// One on-demand firmware check, fenced like a read. `nil` when the
+    /// backend has no Router service.
+    public func checkFirmware(using lease: SessionLease) async throws -> FirmwareCheck? {
+        try validateBefore(lease)
+        guard let service = lease.backend.router else { return nil }
+        let result: Result<FirmwareCheck, any Error>
+        do { result = .success(try await service.checkFirmware()) }
+        catch { result = .failure(error) }
+        try validateAfter(lease)
+        return try result.get()
+    }
+
     /// Pings one client from the router, fenced like a read. `nil` when the
     /// backend offers no client actions.
     public func ping(using lease: SessionLease, address: IPv4Literal) async throws -> Result<PingResult, RefreshFailureCategory>? {

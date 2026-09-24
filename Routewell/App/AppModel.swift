@@ -138,6 +138,50 @@ final class AppModel {
         clientsDetailsVisible = true
         clientsDetailsSection = section.rawValue
     }
+    // MARK: Router (chunk 14)
+
+    /// The last successful Wi-Fi and SQM reads in this session. A failed
+    /// refresh keeps them; a session switch clears them.
+    private(set) var wireless: WirelessStatus?
+    private(set) var wirelessFreshness = Freshness()
+    private(set) var sqm: SQMConfiguration?
+    private(set) var sqmFreshness = Freshness()
+    private(set) var sqmCapability = Capability()
+    /// The sampler's rings and Routewell's own session peaks.
+    private(set) var telemetryHistory = TelemetryHistory.empty
+    private(set) var telemetrySession = TelemetrySessionSummary()
+    /// Multi-WAN active-path changes seen while Routewell runs.
+    private(set) var wanPaths = WANPathTracker()
+
+    func acceptRouterDetails(_ result: RouterDetailsResult, token: SessionToken) {
+        guard session.isReady, token == session.expectedToken else { return }
+        switch result.wireless {
+        case .success(let value, let observedAt, let source):
+            wireless = value
+            wirelessFreshness = Freshness(lastSuccess: observedAt, lastAttempt: observedAt, source: source)
+        case .failure(let category, let attemptedAt):
+            wirelessFreshness.lastAttempt = attemptedAt
+            wirelessFreshness.failure = category
+        }
+        switch result.sqm {
+        case .success(let value, let observedAt, let source):
+            sqm = value
+            sqmFreshness = Freshness(lastSuccess: observedAt, lastAttempt: observedAt, source: source)
+        case .failure(let category, let attemptedAt):
+            // `-32601` proves the native API is absent: no earlier value stays.
+            if result.sqmCapability.state == .unsupported { sqm = nil }
+            sqmFreshness.lastAttempt = attemptedAt
+            sqmFreshness.failure = category
+        }
+        sqmCapability = result.sqmCapability
+    }
+
+    func acceptTelemetry(history: TelemetryHistory?, session summary: TelemetrySessionSummary, token: SessionToken) {
+        guard session.isReady, token == session.expectedToken else { return }
+        if let history { telemetryHistory = history }
+        telemetrySession = summary
+    }
+
     let mode: BackendMode
 
     init(mode: BackendMode, snapshot: OverviewSnapshot? = nil, now: Date = .now) {
@@ -158,6 +202,14 @@ final class AppModel {
         capabilities = [:]
         clientInventory = nil
         clientsFreshness = Freshness()
+        wireless = nil
+        wirelessFreshness = Freshness()
+        sqm = nil
+        sqmFreshness = Freshness()
+        sqmCapability = Capability()
+        telemetryHistory = .empty
+        telemetrySession = TelemetrySessionSummary()
+        wanPaths = WANPathTracker()
         healthChecks = HealthEvaluator().evaluate(snapshot: nil, freshness: freshness, now: evaluatedAt)
         isRefreshing = false
         refreshFailed = false
@@ -219,6 +271,9 @@ final class AppModel {
         var value = snapshot ?? OverviewSnapshot(observedAt: evaluatedAt)
         apply(result.router, area: .router, value: &value.router)
         apply(result.internet, area: .internet, value: &value.internet)
+        if case .success(let internet, let observedAt, _) = result.internet {
+            wanPaths.observe(MultiWANStatus.derive(from: internet), at: observedAt)
+        }
         apply(result.adGuard, area: .adGuard, value: &value.adGuard)
         apply(result.clients, area: .clients, value: &value.clients)
         if freshness.values.contains(where: { $0.lastSuccess != nil }) {

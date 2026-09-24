@@ -33,6 +33,9 @@ public enum FixtureRecordingPlan {
         .init(.rpc, object: "vpn-client", method: "get_config", fileName: "vpn-client-get_config.json"),
         .init(.rpc, object: "tailscale", method: "get_config", fileName: "tailscale-get_config.json"),
         .init(.rpc, object: "flow_statistics", method: "get_status", fileName: "flow_statistics-get_status.json"),
+        // Chunk 14: the router asks GL.iNet's server whether newer firmware
+        // exists. It downloads and installs nothing.
+        .init(.rpc, object: "upgrade", method: "check_firmware_online", fileName: "upgrade-check_firmware_online.json"),
         .init(.adGuard, method: "control/status", fileName: "adguard-status.json"),
         .init(.adGuard, method: "control/stats", fileName: "adguard-stats.json"),
         .init(.adGuard, method: "control/clients", fileName: "adguard-clients.json"),
@@ -40,10 +43,17 @@ public enum FixtureRecordingPlan {
         .init(.adGuard, method: "control/filtering/status", fileName: "adguard-filtering-status.json")
     ]
 
+    /// RPC reads whose names do not start with `get_`. Each one is named
+    /// exactly; the prefix rule stays the only general rule.
+    static let namedReads: Set<String> = ["upgrade.check_firmware_online"]
+
     public static func isReadOnly(_ call: FixtureCall) -> Bool {
         switch call.transport {
-        case .rpc: call.object != nil && (call.method.hasPrefix("get_") || call.method == "list")
-        case .adGuard: call.method.hasPrefix("control/") && !call.method.contains("set") && !call.method.contains("update")
+        case .rpc:
+            guard let object = call.object else { return false }
+            return call.method.hasPrefix("get_") || call.method == "list" || namedReads.contains("\(object).\(call.method)")
+        case .adGuard:
+            return call.method.hasPrefix("control/") && !call.method.contains("set") && !call.method.contains("update")
         }
     }
 }
@@ -155,8 +165,11 @@ public enum RecordedFixtureRedactor {
     /// Router and AdGuard enum-like fields whose values are technical tokens,
     /// never personal text: interface names, device class, vendor, AdGuard
     /// client source, query result reason, DNS status, protocol, record type.
-    private static let tokenFields: Set<String> = ["iface", "class", "vendor", "source", "reason", "status", "client_proto", "type", "band", "time_units"]
-    private static let numericFields: Set<String> = ["total_rx", "total_tx", "total_rx_init", "total_tx_init", "online_time", "elapsedms"]
+    /// Chunk 14 adds version, kernel, architecture, radio, and SQM tokens.
+    private static let tokenFields: Set<String> = ["iface", "class", "vendor", "source", "reason", "status", "client_proto", "type", "band", "time_units",
+        "firmware_version", "current_version", "new_firmware_version", "version", "kernel_version", "openwrt_version", "architecture",
+        "firmware_type", "htmode", "hwmode", "txpower", "qdisc", "protocol", "device", "state", "interface"]
+    private static let numericFields: Set<String> = ["total_rx", "total_tx", "total_rx_init", "total_tx_init", "online_time", "elapsedms", "upload", "download"]
     private static let timeFields: Set<String> = ["time", "oldest"]
 
     private static func isNameField(_ field: String) -> Bool {

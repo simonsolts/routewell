@@ -1,0 +1,7 @@
+{
+ "current_version": "4.9.1",
+ "new_firmware_url": "https://example.invalid/firmware.bin",
+ "new_firmware_version": "4.9.2",
+ "release_note": "Example release note line 1.\nExample release note line 2.",
+ "update_available": true
+}

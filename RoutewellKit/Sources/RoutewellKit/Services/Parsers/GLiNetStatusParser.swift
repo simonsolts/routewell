@@ -16,18 +16,35 @@ public enum GLiNetStatusParser {
         status.model = boardInfo?["model"]?.string ?? getInfo?["model"]?.string
         status.firmware = getInfo?["firmware_version"]?.string
         status.openWrtVersion = boardInfo?["openwrt_version"]?.string
+        status.kernelVersion = boardInfo?["kernel_version"]?.string
+        status.architecture = boardInfo?["architecture"]?.string
 
         let system = getStatus?["system"]
         status.lanAddress = system?["lan_ip"]?.string
-        status.uptimeSeconds = system?["uptime"]?.int
+        // 4.9.1 reports fractional seconds (`413388.56`) `[verified live]`.
+        status.uptimeSeconds = numericDouble(system?["uptime"]).flatMap { $0 >= 0 && $0.isFinite ? Int($0) : nil }
         status.loadAverages = system?["load_average"]?.array?.compactMap(numericDouble) ?? []
 
         let memoryTotal = system?["memory_total"]?.int
         let memoryFree = system?["memory_free"]?.int
+        let buffersAndCache = system?["memory_buff_cache"]?.int
         if let memoryTotal, let memoryFree {
             status.memoryTotalBytes = Int64(memoryTotal)
-            status.memoryUsedBytes = Int64(memoryTotal - memoryFree)
+            status.memoryFreeBytes = Int64(memoryFree)
+            status.memoryBuffersAndCacheBytes = buffersAndCache.map(Int64.init)
+            // Buffers and cache are reclaimable, so they do not count as used
+            // when the router reports them (4.9.1 does `[verified live]`).
+            let used = memoryTotal - memoryFree - (buffersAndCache ?? 0)
+            status.memoryUsedBytes = Int64(used >= 0 ? used : memoryTotal - memoryFree)
         }
+        if let total = system?["flash_total"]?.int, let free = system?["flash_free"]?.int, total > 0 {
+            status.storageTotalBytes = Int64(total)
+            status.storageFreeBytes = Int64(free)
+        }
+        if let timestamp = numericDouble(system?["timestamp"]), timestamp > 0 {
+            status.routerTime = Date(timeIntervalSince1970: timestamp)
+        }
+        if let sqm = system?["sqm_enabled"]?.bool { status.sqmEnabled = .value(sqm) }
 
         if let temperature = numericDouble(system?["cpu"]?["temperature"]) {
             status.temperatureCelsius = .value(temperature)
@@ -51,6 +68,14 @@ public enum GLiNetStatusParser {
             status.reachability = .unknown
         }
 
+        status.uplinks = getStatus?["network"]?.array?.compactMap { entry in
+            guard let name = entry["interface"]?.string, !name.isEmpty else { return nil }
+            return UplinkInterface(name: name,
+                                   up: entry["up"]?.bool.map(Observed.value) ?? .unknown,
+                                   online: entry["online"]?.bool.map(Observed.value) ?? .unknown)
+        } ?? []
+        status.wanProtocol = cableStatus?["protocol"]?.string.flatMap { $0.isEmpty ? nil : $0 }
+
         let ipv4 = cableStatus?["ipv4"]
         if let ip = ipv4?["ip"]?.string {
             status.publicAddress = String(ip.split(separator: "/", maxSplits: 1).first ?? Substring(ip))
@@ -69,6 +94,11 @@ public enum GLiNetStatusParser {
             status.activeCount = .value(activeCount)
             if let parsed = clientList.flatMap(GLiNetClientListParser.parse) {
                 status.listed = Dictionary(parsed.entries.map { ($0.mac, $0.online) }, uniquingKeysWith: { first, _ in first })
+                var byBand: [WirelessBand: Int] = [:]
+                for entry in parsed.entries where entry.online == .value(true) {
+                    if let band = WirelessBand.parse(entry.interface) { byBand[band, default: 0] += 1 }
+                }
+                status.onlineByBand = byBand
             }
         } else if let entry = getStatus?["client"]?.array?.first,
                   let wireless = entry["wireless_total"]?.int,

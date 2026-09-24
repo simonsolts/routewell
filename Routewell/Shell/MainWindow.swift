@@ -102,10 +102,10 @@ struct MainWindow: View {
         }
     }
 
-    /// Clients has no toolbar subtitle (architecture 06); its count is in the
-    /// status line above the table.
+    /// Clients and Router have no toolbar subtitle (architecture 06; Router
+    /// has ten segments, design/router-screen.md).
     private var subtitle: String {
-        if model.selection == .clients { return "" }
+        if !model.selection.showsSubtitle { return "" }
         return model.mode == .mock ? (model.session.expectedToken?.profileID ?? "Sample router") : "Not connected"
     }
 

@@ -32,16 +32,19 @@ struct SSHRequiredView: View {
     @Environment(\.openSettings) private var openSettings
     let title: String
 
+    /// Selects the Router tab first, so Settings opens on it.
+    static func openRouterSettings(_ model: AppModel, open: () -> Void) {
+        model.settingsTab = "Router"
+        open()
+    }
+
     var body: some View {
         ContentUnavailableView {
             Label(title, systemImage: "terminal")
         } description: {
             Text("This feature needs SSH, which is not set up for this router.")
         } actions: {
-            Button("Open Router Settings") {
-                model.settingsTab = "Router"
-                openSettings()
-            }
+            Button("Open Router Settings") { Self.openRouterSettings(model, open: { openSettings() }) }
         }
     }
 }

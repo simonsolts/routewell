@@ -1,0 +1,21 @@
+{
+ "ipv4": {
+  "dns": [
+   "198.51.100.6",
+   "198.51.100.7"
+  ],
+  "gateway": "198.51.100.8",
+  "ip": "198.51.100.9"
+ },
+ "mode": 0,
+ "protocol": "pppoe",
+ "secondwan": {
+  "mode": 1,
+  "status": 3
+ },
+ "status": 1,
+ "usbwan": {
+  "err_code": -4,
+  "err_msg": "example"
+ }
+}

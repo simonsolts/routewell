@@ -1,0 +1,257 @@
+{
+ "client": [
+  {
+   "auto_remove_offline": false,
+   "cable_total": 4,
+   "wireless_total": 7
+  }
+ ],
+ "network": [
+  {
+   "interface": "tethering",
+   "online": true,
+   "up": false
+  },
+  {
+   "interface": "wan6",
+   "online": true,
+   "up": false
+  },
+  {
+   "interface": "wwan6",
+   "online": true,
+   "up": false
+  },
+  {
+   "interface": "tethering6",
+   "online": true,
+   "up": false
+  },
+  {
+   "interface": "wwan",
+   "online": true,
+   "up": false
+  },
+  {
+   "interface": "secondwan",
+   "online": true,
+   "up": false
+  },
+  {
+   "interface": "wan",
+   "online": true,
+   "up": true
+  },
+  {
+   "interface": "secondwan6",
+   "online": true,
+   "up": false
+  }
+ ],
+ "service": [
+  {
+   "name": "service_1",
+   "status": 0
+  },
+  {
+   "name": "service_2",
+   "status": 0
+  },
+  {
+   "name": "service_3",
+   "status": 1
+  },
+  {
+   "name": "service_4",
+   "status": 0
+  },
+  {
+   "name": "service_5",
+   "status": 0
+  },
+  {
+   "name": "service_6",
+   "status": 0
+  },
+  {
+   "name": "service_7",
+   "status": 0
+  },
+  {
+   "name": "service_8",
+   "status": 0
+  },
+  {
+   "name": "service_9",
+   "status": 0
+  }
+ ],
+ "system": {
+  "content_protection_enabled": false,
+  "cpu": {
+   "temperature": 55
+  },
+  "ddns_enabled": false,
+  "dpi_info": {
+   "lib_update_time": "example",
+   "lib_version": "example",
+   "status": "1"
+  },
+  "flash_app": 1437122560,
+  "flash_free": 60739305472,
+  "flash_total": 62176428032,
+  "flow_statistics_enabled": false,
+  "guest_ip": "198.51.100.1",
+  "guest_netmask": "198.51.100.2",
+  "iot_ip": "198.51.100.3",
+  "iot_netmask": "198.51.100.2",
+  "ipv6_enabled": false,
+  "lan_ip": "198.51.100.4",
+  "lan_netmask": "198.51.100.2",
+  "load_average": [
+   2.41,
+   2.39,
+   2.31
+  ],
+  "memory_buff_cache": 423473152,
+  "memory_free": 810254336,
+  "memory_total": 2082811904,
+  "mode": 0,
+  "netnat_enabled": true,
+  "prio_enabled": false,
+  "qos_enabled": false,
+  "sqm_enabled": false,
+  "subnets": [
+   {
+    "ip": "198.51.100.4",
+    "netmask": "198.51.100.2"
+   },
+   {
+    "ip": "198.51.100.1",
+    "netmask": "198.51.100.2"
+   },
+   {
+    "ip": "198.51.100.3",
+    "netmask": "198.51.100.2"
+   }
+  ],
+  "time_sync_status": true,
+  "timestamp": 1790251651,
+  "tzoffset": "example",
+  "uptime": 413388.56
+ },
+ "wifi": [
+  {
+   "band": "2G",
+   "channel": 0,
+   "encryption": "example",
+   "guest": false,
+   "hidden": false,
+   "init": true,
+   "iot": false,
+   "mld": false,
+   "name": "Example 10",
+   "passwd": "[REDACTED]",
+   "ssid": "Example SSID 1",
+   "up": true
+  },
+  {
+   "band": "5G",
+   "channel": 0,
+   "encryption": "example",
+   "guest": false,
+   "hidden": false,
+   "init": true,
+   "iot": false,
+   "mld": false,
+   "name": "Example 12",
+   "passwd": "[REDACTED]",
+   "ssid": "Example SSID 2",
+   "up": true
+  },
+  {
+   "band": "6G",
+   "channel": 0,
+   "encryption": "example",
+   "guest": false,
+   "hidden": false,
+   "init": true,
+   "iot": false,
+   "mld": false,
+   "name": "Example 13",
+   "passwd": "[REDACTED]",
+   "ssid": "Example SSID 3",
+   "up": true
+  },
+  {
+   "band": "2G",
+   "channel": 0,
+   "encryption": "example",
+   "guest": true,
+   "hidden": false,
+   "init": false,
+   "iot": false,
+   "mld": false,
+   "name": "Example 15",
+   "passwd": "[REDACTED]",
+   "ssid": "Example SSID 4",
+   "up": false
+  },
+  {
+   "band": "5G",
+   "channel": 0,
+   "encryption": "example",
+   "guest": true,
+   "hidden": false,
+   "init": false,
+   "iot": false,
+   "mld": false,
+   "name": "Example 17",
+   "passwd": "[REDACTED]",
+   "ssid": "Example SSID 5",
+   "up": false
+  },
+  {
+   "band": "6G",
+   "channel": 0,
+   "encryption": "example",
+   "guest": true,
+   "hidden": false,
+   "init": false,
+   "iot": false,
+   "mld": false,
+   "name": "Example 19",
+   "passwd": "[REDACTED]",
+   "ssid": "Example SSID 6",
+   "up": false
+  },
+  {
+   "band": "2G",
+   "channel": 0,
+   "encryption": "example",
+   "guest": false,
+   "hidden": false,
+   "init": false,
+   "iot": true,
+   "mld": false,
+   "name": "Example 21",
+   "passwd": "[REDACTED]",
+   "ssid": "Example SSID 7",
+   "up": false
+  },
+  {
+   "band": "5G",
+   "channel": 0,
+   "encryption": "example",
+   "guest": false,
+   "hidden": false,
+   "init": false,
+   "iot": true,
+   "mld": false,
+   "name": "Example 23",
+   "passwd": "[REDACTED]",
+   "ssid": "Example SSID 8",
+   "up": false
+  }
+ ]
+}

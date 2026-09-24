@@ -26,7 +26,7 @@ public enum ScreenRefreshPlan {
         case "vpn": .vpn
         case "applications": .plugins
         case "analytics": .telemetry
-        case "router": .network
+        case "router": .routerDetail
         default: nil
         }
         if let area { intervals[area] = defaultInterval }

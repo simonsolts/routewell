@@ -1,0 +1,22 @@
+{
+ "res": [
+  {
+   "band": "5g",
+   "channel": 44,
+   "name": "radio0",
+   "state": "ready"
+  },
+  {
+   "band": "2g",
+   "channel": 9,
+   "name": "radio1",
+   "state": "ready"
+  },
+  {
+   "band": "6g",
+   "channel": 37,
+   "name": "radio2",
+   "state": "ready"
+  }
+ ]
+}
