@@ -236,7 +236,13 @@ struct MetricCell: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text(metric.title).font(.subheadline).foregroundStyle(.secondary)
+            HStack(spacing: 8) {
+                Text(metric.title).font(.subheadline).foregroundStyle(.secondary).lineLimit(1).layoutPriority(1)
+                if let history = metric.history, history.count > 1 {
+                    Spacer(minLength: 8)
+                    Sparkline(values: history).frame(width: 120, height: 20)
+                }
+            }
             HStack(alignment: .firstTextBaseline, spacing: 6) {
                 if let tone = metric.tone { StatusDot(tone: tone) }
                 Text(metric.value)
@@ -244,10 +250,6 @@ struct MetricCell: View {
                     .foregroundStyle(metric.emphasised ? Color.orange : Color.primary)
                 if let unit = metric.unit {
                     Text(unit).font(.subheadline).foregroundStyle(.secondary)
-                }
-                if let history = metric.history, history.count > 1 {
-                    Spacer(minLength: 8)
-                    Sparkline(values: history).frame(width: 120, height: 20)
                 }
             }
             Text(metric.detail).font(.subheadline).foregroundStyle(.secondary)

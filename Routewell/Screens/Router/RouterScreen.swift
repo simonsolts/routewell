@@ -60,18 +60,16 @@ struct RouterUnavailableView: View {
     }
 }
 
-/// Two columns when the window is wide enough, else one.
+/// Two equal columns, as in every Router mockup. The window's minimum
+/// width leaves each column more than 300 pt.
 private struct TwoColumns<Left: View, Right: View>: View {
     @ViewBuilder var left: () -> Left
     @ViewBuilder var right: () -> Right
 
     var body: some View {
-        ViewThatFits(in: .horizontal) {
-            HStack(alignment: .top, spacing: 22) {
-                VStack(alignment: .leading, spacing: 22, content: left).frame(minWidth: 330, maxWidth: .infinity)
-                VStack(alignment: .leading, spacing: 22, content: right).frame(minWidth: 330, maxWidth: .infinity)
-            }
-            VStack(alignment: .leading, spacing: 22) { left(); right() }
+        HStack(alignment: .top, spacing: 22) {
+            VStack(alignment: .leading, spacing: 22, content: left).frame(maxWidth: .infinity, alignment: .topLeading)
+            VStack(alignment: .leading, spacing: 22, content: right).frame(maxWidth: .infinity, alignment: .topLeading)
         }
     }
 }
@@ -311,7 +309,8 @@ struct RouterSQMSegment: View {
             }
             Spacer()
             HStack(spacing: 4) {
-                TextField(title, text: .constant(value)).labelsHidden().multilineTextAlignment(.trailing).frame(width: 80)
+                TextField("", text: .constant(value), prompt: nil).labelsHidden().accessibilityLabel(title)
+                    .multilineTextAlignment(.trailing).frame(width: 80)
                 Text("Mbps").foregroundStyle(.secondary)
             }
         }

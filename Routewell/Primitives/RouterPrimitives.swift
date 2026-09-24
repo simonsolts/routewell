@@ -102,8 +102,9 @@ struct InsetTable: View {
     var body: some View {
         Grid(alignment: .leading, horizontalSpacing: 16, verticalSpacing: 0) {
             GridRow {
-                ForEach(columns, id: \.self) { column in
+                ForEach(Array(columns.enumerated()), id: \.offset) { index, column in
                     Text(column).font(.subheadline).foregroundStyle(.secondary)
+                        .frame(maxWidth: index == 0 ? nil : .infinity, alignment: .leading)
                 }
             }
             .padding(.vertical, 6)
@@ -114,7 +115,7 @@ struct InsetTable: View {
             }
             ForEach(Array(rows.enumerated()), id: \.offset) { index, row in
                 GridRow {
-                    ForEach(Array(row.enumerated()), id: \.offset) { _, cell in
+                    ForEach(Array(row.enumerated()), id: \.offset) { index, cell in
                         HStack(spacing: 5) {
                             if let tone = cell.tone { StatusDot(tone: tone) }
                             Text(cell.text)
@@ -123,6 +124,9 @@ struct InsetTable: View {
                                 .lineLimit(1)
                                 .textSelection(.enabled)
                         }
+                        // The first column (SSID, interface) keeps its full text.
+                        .fixedSize(horizontal: index == 0, vertical: false)
+                        .frame(maxWidth: index == 0 ? nil : .infinity, alignment: .leading)
                     }
                 }
                 .padding(.vertical, 5)
