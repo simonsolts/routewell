@@ -25,6 +25,8 @@ public actor MockRouterBackend: RouterBackend {
     public nonisolated let clients: (any ClientsService)?
     public nonisolated let mockClients = MockClientsService()
     public nonisolated let queryLog: (any QueryLogService)?
+    public nonisolated let mockQueryLog = MockQueryLogService()
+    public nonisolated let mockClientActions = MockClientActions()
     public nonisolated let network: (any NetworkService)?
     public nonisolated let maintenance: (any MaintenanceService)?
     public nonisolated let vpn: (any VPNService)?
@@ -47,10 +49,10 @@ public actor MockRouterBackend: RouterBackend {
     public init(scenario: Scenario = .healthy, hostname: String = "flint-demo") {
         self.scenario = scenario
         self.hostname = hostname
-        let probes = Dictionary(uniqueKeysWithValues: [DataArea.queryLog, .network, .maintenance, .vpn, .plugins, .telemetry].map { ($0, MockFeatureProbe()) })
+        let probes = Dictionary(uniqueKeysWithValues: [DataArea.network, .maintenance, .vpn, .plugins, .telemetry].map { ($0, MockFeatureProbe()) })
         featureProbes = probes
         clients = mockClients
-        queryLog = probes[.queryLog]
+        queryLog = mockQueryLog
         network = probes[.network]
         maintenance = probes[.maintenance]
         vpn = probes[.vpn]
@@ -63,6 +65,10 @@ public actor MockRouterBackend: RouterBackend {
         let scenario = scenario
         if scenario == .slow { try await Task.sleep(for: .seconds(5)) }
         var result = Self.result(scenario: scenario, hostname: hostname, at: .now)
+        if case .success(var clients, let observedAt, let source) = result.clients {
+            clients.listed = await mockClients.listedPresence()
+            result.clients = .success(clients, observedAt: observedAt, source: source)
+        }
         if let protectionOverride, case .success(var adGuard, let observedAt, let source) = result.adGuard {
             adGuard.protection = protectionOverride
             result.adGuard = .success(adGuard, observedAt: observedAt, source: source)
@@ -74,6 +80,7 @@ public actor MockRouterBackend: RouterBackend {
 
     public func setFeatureBehavior(_ behavior: FeatureBehavior, for area: DataArea) async {
         if area == .clients { await mockClients.setBehavior(behavior) }
+        if area == .queryLog { await mockQueryLog.setBehavior(behavior) }
         await featureProbes[area]?.setBehavior(behavior)
     }
 
@@ -81,10 +88,15 @@ public actor MockRouterBackend: RouterBackend {
         await mockClients.setScenario(scenario)
     }
 
-    /// Clients has mock data, so its capability starts supported; the other
-    /// areas have none yet and start unknown.
+    /// Clients and the query log have mock data, so their capability starts
+    /// supported; the other areas have none yet and start unknown.
     public static func defaultFeatureBehavior(for area: DataArea) -> FeatureBehavior {
-        area == .clients ? .supported : .unknown
+        area == .clients || area == .queryLog ? .supported : .unknown
+    }
+
+    /// `nil` hides Ping and Wake.
+    public nonisolated var clientActions: (any ClientActionsService)? {
+        mockClientActions.currentMechanism == nil ? nil : mockClientActions
     }
 
     public func setProtectionBehavior(_ behavior: ProtectionBehavior) {
@@ -238,7 +250,7 @@ public actor MockRouterBackend: RouterBackend {
     }
 }
 
-private actor MockFeatureProbe: QueryLogService, NetworkService,
+private actor MockFeatureProbe: NetworkService,
     MaintenanceService, VPNService, PluginsService, TelemetryService {
     private var behavior: MockRouterBackend.FeatureBehavior = .unknown
 

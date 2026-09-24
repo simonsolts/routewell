@@ -61,7 +61,6 @@ struct AllClientsView: View {
     @State private var onlineOnly = false
     @State private var favouritesOnly = false
     @State private var hideUnknown = false
-    @State private var selection: Set<MACAddress> = []
     @State private var sortOrder = [KeyPathComparator(\ClientRow.blockedKey, order: .reverse)]
     @State private var showingReview = false
     @State private var paneHeight: Double = 300
@@ -97,7 +96,7 @@ struct AllClientsView: View {
                     if model.clientsDetailsVisible {
                         let range = paneRange(total: geometry.size.height)
                         PaneDivider(height: $paneHeight, range: range) { model.clientsDetailsHeight = $0 }
-                        ClientDetailsPane(content: ClientsPaneContent.resolve(selection: selection, entries: all), now: now)
+                        ClientDetailsPane(content: ClientsPaneContent.resolve(selection: model.clientsSelection, entries: all), now: now)
                             .frame(height: min(max(paneHeight, range.lowerBound), range.upperBound))
                     } else {
                         Spacer().frame(height: 16)
@@ -107,6 +106,22 @@ struct AllClientsView: View {
         }
         .onAppear { paneHeight = model.clientsDetailsHeight }
         .onChange(of: model.clientsDetailsHeight) { _, value in paneHeight = value }
+        .sheet(isPresented: Binding(
+            get: { environment.clientActions.sshRequiredAction != nil },
+            set: { if !$0 { environment.clientActions.sshRequiredAction = nil } }
+        )) {
+            VStack(spacing: 0) {
+                SSHRequiredView(title: environment.clientActions.sshRequiredAction == .wake ? "Wake needs SSH" : "Ping needs SSH")
+                    .frame(width: 420, height: 240)
+                HStack {
+                    Text("The router runs Ping and Wake over SSH; it offers no other way.")
+                        .font(.subheadline).foregroundStyle(.secondary)
+                    Spacer()
+                    Button("Done") { environment.clientActions.sshRequiredAction = nil }.keyboardShortcut(.defaultAction)
+                }
+                .padding(16)
+            }
+        }
         .sheet(isPresented: $showingReview) {
             NewDevicesSheet(
                 rows: ClientsFormat.reviewRows(registry: model.deviceRegistry, clients: inventory.clients, now: now),
@@ -174,7 +189,8 @@ struct AllClientsView: View {
     }
 
     private func table(_ rows: [ClientRow]) -> some View {
-        Table(rows, selection: $selection, sortOrder: $sortOrder) {
+        @Bindable var model = model
+        return Table(rows, selection: $model.clientsSelection, sortOrder: $sortOrder) {
             TableColumn("Name", value: \.nameKey) { row in Text(row.name) }
                 .width(min: 120, ideal: 170)
             TableColumn("IP address", value: \.ipKey) { row in
@@ -221,6 +237,46 @@ struct AllClientsView: View {
             .width(22)
         }
         .tableStyle(.inset(alternatesRowBackgrounds: true))
+        .contextMenu(forSelectionType: MACAddress.self) { macs in
+            if macs.count == 1, let mac = macs.first, let row = rows.first(where: { $0.id == mac }) {
+                rowMenu(row.entry)
+            }
+        } primaryAction: { macs in
+            guard macs.count == 1, let mac = macs.first else { return }
+            model.revealClient(mac, section: .overview)
+        }
+    }
+
+    /// Open Details, Ping, Wake, Favourite, Copy IP, Copy MAC, Show DNS Log.
+    @ViewBuilder
+    private func rowMenu(_ entry: ClientListEntry) -> some View {
+        let actions = environment.clientActions
+        Button("Open Details") { model.revealClient(entry.mac, section: .overview) }
+        if actions.mechanism != nil {
+            Divider()
+            Button("Ping") {
+                model.clientsSelection = [entry.mac]
+                actions.ping(entry)
+            }
+            .disabled(actions.mechanism != .sshRequired && entry.client?.ip.flatMap(IPv4Literal.init) == nil)
+            Button("Wake") {
+                model.clientsSelection = [entry.mac]
+                actions.wake(entry)
+            }
+        }
+        Divider()
+        Button(entry.isFavourite ? "Remove from Favourites" : "Add to Favourites") {
+            Task { await environment.clients.edit(entry.mac, .setFavourite(!entry.isFavourite)) }
+        }
+        .disabled(entry.record == nil)
+        Divider()
+        Button("Copy IP Address") { ClientsPasteboard.copy(entry.client?.ip ?? "") }
+            .disabled(entry.client?.ip == nil)
+        Button("Copy MAC Address") { ClientsPasteboard.copy(entry.mac.colonSeparated) }
+        Divider()
+        // The DNS Activity screen arrives in chunk 16.
+        Button("Show DNS Log") {}
+            .disabled(true)
     }
 
     private func review(_ mac: MACAddress) {
@@ -228,8 +284,7 @@ struct AllClientsView: View {
         onlineOnly = false
         favouritesOnly = false
         hideUnknown = false
-        selection = [mac]
-        model.clientsDetailsVisible = true
+        model.revealClient(mac, section: .personalise)
         Task { await environment.clients.markReviewed(mac) }
     }
 }

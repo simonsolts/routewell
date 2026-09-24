@@ -11,7 +11,10 @@ struct RoutewellApp: App {
             MainWindow(environment: environment, delegate: delegate)
                 .environment(model)
                 .environment(environment)
-                .onAppear { delegate.persistence = environment.persistence }
+                .onAppear {
+                    delegate.persistence = environment.persistence
+                    delegate.clients = environment.clients
+                }
         }
         .defaultSize(width: 1180, height: 760)
         .windowResizability(.contentMinSize)

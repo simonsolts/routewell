@@ -1,16 +1,29 @@
 import SwiftUI
+import AppKit
 import RoutewellKit
 
-/// The collapsible pane under the client table: a header strip and a
-/// master-detail body with a source list. Only Overview is built in chunk 12.
+/// The collapsible pane under the client table: a header strip with the
+/// client actions and a master-detail body with a source list.
 struct ClientDetailsPane: View {
     let content: ClientsPaneContent
     let now: Date
     @Environment(AppModel.self) private var model
+    @Environment(AppEnvironment.self) private var environment
+
+    /// Restarts the DNS feed when the client, its address, the visible
+    /// section, Pause, or the router session changes.
+    private struct FeedKey: Equatable {
+        let mac: MACAddress
+        let ip: String?
+        let sectionVisible: Bool
+        let paused: Bool
+        let token: SessionToken?
+    }
 
     var body: some View {
         switch content {
         case .single(let entry):
+            let selected = ClientDetailsSection(rawValue: model.clientsDetailsSection) ?? .overview
             VStack(spacing: 0) {
                 header(entry)
                 Divider()
@@ -20,6 +33,10 @@ struct ClientDetailsPane: View {
                     section(entry)
                         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                 }
+            }
+            .task(id: FeedKey(mac: entry.mac, ip: entry.client?.ip, sectionVisible: selected == .dnsActivity,
+                              paused: environment.clientDNS.paused, token: model.session.expectedToken)) {
+                await environment.clientDNS.follow(mac: entry.mac, ip: entry.client?.ip, sectionVisible: selected == .dnsActivity)
             }
         case .multiple(let count):
             emptyPane("\(count) clients selected. Select one client to see its details.")
@@ -62,15 +79,16 @@ struct ClientDetailsPane: View {
                     .textSelection(.enabled)
             }
             Spacer(minLength: 12)
-            // Client actions arrive in chunk 13.
-            HStack(spacing: 8) {
-                Button("Ping") {}
-                Button("Wake") {}
-                Button("Copy Details") {}
-                Button("Pause") {}
+            VStack(alignment: .trailing, spacing: 4) {
+                ClientHeaderActions(entry: entry, now: now)
+                if let status = environment.clientActions.status(for: entry.mac) {
+                    HStack(spacing: 5) {
+                        if status.running { ProgressView().controlSize(.mini) } else { StatusDot(tone: status.tone) }
+                        Text(status.text).font(.subheadline).foregroundStyle(.secondary).lineLimit(2)
+                    }
+                    .accessibilityElement(children: .combine)
+                }
             }
-            .disabled(true)
-            .help("Client actions are not available yet")
         }
         .padding(.horizontal, 20)
         .padding(.vertical, 10)
@@ -94,20 +112,55 @@ struct ClientDetailsPane: View {
         .frame(width: 190)
     }
 
+    /// The blocked count in the DNS feed's window; no badge before it loads.
     private func blockedBadge(_ entry: ClientListEntry) -> Int {
-        if case .value(let count) = entry.blocked { return count }
-        return 0
+        environment.clientDNS.feed(for: entry.mac)?.activity?.blocked ?? 0
     }
 
     @ViewBuilder
     private func section(_ entry: ClientListEntry) -> some View {
-        let selected = ClientDetailsSection(rawValue: model.clientsDetailsSection) ?? .overview
-        if selected.isAvailable {
-            ClientOverviewSection(entry: entry, now: now)
-        } else {
-            ContentUnavailableView(selected.title, systemImage: selected.symbol,
-                                   description: Text("This section is not available yet."))
+        switch ClientDetailsSection(rawValue: model.clientsDetailsSection) ?? .overview {
+        case .overview: ClientOverviewSection(entry: entry, now: now)
+        case .availability: ClientAvailabilitySection(entry: entry, now: now)
+        case .dnsActivity: ClientDNSActivitySection(entry: entry)
+        case .vpnRouting: ClientVPNRoutingSection()
+        case .personalise: ClientPersonaliseSection(entry: entry)
+        case .forgetDevice: ClientForgetSection(entry: entry, now: now)
         }
+    }
+}
+
+/// Ping · Wake · Copy Details · Pause. Ping and Wake are hidden when the
+/// router has no mechanism for them; with SSH not set up they explain that
+/// instead of sending anything.
+struct ClientHeaderActions: View {
+    let entry: ClientListEntry
+    let now: Date
+    @Environment(AppEnvironment.self) private var environment
+
+    var body: some View {
+        let actions = environment.clientActions
+        HStack(spacing: 8) {
+            if let mechanism = actions.mechanism {
+                Group {
+                    Button("Ping") { actions.ping(entry) }
+                        .disabled(actions.isRunning(entry.mac) || (mechanism != .sshRequired && entry.client?.ip.flatMap(IPv4Literal.init) == nil))
+                    Button("Wake") { actions.wake(entry) }
+                        .disabled(actions.isRunning(entry.mac))
+                }
+                .help(mechanism == .sshRequired ? "Needs SSH, which is not set up for this router" : "Runs on the router")
+            }
+            Button("Copy Details") { ClientsPasteboard.copy(ClientDetailsFormat.copyDetails(entry, now: now)) }
+            Button(environment.clientDNS.paused ? "Resume" : "Pause") { environment.clientDNS.paused.toggle() }
+                .help(environment.clientDNS.paused ? "Resume the live DNS activity feed" : "Pause the live DNS activity feed")
+        }
+    }
+}
+
+enum ClientsPasteboard {
+    static func copy(_ text: String) {
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(text, forType: .string)
     }
 }
 
@@ -141,7 +194,7 @@ struct DetailGroup: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text(model.title).font(.headline)
+            if !model.title.isEmpty { Text(model.title).font(.headline) }
             VStack(spacing: 0) {
                 ForEach(Array(model.rows.enumerated()), id: \.offset) { index, row in
                     HStack(alignment: .firstTextBaseline, spacing: 12) {

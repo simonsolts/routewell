@@ -26,6 +26,9 @@ public struct DeviceRecord: Sendable, Equatable, Codable, Identifiable {
     public var lastRouterName: String?
     /// Found after the baseline and not yet opened from the review sheet.
     public var awaitingReview: Bool
+    /// The last Save Profile. `nil` when the profile was never saved or was
+    /// cleared.
+    public var personalisedAt: Date?
 
     public var id: MACAddress { mac }
 
@@ -33,7 +36,7 @@ public struct DeviceRecord: Sendable, Equatable, Codable, Identifiable {
         mac: MACAddress, userName: String? = nil, favourite: Bool = false, hiddenFromAlerts: Bool = false,
         monitored: Bool = false, firstSeen: Date, lastSeen: Date? = nil, notes: String = "",
         category: DeviceCategory? = nil, lastIP: String? = nil, lastHostname: String? = nil,
-        lastRouterName: String? = nil, awaitingReview: Bool = false
+        lastRouterName: String? = nil, awaitingReview: Bool = false, personalisedAt: Date? = nil
     ) {
         self.mac = mac
         self.userName = userName
@@ -48,11 +51,12 @@ public struct DeviceRecord: Sendable, Equatable, Codable, Identifiable {
         self.lastHostname = lastHostname
         self.lastRouterName = lastRouterName
         self.awaitingReview = awaitingReview
+        self.personalisedAt = personalisedAt
     }
 
     private enum CodingKeys: String, CodingKey {
         case mac, userName, favourite, hiddenFromAlerts, monitored, firstSeen, lastSeen, notes, category
-        case lastIP, lastHostname, lastRouterName, awaitingReview
+        case lastIP, lastHostname, lastRouterName, awaitingReview, personalisedAt
     }
 
     /// Only `mac` and `firstSeen` are required, so fields added later in
@@ -73,6 +77,83 @@ public struct DeviceRecord: Sendable, Equatable, Codable, Identifiable {
         lastHostname = try values.decodeIfPresent(String.self, forKey: .lastHostname)
         lastRouterName = try values.decodeIfPresent(String.self, forKey: .lastRouterName)
         awaitingReview = try values.decodeIfPresent(Bool.self, forKey: .awaitingReview) ?? false
+        personalisedAt = try values.decodeIfPresent(Date.self, forKey: .personalisedAt)
+    }
+
+    public var profile: DeviceProfile {
+        DeviceProfile(userName: userName, category: category, notes: notes, favourite: favourite,
+                      monitored: monitored, personalisedAt: personalisedAt)
+    }
+}
+
+/// The part of a `DeviceRecord` the person edits. Local only: it never
+/// reaches the router.
+public struct DeviceProfile: Sendable, Equatable {
+    public var userName: String?
+    public var category: DeviceCategory?
+    public var notes: String
+    public var favourite: Bool
+    public var monitored: Bool
+    public var personalisedAt: Date?
+
+    public init(userName: String? = nil, category: DeviceCategory? = nil, notes: String = "", favourite: Bool = false,
+                monitored: Bool = false, personalisedAt: Date? = nil) {
+        self.userName = userName
+        self.category = category
+        self.notes = notes
+        self.favourite = favourite
+        self.monitored = monitored
+        self.personalisedAt = personalisedAt
+    }
+}
+
+/// One profile write. Save Profile sets the form fields; the switches save
+/// on their own; Clear Profile resets every field.
+public enum DeviceProfileEdit: Sendable, Equatable {
+    case save(userName: String?, category: DeviceCategory?, notes: String)
+    case setFavourite(Bool)
+    case setMonitored(Bool)
+    case clear
+
+    public static let maxNameLength = 64
+    public static let maxNotesLength = 2_000
+
+    public func validate() -> MutationRejection? {
+        guard case .save(let name, _, let notes) = self else { return nil }
+        if (name?.count ?? 0) > Self.maxNameLength { return .invalidIntent("Display name is longer than 64 characters") }
+        if notes.count > Self.maxNotesLength { return .invalidIntent("Notes are longer than 2,000 characters") }
+        return nil
+    }
+
+    /// The profile this edit produces. Blank names read as no name.
+    public func applied(to profile: DeviceProfile, at now: Date) -> DeviceProfile {
+        var next = profile
+        switch self {
+        case .save(let name, let category, let notes):
+            let trimmed = name?.trimmingCharacters(in: .whitespacesAndNewlines)
+            next.userName = trimmed?.isEmpty == false ? trimmed : nil
+            next.category = category
+            next.notes = notes.trimmingCharacters(in: .whitespacesAndNewlines)
+            next.personalisedAt = now
+        case .setFavourite(let value):
+            next.favourite = value
+        case .setMonitored(let value):
+            next.monitored = value
+        case .clear:
+            next = DeviceProfile()
+        }
+        return next
+    }
+}
+
+extension DeviceRecord {
+    mutating func apply(_ profile: DeviceProfile) {
+        userName = profile.userName
+        category = profile.category
+        notes = profile.notes
+        favourite = profile.favourite
+        monitored = profile.monitored
+        personalisedAt = profile.personalisedAt
     }
 }
 

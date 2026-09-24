@@ -50,6 +50,9 @@ public struct AdGuardStatus: Sendable, Equatable {
 
 public struct ClientStatus: Sendable, Equatable {
     public var activeCount: Observed<Int> = .unknown
+    /// Each listed client's online flag, keyed by MAC. `nil` when the full
+    /// list was not read (only totals), so no presence sample is taken.
+    public var listed: [MACAddress: Observed<Bool>]?
     public init() {}
 }
 

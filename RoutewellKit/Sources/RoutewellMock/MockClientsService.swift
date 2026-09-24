@@ -144,6 +144,45 @@ public actor MockClientsService: ClientsService {
         }
     }
 
+    /// Each listed client's online flag for the mock Overview's presence
+    /// sample; `nil` when the scenario's router list fails.
+    public func listedPresence() -> [MACAddress: Observed<Bool>]? {
+        guard case .success(let inventory) = Self.inventory(for: scenario) else { return nil }
+        return Dictionary(inventory.clients.map { ($0.mac, $0.online) }, uniquingKeysWith: { first, _ in first })
+    }
+
+    /// Presence history a mock session starts with: three earlier days with
+    /// unknown nights (Routewell was not running), a lunchtime offline hour,
+    /// and today up to a minute ago. Memory only.
+    public static func seedPresence(now: Date, calendar: Calendar = .current) -> PresenceLogState {
+        let hour: TimeInterval = 3_600
+        func run(_ start: Date, _ end: Date, _ state: PresenceState) -> PresenceRun? {
+            guard end > start else { return nil }
+            return PresenceRun(start: start, end: end, state: state, observations: max(1, Int(end.timeIntervalSince(start) / 30)))
+        }
+        let today = calendar.startOfDay(for: now)
+        let recent = now.addingTimeInterval(-60)
+        var devices: [MACAddress: PresenceHistory] = [:]
+        for row in rows {
+            guard let mac = MACAddress(row.mac), !row.new else { continue }
+            var runs: [PresenceRun?] = []
+            for day in (1...3).reversed() {
+                let base = today.addingTimeInterval(-Double(day) * 86_400)
+                runs += [run(base + 8 * hour, base + 13 * hour, .online), run(base + 13 * hour, base + 14 * hour, .offline),
+                         run(base + 14 * hour, base + 22 * hour, .online)]
+            }
+            let morning = min(today + 8 * hour, now.addingTimeInterval(-2 * hour))
+            if row.online {
+                runs.append(run(morning, recent, .online))
+            } else {
+                let lastSeen = now.addingTimeInterval(-3 * hour)
+                runs += [run(morning, lastSeen, .online), run(lastSeen, recent, .offline)]
+            }
+            devices[mac] = PresenceHistory(runs: runs.compactMap { $0 }, open: true)
+        }
+        return PresenceLogState(devices: devices)
+    }
+
     /// The device registry a mock session starts with: every device except
     /// the three new ones, plus three the router no longer lists. Memory only.
     public static func seedRegistry(now: Date) -> DeviceRegistryState {

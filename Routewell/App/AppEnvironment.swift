@@ -15,6 +15,8 @@ final class AppEnvironment {
     let trust: TrustController
     let mutation: MutationController
     let clients: ClientsController
+    let clientDNS: ClientDNSController
+    let clientActions: ClientActionsController
     let trustPrompt = TrustPromptController()
     private let credentials: any CredentialStore
     /// Builds one `HTTPTransport` for a lease, given the trust store it
@@ -25,6 +27,7 @@ final class AppEnvironment {
     #if DEBUG
     private var mockBackend: MockRouterBackend?
     private(set) var mockClientsScenario: MockClientsService.Scenario = .newDevices
+    private(set) var mockClientActionsMechanism: ClientActionMechanism? = .ssh
     #endif
     /// Set when `transportFactory` was actually called. Tests use this to
     /// prove mock mode never constructs a live transport.
@@ -36,14 +39,18 @@ final class AppEnvironment {
     init(model: AppModel, backend: (any RouterBackend)?, store: AtomicJSONStore? = nil,
          credentials: any CredentialStore = InMemoryCredentialStore(),
          registry: DeviceRegistry? = nil,
+         presence: PresenceLog? = nil,
          transportFactory: @escaping (any EndpointTrustStore) -> any HTTPTransport = { URLSessionTransport(trustStore: $0) }) {
         self.model = model
         self.credentials = credentials
         self.transportFactory = transportFactory
         self.logging = LoggingController(model: model)
         let deviceRegistry = registry ?? Self.makeRegistry(mode: model.mode, store: store)
-        self.clients = ClientsController(model: model, registry: deviceRegistry, logging: logging)
-        self.refresh = RefreshController(model: model, logging: logging, registry: deviceRegistry)
+        let presenceLog = presence ?? Self.makePresence(mode: model.mode, store: store)
+        self.clients = ClientsController(model: model, registry: deviceRegistry, presence: presenceLog, logging: logging)
+        self.refresh = RefreshController(model: model, logging: logging, registry: deviceRegistry, presence: presenceLog)
+        self.clientDNS = ClientDNSController(model: model)
+        self.clientActions = ClientActionsController(model: model)
         self.persistence = PersistenceController(model: model, store: store, credentials: credentials)
         self.trust = TrustController(atomicStore: store, mode: model.mode)
         self.mutation = MutationController(model: model, refresh: refresh)
@@ -99,6 +106,17 @@ final class AppEnvironment {
         }
         #endif
         return DeviceRegistry(store: mode == .live ? store : nil)
+    }
+
+    /// Mock sessions keep presence in memory, seeded so Availability shows
+    /// history. Live sessions use `presence.json` when the app persists.
+    private static func makePresence(mode: BackendMode, store: AtomicJSONStore?) -> PresenceLog {
+        #if DEBUG
+        if mode == .mock {
+            return PresenceLog(store: nil, initial: MockClientsService.seedPresence(now: .now))
+        }
+        #endif
+        return PresenceLog(store: mode == .live ? store : nil)
     }
 
     func switchMockProfile(_ profile: String) {
@@ -165,6 +183,14 @@ final class AppEnvironment {
         }
     }
 
+    /// `nil` hides Ping and Wake.
+    func setMockClientActions(_ mechanism: ClientActionMechanism?) {
+        guard model.mode == .mock, let mockBackend else { return }
+        mockClientActionsMechanism = mechanism
+        mockBackend.mockClientActions.setMechanism(mechanism)
+        clientActions.mechanismChanged()
+    }
+
     func setMockClientsScenario(_ scenario: MockClientsService.Scenario) {
         guard model.mode == .mock, let mockBackend else { return }
         mockClientsScenario = scenario
@@ -207,6 +233,7 @@ final class AppEnvironment {
         let hostname = profile == Self.mockProfiles[0] ? "flint-demo" : "travel-demo"
         let scenario = MockRouterBackend.Scenario(rawValue: scenarioID) ?? .healthy
         let backend = MockRouterBackend(scenario: scenario, hostname: hostname)
+        backend.mockClientActions.setMechanism(mockClientActionsMechanism)
         mockBackend = backend
         let clientsScenario = mockClientsScenario
         setup = model.session.switchProfile(profile, model: model, refresh: refresh) {
