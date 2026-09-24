@@ -414,7 +414,8 @@ struct RouterWiFiModel: Equatable {
         }
         let configured = radio.configuredChannel.map { $0 == 0 ? "Auto" : String($0) }
         let channel = network.enabled == .value(true) ? radio.currentChannel.map(String.init) ?? configured : configured
-        let width = radio.widthMHz.map { "\($0) MHz" } ?? radio.htmode ?? RouterFormat.unknown
+        // 4.9.1 reports `htmode` as `auto`, `80`, or `160` `[verified live]`.
+        let width = radio.widthMHz.map { "\($0) MHz" } ?? radio.htmode.map { $0.lowercased() == "auto" ? "Auto" : $0 } ?? RouterFormat.unknown
         let clients = WirelessStatus.clients(for: network, on: radio, onlineByBand: onlineByBand).map(String.init) ?? RouterFormat.dash
         return [
             RouterCell(text: network.ssid ?? RouterFormat.unknown),
@@ -593,7 +594,7 @@ struct RouterFirmwareModel: Equatable {
     private static func reason(_ failure: FirmwareCheckFailure) -> String {
         switch failure {
         case .notSupported: "This firmware has no online check"
-        case .ambiguousReply: "The router's reply did not say"
+        case .ambiguousReply: "The router's reply did not say whether an update exists"
         case .failed(let category): category.failureCategory.message
         }
     }

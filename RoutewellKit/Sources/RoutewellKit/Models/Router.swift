@@ -50,9 +50,9 @@ public struct WirelessRadio: Sendable, Equatable {
     public var configuredChannel: Int?
     /// The channel `wifi get_status` reports for this band.
     public var currentChannel: Int?
-    /// Verbatim, for example `EHT160`; the format is `[assumed]`.
+    /// Verbatim: `auto`, `80`, or `160` on 4.9.1 `[verified live]`.
     public var htmode: String?
-    /// Verbatim; the unit is not reported, so it is never converted.
+    /// Verbatim (`Max` on 4.9.1 `[verified live]`); never converted.
     public var txPower: String?
     public var networks: [WirelessNetwork]
 
@@ -68,7 +68,7 @@ public struct WirelessRadio: Sendable, Equatable {
     }
 
     /// Channel width in MHz from the digits at the end of `htmode`
-    /// (`HT20`, `VHT80`, `EHT160`). `nil` when there are none.
+    /// (`80` on 4.9.1, `VHT80` elsewhere). `nil` for `auto`.
     public var widthMHz: Int? {
         guard let htmode, let digits = htmode.firstMatch(of: /(\d+)$/)?.1 else { return nil }
         return Int(digits)
@@ -127,9 +127,10 @@ public enum FirmwareUpdateStatus: Sendable, Equatable {
     case unableToCheck(FirmwareCheckFailure)
 }
 
-/// One `upgrade check_firmware_online` result. `current_version`,
-/// `new_firmware_version`, `update_available`, `release_note(s)` are
-/// `[verified in source]` only until a recording confirms them.
+/// One `upgrade check_firmware_online` result. `current_version` is
+/// `[verified live]`; `new_firmware_version`, `update_available`, and
+/// `release_note(s)` are `[verified in source]`: 4.9.1 with no update
+/// did not send them.
 public struct FirmwareCheck: Sendable, Equatable {
     public var current: Observed<String>
     public var latest: Observed<String>

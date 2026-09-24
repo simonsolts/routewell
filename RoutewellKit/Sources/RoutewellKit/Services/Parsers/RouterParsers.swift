@@ -1,8 +1,8 @@
 import Foundation
 
-/// `wifi get_config` joined with `wifi get_status`. Keys are
-/// `[verified live]` on firmware 4.9.1; value formats of `band`, `htmode`,
-/// and `txpower` in `get_config` are `[assumed]` (the recorder hid them).
+/// `wifi get_config` joined with `wifi get_status`, `[verified live]` on
+/// firmware 4.9.1: `get_config` `band` is `2G`/`5G`/`6G`, `get_status`
+/// `band` is `2g`/`5g`/`6g`, so the join ignores case.
 public enum WirelessParser {
     /// `nil` when `get_config` has no `res` array (a malformed reply).
     public static func parse(config: JSONValue, status: JSONValue?) -> WirelessStatus? {
@@ -65,6 +65,9 @@ public enum SQMParser {
 }
 
 public enum FirmwareCheckParser {
+    /// On 4.9.1 with no update the reply holds only `current_version`,
+    /// `current_compile_time`, and `current_type` `[verified live]`, which
+    /// does not say that no update exists, so it reads as ambiguous.
     /// Ambiguous data is never read as "up to date": only an explicit
     /// `update_available` flag, or two equal version strings, decide it.
     public static func parse(_ result: JSONValue, at date: Date) -> FirmwareCheck {

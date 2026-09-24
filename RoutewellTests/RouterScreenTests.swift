@@ -172,6 +172,11 @@ private let british = Locale(identifier: "en_GB")
     #expect(wifi.bands[1].rows[0][6].text == "—")
     #expect(RouterWiFiModel.columns.last == "TX power")
     #expect(wifi.summary(hostname: "flint-demo").contains("TX power: Unknown"))
+    // 4.9.1 sends `htmode` as `auto`, `80`, `160` and `txpower` as `Max`.
+    let radio = WirelessRadio(band: .ghz2_4, htmode: "auto", txPower: "Max", networks: [WirelessNetwork(ssid: "A", enabled: .value(true))])
+    let live = RouterWiFiModel.row(radio.networks[0], radio: radio, onlineByBand: nil).map(\.text)
+    #expect(live[5] == "Auto" && live[7] == "Max")
+    #expect(RouterWiFiModel.row(radio.networks[0], radio: WirelessRadio(htmode: "80", networks: radio.networks), onlineByBand: nil)[5].text == "80 MHz")
     let weak = RouterWiFiModel(wireless: MockRouterService.wireless, onlineByBand: nil, signals: [-50, -80])
     #expect(weak.strip[3].value == "1" && weak.strip[3].detail == "Below −75 dBm")
 }
