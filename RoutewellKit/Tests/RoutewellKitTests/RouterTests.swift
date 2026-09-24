@@ -34,7 +34,10 @@ private enum RouterStub {
             }
             let key = "\(body["params"]?[1]?.string ?? "").\(body["params"]?[2]?.string ?? "")"
             switch answers[key] ?? .rpcError(-32601) {
-            case .fixture(let name): return try envelope(["result": try routerFixture(name)])
+            case .fixture(let name):
+                let value = try routerFixture(name)
+                if let error = value["error"] { return try envelope(["error": error]) }
+                return try envelope(["result": value])
             case .body(let value): return try envelope(["result": value])
             case .transport(let error): throw error
             case .rpcError(let code): return try envelope(["error": .object(["code": .number(Double(code)), "message": .string("err")])])
@@ -204,7 +207,7 @@ private enum RouterStub {
     }
 
     @Test func methodNotFoundIsTheOnlyUnsupportedSignalForSQM() async throws {
-        let (missing, _) = RouterStub.service(["wifi.get_config": .fixture("wifi-get-config"), "sqm.get_config": .rpcError(-32601)])
+        let (missing, _) = RouterStub.service(["wifi.get_config": .fixture("wifi-get-config"), "sqm.get_config": .fixture("sqm-get-config-unavailable")])
         let unsupported = try await missing.details()
         #expect(unsupported.sqmCapability.state == .unsupported)
         #expect(unsupported.sqmCapability.evidence == .methodNotFound(method: "sqm.get_config"))
