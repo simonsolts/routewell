@@ -64,6 +64,10 @@ struct MetricModel: Equatable {
     let detail: String
     var tone: StatusTone? = nil
     var emphasised = false
+    /// A small unit after the value ("%", "°C"), as in the Router mockups.
+    var unit: String? = nil
+    /// Values in 0…1 for a sparkline under the value; `nil` shows none.
+    var history: [Double]? = nil
 }
 
 struct ReviewRowModel: Equatable, Identifiable {

@@ -237,11 +237,18 @@ struct MetricCell: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
             Text(metric.title).font(.subheadline).foregroundStyle(.secondary)
-            HStack(spacing: 6) {
+            HStack(alignment: .firstTextBaseline, spacing: 6) {
                 if let tone = metric.tone { StatusDot(tone: tone) }
                 Text(metric.value)
                     .font(.title2).fontWeight(.medium).monospacedDigit()
                     .foregroundStyle(metric.emphasised ? Color.orange : Color.primary)
+                if let unit = metric.unit {
+                    Text(unit).font(.subheadline).foregroundStyle(.secondary)
+                }
+                if let history = metric.history, history.count > 1 {
+                    Spacer(minLength: 8)
+                    Sparkline(values: history).frame(width: 120, height: 20)
+                }
             }
             Text(metric.detail).font(.subheadline).foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
