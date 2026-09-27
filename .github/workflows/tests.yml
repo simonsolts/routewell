@@ -1,0 +1,52 @@
+name: Tests
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# A new push to the same branch or PR cancels the run that is still going.
+concurrency:
+  group: tests-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Tests
+    runs-on: macos-26
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+
+      # The project needs Xcode 27. Pick the newest Xcode 27 on the runner.
+      - name: Select Xcode 27
+        run: |
+          xcode=$(ls -d /Applications/Xcode_27*.app 2>/dev/null | sort -V | tail -1)
+          if [ -z "$xcode" ]; then
+            echo "::error::No Xcode 27 on this runner. Available:"
+            ls -d /Applications/Xcode*.app
+            exit 1
+          fi
+          sudo xcode-select -s "$xcode"
+          xcodebuild -version
+
+      - name: Package tests
+        run: swift test --package-path RoutewellKit
+
+      # Ad-hoc signing: the runner has no development team or profile. Keep the
+      # sandbox entitlements (the key file bookmark test needs them) but drop
+      # the Keychain access group, which needs a provisioning profile.
+      - name: App tests
+        run: |
+          entitlements="$RUNNER_TEMP/ci.entitlements"
+          cp Routewell/Routewell.entitlements "$entitlements"
+          plutil -remove keychain-access-groups "$entitlements"
+          xcodebuild -project Routewell.xcodeproj -scheme 'Routewell (Mock)' \
+            -destination 'platform=macOS,arch=arm64' \
+            CODE_SIGN_IDENTITY=- DEVELOPMENT_TEAM= CODE_SIGN_ENTITLEMENTS="$entitlements" \
+            test
