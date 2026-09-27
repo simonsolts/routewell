@@ -5,7 +5,7 @@
   <img src="https://raw.githubusercontent.com/simonsolts/routewell/main/images/routewell-header-dark-text.png" alt="Routewell" width="380">
 </picture>
 
-# Routewell: an (unofficial) macOS app for your GL.iNet Flint router
+# Routewell - for GL.iNet Routers
 
 ![macOS 26+](https://img.shields.io/badge/macOS-26%2B-000000?logo=apple&logoColor=white)
 ![Swift](https://img.shields.io/badge/Swift-SwiftUI-F05138?logo=swift&logoColor=white)
@@ -14,7 +14,7 @@
 
 </div>
 
-Routewell shows you what your router is doing, in real time. See the health
+Routewell shows you what your GL.iNet router is doing, in real time. See the health
 of your network at a glance. Find every device on your network. Pause ad
 blocking with one click.
 
