@@ -288,12 +288,18 @@ private func temporaryKeyFile() throws -> URL {
     #expect(setup.message == "SSH stays off. The host key was not trusted.")
 
     // No key file and no agent: nothing is scanned, SSH stays off.
-    let noKey = SSHSetupController(hostKeys: store, scanner: RefusingScanner(), agentSocket: { nil })
+    let noKey = SSHSetupController(hostKeys: store, scanner: RefusingScanner(), agentSocket: { nil }, agentAllowed: true)
     noKey.save = { saved.append($0) }
     await noKey.enable(SSHSettings(), host: "192.0.2.1")
     #expect(noKey.message == "Choose a private key file.")
     await noKey.enable(SSHSettings(useAgent: true), host: "192.0.2.1")
     #expect(noKey.message == "No SSH agent was found. Start one, or choose a key file.")
+    // In the App Sandbox the agent is refused even when its socket exists.
+    let sandboxed = SSHSetupController(hostKeys: store, scanner: RefusingScanner(),
+                                       agentSocket: { URL(fileURLWithPath: "/tmp/agent.sock") }, agentAllowed: false)
+    sandboxed.save = { saved.append($0) }
+    await sandboxed.enable(SSHSettings(useAgent: true), host: "192.0.2.1")
+    #expect(sandboxed.message == "The SSH agent is not available in this version of Routewell. Choose a key file.")
     let refused = SSHSetupController(hostKeys: store, scanner: RefusingScanner())
     refused.save = { saved.append($0) }
     await refused.enable(SSHSettings(keyFilePath: key.path), host: "192.0.2.1")
@@ -388,4 +394,28 @@ private func temporaryKeyFile() throws -> URL {
     await environment.waitUntilReady()
     #expect(!environment.model.sshConfigured)
     #expect(environment.model.session.lease?.backend.clientActions?.mechanism == .sshRequired)
+}
+
+// MARK: Key file bookmark (App Sandbox)
+
+@MainActor @Test func keyFileBookmarkFollowsAMovedKeyAndIsIgnoredForTheAgent() throws {
+    let key = try temporaryKeyFile()
+    let moved = key.appendingPathExtension("moved")
+    defer { try? FileManager.default.removeItem(at: key); try? FileManager.default.removeItem(at: moved) }
+    let bookmark = try #require(SSHKeyFileAccess.bookmark(for: key))
+    let access = SSHKeyFileAccess()
+
+    // Unchanged file: nothing to save.
+    #expect(access.activate(SSHSettings(keyFilePath: key.path, keyFileBookmark: bookmark)) == nil)
+
+    // Moved file: the bookmark finds it, and the new path is returned to save.
+    try FileManager.default.moveItem(at: key, to: moved)
+    let refreshed = try #require(access.activate(SSHSettings(keyFilePath: key.path, keyFileBookmark: bookmark)))
+    #expect(refreshed.keyFilePath == moved.resolvingSymlinksInPath().path)
+    #expect(refreshed.identity == .keyFile(URL(fileURLWithPath: refreshed.keyFilePath ?? "")))
+
+    // The agent and older settings without a bookmark use no bookmark.
+    #expect(access.activate(SSHSettings(keyFilePath: moved.path, keyFileBookmark: bookmark, useAgent: true)) == nil)
+    #expect(access.activate(SSHSettings(keyFilePath: moved.path)) == nil)
+    #expect(access.activate(nil) == nil)
 }

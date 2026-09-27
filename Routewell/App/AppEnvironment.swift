@@ -20,6 +20,7 @@ final class AppEnvironment {
     let router: RouterController
     let sshSetup: SSHSetupController
     let trustPrompt = TrustPromptController()
+    private let sshKeyAccess = SSHKeyFileAccess()
     /// Starts `/usr/bin/ssh` for the live SSH runner. Tests pass a fake.
     private let processRunner: any ProcessRunning
     private let credentials: any CredentialStore
@@ -434,8 +435,14 @@ final class AppEnvironment {
     /// The live SSH runner, only when the profile switched SSH on (which
     /// needed a trusted host key). Without one, Ping, Wake, Ports, Storage,
     /// and Logs report that SSH is needed, and nothing attempts SSH.
+    /// It also opens the key file's bookmark on every build, even with SSH
+    /// off, so switching SSH on after a relaunch can read the key.
     private func makeSSHRunner(for profile: RouterProfile, host: String) -> (any SSHCommandRunning)? {
+        if let refreshed = sshKeyAccess.activate(profile.ssh) {
+            persistence.updateSSHSettings(refreshed)
+        }
         guard let settings = profile.ssh, settings.enabled, let identity = settings.identity,
+              identity != .agent || sshSetup.agentAllowed,
               let target = try? SSHTarget(host: host, port: settings.port, user: settings.user) else { return nil }
         let connection = SSHConnection(target: target, identity: identity,
                                        agentSocket: identity == .agent ? SSHAgentLocator.socket() : nil)

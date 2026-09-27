@@ -56,18 +56,23 @@ public struct SSHSettings: Codable, Equatable, Sendable {
     public var port: Int = 22
     public var user: String = "root"
     public var keyFilePath: String?
+    /// A security-scoped bookmark to `keyFilePath`, so a sandboxed app can
+    /// read the key again after a relaunch. `nil` for keys chosen before it existed.
+    public var keyFileBookmark: Data?
     /// Chunk 15: use the SSH agent from `SSH_AUTH_SOCK` instead of a key file.
     public var useAgent: Bool = false
 
-    public init(enabled: Bool = false, port: Int = 22, user: String = "root", keyFilePath: String? = nil, useAgent: Bool = false) {
+    public init(enabled: Bool = false, port: Int = 22, user: String = "root", keyFilePath: String? = nil,
+                keyFileBookmark: Data? = nil, useAgent: Bool = false) {
         self.enabled = enabled
         self.port = port
         self.user = user
         self.keyFilePath = keyFilePath
+        self.keyFileBookmark = keyFileBookmark
         self.useAgent = useAgent
     }
 
-    private enum CodingKeys: String, CodingKey { case enabled, port, user, keyFilePath, useAgent }
+    private enum CodingKeys: String, CodingKey { case enabled, port, user, keyFilePath, keyFileBookmark, useAgent }
 
     /// Every key is optional, so a profile saved before a field existed
     /// still loads with that field's default.
@@ -77,6 +82,7 @@ public struct SSHSettings: Codable, Equatable, Sendable {
         port = try values.decodeIfPresent(Int.self, forKey: .port) ?? 22
         user = try values.decodeIfPresent(String.self, forKey: .user) ?? "root"
         keyFilePath = try values.decodeIfPresent(String.self, forKey: .keyFilePath)
+        keyFileBookmark = try values.decodeIfPresent(Data.self, forKey: .keyFileBookmark)
         useAgent = try values.decodeIfPresent(Bool.self, forKey: .useAgent) ?? false
     }
 
@@ -96,7 +102,7 @@ public struct RouterProfile: Codable, Identifiable, Equatable, Sendable {
     public let credential: CredentialReference
     /// nil for mock profiles. Set for live profiles created from `SetupScreen`.
     public var liveEndpoint: RouterEndpoint?
-    public var username: String = "admin"
+    public var username: String = "root"
     public var plainHTTPAcknowledged: Bool = false
     public var adGuard: AdGuardSettings?
     public var ssh: SSHSettings?
@@ -112,7 +118,7 @@ public struct RouterProfile: Codable, Identifiable, Equatable, Sendable {
         endpoint = try values.decode(String.self, forKey: .endpoint)
         credential = try values.decode(CredentialReference.self, forKey: .credential)
         liveEndpoint = try values.decodeIfPresent(RouterEndpoint.self, forKey: .liveEndpoint)
-        username = try values.decodeIfPresent(String.self, forKey: .username) ?? "admin"
+        username = try values.decodeIfPresent(String.self, forKey: .username) ?? "root"
         plainHTTPAcknowledged = try values.decodeIfPresent(Bool.self, forKey: .plainHTTPAcknowledged) ?? false
         adGuard = try values.decodeIfPresent(AdGuardSettings.self, forKey: .adGuard)
         ssh = try values.decodeIfPresent(SSHSettings.self, forKey: .ssh)
@@ -135,7 +141,7 @@ public struct RouterProfile: Codable, Identifiable, Equatable, Sendable {
         id: UUID = UUID(),
         name: String,
         liveEndpoint: RouterEndpoint,
-        username: String = "admin",
+        username: String = "root",
         plainHTTPAcknowledged: Bool = false,
         adGuard: AdGuardSettings? = nil,
         ssh: SSHSettings? = nil

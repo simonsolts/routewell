@@ -24,14 +24,19 @@ final class SSHSetupController {
     /// The trusted key's fingerprint for the profile's host and port.
     private(set) var trustedFingerprint: String?
     let hostKeys: SSHHostKeyStore
+    /// False in the App Sandbox, which blocks the agent's socket.
+    let agentAllowed: Bool
     private let scanner: any SSHHostKeyScanning
     private let agentSocket: @MainActor () -> URL?
     private var continuation: CheckedContinuation<Bool, Never>?
     /// Persists the settings and rebuilds the live session.
     var save: @MainActor (SSHSettings) -> Void = { _ in }
 
-    init(hostKeys: SSHHostKeyStore, scanner: any SSHHostKeyScanning, agentSocket: @escaping @MainActor () -> URL? = { SSHAgentLocator.socket() }) {
+    init(hostKeys: SSHHostKeyStore, scanner: any SSHHostKeyScanning,
+         agentSocket: @escaping @MainActor () -> URL? = { SSHAgentLocator.socket() },
+         agentAllowed: Bool = !AppSandbox.isActive) {
         self.hostKeys = hostKeys
+        self.agentAllowed = agentAllowed
         self.scanner = scanner
         self.agentSocket = agentSocket
     }
@@ -44,6 +49,7 @@ final class SSHSetupController {
             return "Enter a user name in lower case (for example root) and a port from 1 to 65535."
         }
         if settings.useAgent {
+            guard agentAllowed else { return "The SSH agent is not available in this version of Routewell. Choose a key file." }
             return agentAvailable ? nil : "No SSH agent was found. Start one, or choose a key file."
         }
         guard let path = settings.keyFilePath, path.hasPrefix("/") else { return "Choose a private key file." }

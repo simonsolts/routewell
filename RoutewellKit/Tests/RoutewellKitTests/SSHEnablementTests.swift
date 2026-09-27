@@ -89,9 +89,11 @@ private func keyscanOutput(ed25519: String = keyA) -> Data {
 @Test func sshSettingsRoundTripAndOlderProfilesStillLoad() throws {
     let endpoint = try RouterEndpoint(scheme: .https, host: "192.0.2.1", port: 443)
     let profile = RouterProfile(name: "Home", liveEndpoint: endpoint,
-                                ssh: SSHSettings(enabled: true, port: 2222, user: "root", keyFilePath: "/Users/me/.ssh/id_ed25519"))
+                                ssh: SSHSettings(enabled: true, port: 2222, user: "root", keyFilePath: "/Users/me/.ssh/id_ed25519",
+                                                 keyFileBookmark: Data([1, 2, 3])))
     let decoded = try JSONDecoder().decode(RouterProfile.self, from: JSONEncoder().encode(profile))
     #expect(decoded.ssh == profile.ssh)
+    #expect(decoded.ssh?.keyFileBookmark == Data([1, 2, 3]))
     #expect(decoded.ssh?.identity == .keyFile(URL(fileURLWithPath: "/Users/me/.ssh/id_ed25519")))
 
     // Saved before chunk 15 added `useAgent`.

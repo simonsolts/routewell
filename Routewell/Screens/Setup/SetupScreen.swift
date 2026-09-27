@@ -4,7 +4,7 @@ import RoutewellKit
 /// A pure, unit-testable model for the setup form's validation. It never
 /// touches SwiftUI so `RoutewellTests` can exercise every branch directly.
 struct SetupFormState: Equatable {
-    static let username = "admin"
+    static let username = "root"
 
     var addressText: String = ""
     var password: String = ""

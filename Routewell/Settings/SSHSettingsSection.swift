@@ -13,13 +13,15 @@ struct SSHSettingsSection: View {
     @State private var port = 22
     @State private var useAgent = false
     @State private var keyFilePath: String?
+    @State private var keyFileBookmark: Data?
     @State private var confirmingForget = false
 
     private var setup: SSHSetupController { environment.sshSetup }
     private var host: String { profile.liveEndpoint?.host ?? "" }
     private var saved: SSHSettings { profile.ssh ?? SSHSettings() }
     private var draft: SSHSettings {
-        SSHSettings(enabled: saved.enabled, port: port, user: user.trimmingCharacters(in: .whitespaces), keyFilePath: keyFilePath, useAgent: useAgent)
+        SSHSettings(enabled: saved.enabled, port: port, user: user.trimmingCharacters(in: .whitespaces), keyFilePath: keyFilePath,
+                    keyFileBookmark: keyFileBookmark, useAgent: useAgent)
     }
 
     var body: some View {
@@ -33,11 +35,13 @@ struct SSHSettingsSection: View {
             .disabled(setup.busy)
             TextField("User", text: $user).onSubmit { saveEdit() }
             TextField("Port", value: $port, format: .number.grouping(.never)).onSubmit { savePort() }
-            Picker("Sign in with", selection: $useAgent) {
-                Text("Key file").tag(false)
-                Text("SSH agent").tag(true)
+            if setup.agentAllowed {
+                Picker("Sign in with", selection: $useAgent) {
+                    Text("Key file").tag(false)
+                    Text("SSH agent").tag(true)
+                }
+                .onChange(of: useAgent) { saveEdit() }
             }
-            .onChange(of: useAgent) { saveEdit() }
             if useAgent {
                 LabeledContent("SSH agent", value: setup.agentAvailable ? "Found" : "Not found")
             } else {
@@ -69,13 +73,16 @@ struct SSHSettingsSection: View {
         } header: {
             Text("SSH")
         } footer: {
-            Text("SSH reads what the router API does not offer: Ports, Storage, Logs, the AdGuard Home process, Ping, and Wake. Keys only, never a password. A key with a passphrase needs the SSH agent.")
+            Text("SSH reads what the router API does not offer: Ports, Storage, Logs, the AdGuard Home process, Ping, and Wake. Keys only, never a password. "
+                 + (setup.agentAllowed ? "A key with a passphrase needs the SSH agent."
+                                       : "A key with a passphrase needs the SSH agent, which is not available in this version of Routewell."))
         }
         .onAppear {
             user = saved.user
             port = saved.port
-            useAgent = saved.useAgent
+            useAgent = saved.useAgent && setup.agentAllowed
             keyFilePath = saved.keyFilePath
+            keyFileBookmark = saved.keyFileBookmark
             Task { await setup.loadTrustedFingerprint(host: host, port: saved.port) }
         }
         .alert("Forget the SSH host key?", isPresented: $confirmingForget) {
@@ -111,7 +118,8 @@ struct SSHSettingsSection: View {
         }
     }
 
-    /// Routewell keeps only the path; `ssh` reads the key.
+    /// Routewell keeps the path and a bookmark to it, never the key; `ssh`
+    /// reads the key.
     private func chooseKeyFile() {
         let panel = NSOpenPanel()
         panel.message = "Choose the private key for SSH to the router. Routewell stores only its location."
@@ -123,6 +131,7 @@ struct SSHSettingsSection: View {
         panel.directoryURL = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".ssh", isDirectory: true)
         guard panel.runModal() == .OK, let url = panel.url else { return }
         keyFilePath = url.path
+        keyFileBookmark = SSHKeyFileAccess.bookmark(for: url)
         saveEdit()
     }
 }
