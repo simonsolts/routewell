@@ -23,13 +23,20 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
-      # The project needs Xcode 27. Pick the newest Xcode 27 on the runner.
+      # The project needs Xcode 27. Xcode.app can be a link to any version, so
+      # read each app's real version and pick the newest 27.x.
       - name: Select Xcode 27
         run: |
-          xcode=$(ls -d /Applications/Xcode_27*.app 2>/dev/null | sort -V | tail -1)
+          xcode=""
+          for app in /Applications/Xcode*.app; do
+            version=$(defaults read "$app/Contents/Info" CFBundleShortVersionString 2>/dev/null || true)
+            echo "$app -> ${version:-unknown}"
+            if [[ "$version" == 27* ]]; then
+              xcode="$app"
+            fi
+          done
           if [ -z "$xcode" ]; then
-            echo "::error::No Xcode 27 on this runner. Available:"
-            ls -d /Applications/Xcode*.app
+            echo "::error::No Xcode 27 on this runner."
             exit 1
           fi
           sudo xcode-select -s "$xcode"
