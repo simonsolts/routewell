@@ -78,6 +78,8 @@ Tested on the GL.iNet Flint 4 (GL-BE14000) with firmware 4.9.1.
 There is no signed release yet. To build Routewell from source, see
 [Building Routewell](docs/building.md).
 
+---
+
 #### Acknowledgements
 
 Routewell is heavily inspired by
