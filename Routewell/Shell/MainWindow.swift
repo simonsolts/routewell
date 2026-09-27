@@ -116,20 +116,14 @@ struct MainWindow: View {
     }
 
     @ToolbarContentBuilder private var toolbar: some ToolbarContent {
-        ToolbarItem(placement: .principal) {
-            HStack(spacing: 12) {
-                if !model.selection.segments.isEmpty {
-                    Picker("Section", selection: Binding(
-                        get: { model.subpages[model.selection] ?? model.selection.segments.first ?? "" },
-                        set: { model.subpages[model.selection] = $0 }
-                    )) {
-                        ForEach(model.selection.segments, id: \.self) { Text($0).tag($0) }
-                    }.pickerStyle(.segmented)
-                }
-                if model.selection.showsStatusPill {
-                    Button { model.selection = .overview } label: { StatusPillView(snapshot: model.snapshot) }
-                        .buttonStyle(.plain).help("Show Overview")
-                }
+        if !model.selection.segments.isEmpty {
+            ToolbarItem(placement: .principal) {
+                Picker("Section", selection: Binding(
+                    get: { model.subpages[model.selection] ?? model.selection.segments.first ?? "" },
+                    set: { model.subpages[model.selection] = $0 }
+                )) {
+                    ForEach(model.selection.segments, id: \.self) { Text($0).tag($0) }
+                }.pickerStyle(.segmented)
             }
         }
         if model.selection == .overview {

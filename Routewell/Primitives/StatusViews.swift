@@ -30,26 +30,6 @@ struct StatusDot: View {
     }
 }
 
-struct StatusPillView: View {
-    let snapshot: OverviewSnapshot?
-    var body: some View {
-        HStack(spacing: 12) {
-            item("Router", state: snapshot?.router.reachability ?? .unknown)
-            item("Internet", state: snapshot?.internet.reachability ?? .unknown)
-            item("AdGuard", state: snapshot?.adGuard.reachability ?? .unknown)
-            item("VPN", state: .unknown)
-        }
-        .font(.caption)
-        .padding(.horizontal, 10).padding(.vertical, 6)
-        .background(.quaternary, in: RoundedRectangle(cornerRadius: 7))
-    }
-    private func item(_ title: String, state: Reachability) -> some View {
-        HStack(spacing: 5) { StatusDot(tone: state.tone); Text(title) }
-            .accessibilityElement(children: .ignore)
-            .accessibilityLabel("\(title): \(state.label)")
-    }
-}
-
 struct StatCell: View {
     let title: String
     let status: String

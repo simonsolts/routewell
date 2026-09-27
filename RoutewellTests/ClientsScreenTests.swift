@@ -73,7 +73,7 @@ private func mac(_ raw: String) -> MACAddress { MACAddress(raw)! }
 
 @Test func overviewShowsUnknownForLaterChunks() {
     let client = Client(mac: mac("66:29:ea:33:fb:78"), ip: "192.168.8.192", hostname: "iPhone", online: .value(true),
-                        connection: ClientConnection(medium: .value(.wifi), band: "2.4 GHz", ssid: "Gigabitch", interface: "rai0"),
+                        connection: ClientConnection(medium: .value(.wifi), band: "2.4 GHz", ssid: "Homewifi", interface: "rai0"),
                         signal: .value(-66), dnsQueries: .value(12_550), dnsBlocked: .value(107))
     let record = DeviceRecord(mac: client.mac, favourite: true, firstSeen: .now, lastSeen: .now, category: .phone)
     let entry = ClientListEntry(mac: client.mac, client: client, record: record)
@@ -83,7 +83,7 @@ private func mac(_ raw: String) -> MACAddress { MACAddress(raw)! }
     #expect(value("Identity", "Vendor") == "Not resolvable (randomised)")
     #expect(value("Identity", "MAC address") == "66:29:ea:33:fb:78")
     #expect(value("Identity", "Category") == "Phone")
-    #expect(value("Connection", "Interface") == "Wi-Fi · 2.4 GHz · Gigabitch")
+    #expect(value("Connection", "Interface") == "Wi-Fi · 2.4 GHz · Homewifi")
     #expect(value("Connection", "Signal") == "Fair -66 dBm")
     #expect(value("Connection", "Radio") == "Unknown")
     #expect(value("Connection", "Channel · width") == "Unknown")

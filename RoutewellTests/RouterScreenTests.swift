@@ -25,9 +25,8 @@ private let british = Locale(identifier: "en_GB")
 
 // MARK: Toolbar and SSH segments
 
-@Test func routerToolbarHasTenSegmentsNoSubtitleAndNoPill() {
+@Test func routerToolbarHasTenSegmentsAndNoSubtitle() {
     #expect(SidebarDestination.router.segments == ["Overview", "Ports", "Wi-Fi", "Multi-WAN", "DNS", "SQM", "Performance", "Storage", "Firmware", "Logs"])
-    #expect(!SidebarDestination.router.showsStatusPill)
     #expect(!SidebarDestination.router.showsSubtitle)
     #expect(SidebarDestination.overview.showsSubtitle)
 }

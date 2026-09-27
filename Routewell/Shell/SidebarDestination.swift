@@ -3,46 +3,46 @@ import SwiftUI
 enum SidebarGroup: String, CaseIterable { case monitoring = "Monitoring", operations = "Operations" }
 
 enum SidebarDestination: String, CaseIterable, Identifiable {
-    case overview, protection, analytics, network, router, vpn, applications
-    case maintenance, clients, dnsActivity, notifications, logs
+    case overview, router, network, clients, protection, analytics
+    case maintenance, notifications, applications, dnsActivity, vpn, logs
 
     var id: Self { self }
     var title: String {
         switch self {
         case .overview: "Overview"
+        case .router: "Router"
+        case .network: "Network"
+        case .clients: "Clients"
         case .protection: "Protection"
         case .analytics: "Analytics"
-        case .network: "Network"
-        case .router: "Router"
-        case .vpn: "VPN"
-        case .applications: "Applications"
         case .maintenance: "Maintenance"
-        case .clients: "Clients"
-        case .dnsActivity: "DNS Activity"
         case .notifications: "Notifications"
+        case .applications: "Applications"
+        case .dnsActivity: "DNS Activity"
+        case .vpn: "VPN"
         case .logs: "Logs"
         }
     }
     var symbol: String {
         switch self {
         case .overview: "gauge.with.dots.needle.33percent"
+        case .router: "wifi.router"
+        case .network: "globe"
+        case .clients: "person.2"
         case .protection: "shield"
         case .analytics: "chart.bar"
-        case .network: "globe"
-        case .router: "wifi.router"
-        case .vpn: "key"
-        case .applications: "square.grid.2x2"
         case .maintenance: "wrench.and.screwdriver"
-        case .clients: "person.2"
-        case .dnsActivity: "list.bullet"
         case .notifications: "bell"
+        case .applications: "square.grid.2x2"
+        case .dnsActivity: "list.bullet"
+        case .vpn: "key"
         case .logs: "doc.text"
         }
     }
     var group: SidebarGroup {
         switch self {
-        case .maintenance, .clients, .dnsActivity, .notifications, .logs: .operations
-        default: .monitoring
+        case .overview, .router, .network, .clients, .protection, .analytics: .monitoring
+        default: .operations
         }
     }
     var shortcut: KeyEquivalent? {
@@ -60,9 +60,6 @@ enum SidebarDestination: String, CaseIterable, Identifiable {
         default: []
         }
     }
-    /// Clients shows no status pill (architecture 06), like screens with five
-    /// or more segments.
-    var showsStatusPill: Bool { segments.count < 5 && self != .clients }
     /// Clients shows its count above the table; Router has ten segments and
     /// no subtitle in any mockup.
     var showsSubtitle: Bool { self != .clients && self != .router }

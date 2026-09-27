@@ -9,7 +9,6 @@ struct OverviewScreen: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 22) {
                     statStrip(snapshot)
-                    freshnessGroup
                     if model.mode == .live, showsLocalNetworkGuidance {
                         LocalNetworkGuidanceView()
                     }
@@ -20,6 +19,7 @@ struct OverviewScreen: View {
                         }
                         VStack(spacing: 22) { leftColumn(snapshot); rightColumn(snapshot) }
                     }
+                    freshnessGroup
                     HStack {
                         Text(refreshStatusMessage)
                         Spacer()
