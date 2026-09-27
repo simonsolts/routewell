@@ -23,24 +23,9 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
-      # The project needs Xcode 27. Xcode.app can be a link to any version, so
-      # read each app's real version and pick the newest 27.x.
-      - name: Select Xcode 27
-        run: |
-          xcode=""
-          for app in /Applications/Xcode*.app; do
-            version=$(defaults read "$app/Contents/Info" CFBundleShortVersionString 2>/dev/null || true)
-            echo "$app -> ${version:-unknown}"
-            if [[ "$version" == 27* ]]; then
-              xcode="$app"
-            fi
-          done
-          if [ -z "$xcode" ]; then
-            echo "::error::No Xcode 27 on this runner."
-            exit 1
-          fi
-          sudo xcode-select -s "$xcode"
-          xcodebuild -version
+      # Use the runner's default Xcode. Print it so a failure shows which one.
+      - name: Show Xcode version
+        run: xcodebuild -version
 
       - name: Package tests
         run: swift test --package-path RoutewellKit
