@@ -1,0 +1,2 @@
+Filesystem                Size      Used Available Use% Mounted on
+overlayfs:/overlay        7.2G      1.1G      6.1G  15% /

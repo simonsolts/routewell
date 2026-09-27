@@ -56,6 +56,8 @@ public struct SSHLaunchPlan: Sendable, Equatable {
 
 public enum SSHLaunchError: Error, Equatable, Sendable {
     case agentSocketRequired
+    /// A path ssh would split, expand (`%`, `~`), or misread.
+    case invalidPath
 }
 
 public enum SSHLauncher {
@@ -70,24 +72,44 @@ public enum SSHLauncher {
         connectTimeout: Duration = .seconds(10),
         agentSocket: URL? = nil
     ) throws(SSHLaunchError) -> SSHLaunchPlan {
+        let knownHosts = try optionPath(knownHostsFile)
         var arguments: [String] = [
             "-F", "/dev/null",
             "-o", "BatchMode=yes",
             "-o", "StrictHostKeyChecking=yes",
-            "-o", "UserKnownHostsFile=\(knownHostsFile.path)",
+            "-o", "UserKnownHostsFile=\(knownHosts)",
             "-o", "ConnectTimeout=\(connectTimeout.components.seconds)",
             "-o", "ClearAllForwardings=yes",
         ]
         switch identity {
         case .keyFile(let keyFile):
             arguments += ["-o", "IdentitiesOnly=yes"]
-            arguments += ["-i", keyFile.path]
+            let keyPath = try checkedPath(keyFile)
+            arguments += ["-i", keyPath]
             arguments += ["-o", "IdentityAgent=none"]
         case .agent:
             guard let agentSocket else { throw SSHLaunchError.agentSocketRequired }
-            arguments += ["-o", "IdentityAgent=\(agentSocket.path)"]
+            let agentPath = try optionPath(agentSocket)
+            arguments += ["-o", "IdentityAgent=\(agentPath)"]
         }
         arguments += ["-T", "-a", "-x", "-p", "\(target.port)", "--", "\(target.user)@\(target.host)", command.rendered]
         return SSHLaunchPlan(executable: URL(fileURLWithPath: "/usr/bin/ssh"), arguments: arguments)
+    }
+
+    /// ssh reads `-o` values like config lines: whitespace splits them, and
+    /// double quotes keep them whole. "Application Support" has a space.
+    private static func optionPath(_ url: URL) throws(SSHLaunchError) -> String {
+        let path = try checkedPath(url)
+        return path.contains(" ") ? "\"\(path)\"" : path
+    }
+
+    /// Absolute, no quote, `%` token, or control character.
+    private static func checkedPath(_ url: URL) throws(SSHLaunchError) -> String {
+        let path = url.path
+        guard path.hasPrefix("/"), !path.contains("\""), !path.contains("%"),
+              !path.unicodeScalars.contains(where: { $0.properties.generalCategory == .control }) else {
+            throw .invalidPath
+        }
+        return path
     }
 }

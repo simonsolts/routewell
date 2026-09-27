@@ -19,6 +19,12 @@ final class RefreshController {
     private var sleeping = false
     private var overviewElapsed: Duration = .zero
     private var featureElapsed: [DataArea: Duration] = [:]
+    /// SSH runs in its own task, one at a time, so a slow SSH probe or
+    /// read never holds up the RPC refresh (chunk 15).
+    private var sshTask: Task<Void, Never>?
+    private var sshPending: SSHWork?
+    /// The lease whose SSH probe has started. One probe per lease.
+    private var sshProbedToken: SessionToken?
 
     var isAvailable: Bool { model.session.isReady && !sleeping }
 
@@ -103,6 +109,14 @@ final class RefreshController {
         overviewElapsed = .zero
         featureElapsed = [:]
         telemetry = TelemetrySampler()
+        cancelSSH()
+    }
+
+    private func cancelSSH() {
+        sshTask?.cancel()
+        sshTask = nil
+        sshPending = nil
+        sshProbedToken = nil
     }
 
     func stop() {
@@ -173,6 +187,8 @@ final class RefreshController {
                             model.replacePresence(state, failure: failure)
                         }
                     }
+                    // Enabling SSH (a new lease with SSH) runs the probe once.
+                    self?.requestSSH(lease: lease, reads: [])
                     if self?.windowVisible == true {
                         let requests = ScreenRefreshPlan.resolve(destination: model.selection.rawValue,
                             segment: model.subpages[model.selection] ?? model.selection.segments.first,
@@ -196,6 +212,12 @@ final class RefreshController {
                                     self?.logging?.record(kind: .refresh, message: "New devices found", fields: ["count": String(count)])
                                 }
                                 self?.featureElapsed[.clients] = .zero
+                                continue
+                            }
+                            if request.area == .ssh {
+                                // Logs read only on demand: a manual refresh or showing the segment.
+                                self?.requestSSH(lease: lease, reads: self?.visibleSSHReads(includeLogs: force) ?? [])
+                                self?.featureElapsed[.ssh] = .zero
                                 continue
                             }
                             if request.area == .routerDetail {
@@ -252,6 +274,102 @@ final class RefreshController {
 
     func waitForRefresh() async { await task?.value }
 
+    // MARK: SSH (chunk 15)
+
+    enum SSHRead: Hashable { case ports, storage, logs, adGuardProcess }
+
+    private struct SSHWork {
+        let lease: SessionLease
+        var reads: Set<SSHRead>
+    }
+
+    /// The SSH reads the visible Router segment needs.
+    private func visibleSSHReads(includeLogs: Bool) -> Set<SSHRead> {
+        guard windowVisible, model.selection == .router else { return [] }
+        switch model.subpages[.router] ?? SidebarDestination.router.segments.first {
+        case "Overview": return [.adGuardProcess]
+        case "Ports": return [.ports]
+        case "Storage": return [.storage]
+        case "Logs": return includeLogs ? [.logs] : []
+        default: return []
+        }
+    }
+
+    /// Runs the probe once per lease, then the requested reads, only after
+    /// the probe reported supported. Work that arrives while SSH is busy is
+    /// merged and runs next; nothing runs without an SSH service.
+    private func requestSSH(lease: SessionLease, reads: Set<SSHRead>) {
+        guard lease.backend.ssh != nil, model.session.expectedToken == lease.token else { return }
+        let needsProbe = sshProbedToken != lease.token
+        guard needsProbe || !reads.isEmpty else { return }
+        if sshTask != nil {
+            var pending = sshPending?.lease.token == lease.token ? sshPending! : SSHWork(lease: lease, reads: [])
+            pending.reads.formUnion(reads)
+            sshPending = pending
+            return
+        }
+        sshProbedToken = lease.token
+        let model = model
+        sshTask = Task { [weak self] in
+            await Self.runSSH(lease: lease, probe: needsProbe, reads: reads, model: model)
+            guard let self, !Task.isCancelled else { return }
+            self.sshTask = nil
+            if let next = self.sshPending, next.lease.token == model.session.expectedToken {
+                self.sshPending = nil
+                self.requestSSH(lease: next.lease, reads: next.reads)
+            }
+        }
+    }
+
+    private static func runSSH(lease: SessionLease, probe: Bool, reads: Set<SSHRead>, model: AppModel) async {
+        let session = model.session.routerSession
+        let token = lease.token
+        do {
+            if probe {
+                guard let result = try await session.sshProbe(using: lease) else { return }
+                guard !Task.isCancelled else { return }
+                model.acceptSSHProbe(result, token: token)
+            }
+            guard model.sshProbe?.capability.state == .supported else { return }
+            for read in [SSHRead.adGuardProcess, .ports, .storage, .logs] where reads.contains(read) {
+                switch read {
+                case .ports:
+                    guard let result = try await session.routerPorts(using: lease) else { return }
+                    guard !Task.isCancelled else { return }
+                    model.acceptPorts(result, token: token)
+                case .storage:
+                    guard let result = try await session.routerStorage(using: lease) else { return }
+                    guard !Task.isCancelled else { return }
+                    model.acceptStorage(result, token: token)
+                case .logs:
+                    guard let result = try await session.routerLogs(using: lease) else { return }
+                    guard !Task.isCancelled else { return }
+                    model.acceptRouterLogs(result, token: token)
+                case .adGuardProcess:
+                    guard let result = try await session.adGuardProcess(using: lease) else { return }
+                    guard !Task.isCancelled else { return }
+                    model.acceptAdGuardProcess(result, token: token)
+                }
+            }
+        } catch {
+            // Cancelled, or the session changed: the results belong to no one.
+        }
+    }
+
+    /// "Check Again", and a mock scenario change: forget this lease's probe
+    /// result and probe once more, then read what the screen shows.
+    func reprobeSSH() {
+        cancelSSH()
+        model.sshBackendChanged()
+        guard isAvailable, let lease = model.session.lease else { return }
+        requestSSH(lease: lease, reads: visibleSSHReads(includeLogs: true))
+    }
+
+    /// Waits for the SSH probe and reads that are running now.
+    func waitForSSH() async {
+        while let task = sshTask { await task.value }
+    }
+
     /// Reset Session…: peaks and the observation count start from now. A
     /// reset that finishes after a session switch is dropped.
     func resetTelemetrySession() async {
@@ -262,5 +380,8 @@ final class RefreshController {
         model.acceptTelemetry(history: nil, session: summary, token: token)
     }
 
-    deinit { task?.cancel() }
+    deinit {
+        task?.cancel()
+        sshTask?.cancel()
+    }
 }

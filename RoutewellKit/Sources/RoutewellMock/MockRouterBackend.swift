@@ -29,6 +29,9 @@ public actor MockRouterBackend: RouterBackend {
     public nonisolated let mockClientActions = MockClientActions()
     public nonisolated let mockRouter = MockRouterService()
     public nonisolated var router: (any RouterService)? { mockRouter }
+    public nonisolated let mockSSH = MockSSHService()
+    /// `nil` in the "SSH off" scenario, so SSH-only segments ask for SSH.
+    public nonisolated var ssh: (any SSHService)? { mockSSH.scenario == .off ? nil : mockSSH }
     public nonisolated let network: (any NetworkService)?
     public nonisolated let maintenance: (any MaintenanceService)?
     public nonisolated let vpn: (any VPNService)?

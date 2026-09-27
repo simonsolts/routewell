@@ -33,6 +33,11 @@ public enum ScreenRefreshPlan {
         if destination == "analytics", segment == "Overview" { intervals[.telemetry] = .seconds(2) }
         if destination == "network", segment == "Overview" { intervals[.publicIP] = .seconds(600) }
         if destination == "protection", segment == "Schedules" { intervals[.schedules] = .seconds(60) }
+        // Chunk 15: SSH reads for the segments that need them. Logs reads
+        // only on demand; the refresh loop skips it on timed ticks.
+        if destination == "router", let segment, ["Overview", "Ports", "Storage", "Logs"].contains(segment) {
+            intervals[.ssh] = defaultInterval
+        }
         return intervals.map { AreaCadence($0.key, every: $0.value) }.sorted { $0.area.rawValue < $1.area.rawValue }
     }
 }

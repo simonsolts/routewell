@@ -176,6 +176,81 @@ final class AppModel {
         sqmCapability = result.sqmCapability
     }
 
+    // MARK: SSH (chunk 15)
+
+    /// The probe result for this session; `nil` until the probe finishes.
+    private(set) var sshProbe: SSHProbeResult?
+    private(set) var ports: RouterPortsStatus?
+    private(set) var portsFreshness = Freshness()
+    /// Link changes seen while Routewell runs; never saved.
+    private(set) var linkChanges = LinkChangeLog()
+    private(set) var storage: StorageStatus?
+    private(set) var storageFreshness = Freshness()
+    private(set) var routerLogs: RouterLogTail?
+    private(set) var routerLogsFreshness = Freshness()
+    private(set) var adGuardProcessID: Observed<Int> = .unknown
+    /// Bumped when the backend's SSH service may have changed without a
+    /// session switch (the mock scenario), so views re-read it.
+    private var sshRevision = 0
+
+    /// True when the active profile has SSH set up. False shows
+    /// `SSHRequiredView`, and nothing attempts SSH.
+    var sshConfigured: Bool {
+        _ = sshRevision
+        return session.lease?.backend.ssh != nil
+    }
+
+    func sshBackendChanged() {
+        sshRevision += 1
+        sshProbe = nil
+        ports = nil
+        portsFreshness = Freshness()
+        storage = nil
+        storageFreshness = Freshness()
+        routerLogs = nil
+        routerLogsFreshness = Freshness()
+        adGuardProcessID = .unknown
+    }
+
+    func acceptSSHProbe(_ probe: SSHProbeResult, token: SessionToken) {
+        guard session.isReady, token == session.expectedToken else { return }
+        sshProbe = probe
+        capabilities[.ssh] = probe.capability
+    }
+
+    func acceptPorts(_ result: AreaRefreshResult<RouterPortsStatus>, token: SessionToken) {
+        guard session.isReady, token == session.expectedToken else { return }
+        if case .success(let value, let observedAt, _) = result { linkChanges.observe(value, at: observedAt) }
+        Self.apply(result, to: &ports, freshness: &portsFreshness)
+    }
+
+    func acceptStorage(_ result: AreaRefreshResult<StorageStatus>, token: SessionToken) {
+        guard session.isReady, token == session.expectedToken else { return }
+        Self.apply(result, to: &storage, freshness: &storageFreshness)
+    }
+
+    func acceptRouterLogs(_ result: AreaRefreshResult<RouterLogTail>, token: SessionToken) {
+        guard session.isReady, token == session.expectedToken else { return }
+        Self.apply(result, to: &routerLogs, freshness: &routerLogsFreshness)
+    }
+
+    func acceptAdGuardProcess(_ value: Observed<Int>, token: SessionToken) {
+        guard session.isReady, token == session.expectedToken else { return }
+        adGuardProcessID = value
+    }
+
+    /// A failed read keeps the last value and records the failure.
+    private static func apply<Value>(_ result: AreaRefreshResult<Value>, to value: inout Value?, freshness: inout Freshness) {
+        switch result {
+        case .success(let newValue, let observedAt, let source):
+            value = newValue
+            freshness = Freshness(lastSuccess: observedAt, lastAttempt: observedAt, source: source)
+        case .failure(let category, let attemptedAt):
+            freshness.lastAttempt = attemptedAt
+            freshness.failure = category
+        }
+    }
+
     func acceptTelemetry(history: TelemetryHistory?, session summary: TelemetrySessionSummary, token: SessionToken) {
         guard session.isReady, token == session.expectedToken else { return }
         if let history { telemetryHistory = history }
@@ -210,6 +285,8 @@ final class AppModel {
         telemetryHistory = .empty
         telemetrySession = TelemetrySessionSummary()
         wanPaths = WANPathTracker()
+        sshBackendChanged()
+        linkChanges = LinkChangeLog()
         healthChecks = HealthEvaluator().evaluate(snapshot: nil, freshness: freshness, now: evaluatedAt)
         isRefreshing = false
         refreshFailed = false

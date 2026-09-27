@@ -201,6 +201,14 @@ final class PersistenceController {
         scheduleSave()
     }
 
+    func updateSSHSettings(_ settings: SSHSettings) {
+        guard var profile = selectedProfile, profile.liveEndpoint != nil,
+              let index = profiles.profiles.firstIndex(where: { $0.id == profile.id }) else { return }
+        profile.ssh = settings
+        profiles.profiles[index] = profile
+        scheduleSave()
+    }
+
     @discardableResult
     func changeLivePassword(_ password: Data) async -> Bool {
         guard let profile = selectedProfile, profile.liveEndpoint != nil, !credentialBusy else { return false }

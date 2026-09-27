@@ -21,6 +21,9 @@ public protocol RouterBackend: Sendable {
     /// The Router screen's own reads. `nil` shows the RPC segments from the
     /// Overview areas only.
     var router: (any RouterService)? { get }
+    /// SSH reads (chunk 15). `nil` means SSH is not set up for this profile:
+    /// SSH-only segments show `SSHRequiredView` and nothing attempts SSH.
+    var ssh: (any SSHService)? { get }
 }
 
 public extension RouterBackend {
@@ -33,6 +36,7 @@ public extension RouterBackend {
     var telemetry: (any TelemetryService)? { nil }
     var clientActions: (any ClientActionsService)? { nil }
     var router: (any RouterService)? { nil }
+    var ssh: (any SSHService)? { nil }
 
     func service(for area: DataArea) -> (any FeatureService)? {
         switch area {
@@ -44,6 +48,7 @@ public extension RouterBackend {
         case .plugins: plugins
         case .telemetry: telemetry
         case .routerDetail: router
+        case .ssh: ssh
         default: nil
         }
     }

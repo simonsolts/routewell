@@ -4,10 +4,13 @@ public enum DataArea: String, CaseIterable, Sendable, Hashable, Codable {
     case router, internet, adGuard, clients, queryLog, network, maintenance, vpn, plugins, telemetry, publicIP, schedules
     /// Router screen reads beyond the Overview areas: Wi-Fi and SQM (chunk 14).
     case routerDetail
+    /// SSH-backed Router reads: Ports, Storage, Logs, and the AdGuard
+    /// process ID (chunk 15).
+    case ssh
 }
 
 public enum ObservationSource: Sendable, Equatable, Codable {
-    case mock, routerRPC, adGuardAPI
+    case mock, routerRPC, adGuardAPI, routerSSH
 }
 
 public enum RefreshFailureCategory: Sendable, Equatable, Hashable, Codable, Error {

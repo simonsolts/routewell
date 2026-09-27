@@ -54,8 +54,8 @@ public enum PingOutputParser {
     }
 }
 
-/// Runs one allow-listed SSH command on the router. Chunk 15 supplies the
-/// live runner with host-key trust; until then the live backend has none.
+/// Runs one allow-listed SSH command on the router. `LiveSSHCommandRunner`
+/// (chunk 15) is the live one; the live backend has none until SSH is set up.
 public protocol SSHCommandRunning: Sendable {
     func run(_ command: SSHCommand, limits: ProcessLimits) async throws -> ProcessResult
 }
@@ -108,6 +108,9 @@ public struct SSHClientActions: ClientActionsService {
         } catch ProcessRunnerError.launchFailed {
             // `ssh` itself did not start, so nothing reached the router.
             return report(.rejected(.preconditionFailed("SSH did not start")), dispatched: false, startedAt: startedAt, failure: .network)
+        } catch let failure as SSHFailure where failure.beforeCommand {
+            // Refused before the remote command ran: no packet was sent.
+            return report(.rejected(.preconditionFailed(failure.message)), dispatched: false, startedAt: startedAt, failure: failure.category)
         } catch {
             return report(.unknownAfterDispatch, dispatched: true, startedAt: startedAt, failure: Self.category(for: error))
         }
@@ -132,10 +135,11 @@ public struct SSHClientActions: ClientActionsService {
     }
 
     private static func category(for error: any Error) -> RefreshFailureCategory {
+        if let failure = error as? SSHFailure { return failure.category }
         switch error as? ProcessRunnerError {
-        case .timedOut?: .timeout
-        case .outputLimitExceeded?: .malformedResponse
-        case .launchFailed?, .cancelled?, nil: .network
+        case .timedOut?: return .timeout
+        case .outputLimitExceeded?: return .malformedResponse
+        case .launchFailed?, .cancelled?, nil: return .network
         }
     }
 }
@@ -153,5 +157,16 @@ public struct SSHRequiredClientActions: ClientActionsService {
     public func wake(_ mac: MACAddress) async -> MutationReport<WakeResult> {
         let now = Date()
         return MutationReport(outcome: .rejected(.capabilityUnavailable), dispatched: false, startedAt: now, finishedAt: now, failure: nil)
+    }
+}
+
+extension SSHFailure {
+    /// True when the failure happened before the remote command could run:
+    /// no connection, no trust, or no login.
+    var beforeCommand: Bool {
+        switch self {
+        case .authenticationFailed, .connectionFailed, .networkFailed, .configurationFailed, .hostKeyNotTrusted, .hostKeyChanged: true
+        case .timedOut, .commandFailed, .other: false
+        }
     }
 }

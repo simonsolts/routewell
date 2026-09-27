@@ -18,7 +18,10 @@ final class AppEnvironment {
     let clientDNS: ClientDNSController
     let clientActions: ClientActionsController
     let router: RouterController
+    let sshSetup: SSHSetupController
     let trustPrompt = TrustPromptController()
+    /// Starts `/usr/bin/ssh` for the live SSH runner. Tests pass a fake.
+    private let processRunner: any ProcessRunning
     private let credentials: any CredentialStore
     /// Builds one `HTTPTransport` for a lease, given the trust store it
     /// should validate certificates against. Called once per built live
@@ -31,6 +34,7 @@ final class AppEnvironment {
     private(set) var mockClientActionsMechanism: ClientActionMechanism? = .ssh
     private(set) var mockSQMBehavior: MockRouterService.SQMBehavior = .unavailable
     private(set) var mockFirmwareBehavior: MockRouterService.FirmwareBehavior = .unableToCheck
+    private(set) var mockSSHScenario: MockSSHService.Scenario = .populated
     #endif
     /// Set when `transportFactory` was actually called. Tests use this to
     /// prove mock mode never constructs a live transport.
@@ -43,10 +47,19 @@ final class AppEnvironment {
          credentials: any CredentialStore = InMemoryCredentialStore(),
          registry: DeviceRegistry? = nil,
          presence: PresenceLog? = nil,
+         sshDirectory: URL? = nil,
+         hostKeyScanner: any SSHHostKeyScanning = LiveSSHHostKeyScanner(),
+         processRunner: any ProcessRunning = ProcessRunner(),
          transportFactory: @escaping (any EndpointTrustStore) -> any HTTPTransport = { URLSessionTransport(trustStore: $0) }) {
         self.model = model
         self.credentials = credentials
         self.transportFactory = transportFactory
+        self.processRunner = processRunner
+        // Routewell's own `known_hosts`: Application Support when the app
+        // persists, otherwise a fresh temporary folder (previews and tests).
+        let hostKeysDirectory = sshDirectory ?? FileManager.default.temporaryDirectory
+            .appendingPathComponent("routewell-ssh-\(UUID().uuidString)", isDirectory: true)
+        self.sshSetup = SSHSetupController(hostKeys: SSHHostKeyStore(directory: hostKeysDirectory), scanner: hostKeyScanner)
         self.logging = LoggingController(model: model)
         let deviceRegistry = registry ?? Self.makeRegistry(mode: model.mode, store: store)
         let presenceLog = presence ?? Self.makePresence(mode: model.mode, store: store)
@@ -62,6 +75,7 @@ final class AppEnvironment {
         #if DEBUG
         mockBackend = backend as? MockRouterBackend
         #endif
+        sshSetup.save = { [weak self] settings in self?.updateSSHSettings(settings) }
         router.routerURL = { [weak self] in
             guard let self, self.model.mode == .live else { return nil }
             return self.persistence.selectedProfile?.liveEndpoint?.url
@@ -216,6 +230,16 @@ final class AppEnvironment {
         Task { await mockBackend.mockRouter.setFirmwareBehavior(behavior) }
     }
 
+    /// Chunk 15: SSH off, probe pending, fails, times out, host key
+    /// changed, or populated. The probe runs again for the new scenario.
+    func setMockSSHScenario(_ scenario: MockSSHService.Scenario) {
+        guard model.mode == .mock, let mockBackend else { return }
+        mockSSHScenario = scenario
+        mockBackend.mockSSH.setScenario(scenario)
+        refresh.reprobeSSH()
+        refresh.refreshNow()
+    }
+
     func setMockClientsScenario(_ scenario: MockClientsService.Scenario) {
         guard model.mode == .mock, let mockBackend else { return }
         mockClientsScenario = scenario
@@ -239,9 +263,12 @@ final class AppEnvironment {
         Task {
             do {
                 let count = try await FixtureRecorder().record(session: session, lease: lease, to: directory)
+                let sshNote = lease.backend.ssh == nil
+                    ? " SSH is not set up, so the SSH commands were skipped. Set up SSH in Settings › Router, then record again."
+                    : " SSH output is text: addresses, quoted names, and key fingerprints are replaced, but log lines can hold other private text."
                 let alert = NSAlert()
                 alert.messageText = "Fixtures recorded"
-                alert.informativeText = "Recorded \(count) read-only calls from the connected live router. Example addresses and names are privacy aliases, not mock responses. Check _recording-manifest.json and review the files before committing."
+                alert.informativeText = "Recorded \(count) read-only calls from the connected live router. Example addresses and names are privacy aliases, not mock responses.\(sshNote) Check _recording-manifest.json and review the files before committing."
                 alert.runModal()
             } catch {
                 let alert = NSAlert()
@@ -259,6 +286,7 @@ final class AppEnvironment {
         let scenario = MockRouterBackend.Scenario(rawValue: scenarioID) ?? .healthy
         let backend = MockRouterBackend(scenario: scenario, hostname: hostname)
         backend.mockClientActions.setMechanism(mockClientActionsMechanism)
+        backend.mockSSH.setScenario(mockSSHScenario)
         mockBackend = backend
         let clientsScenario = mockClientsScenario
         let sqm = mockSQMBehavior
@@ -333,6 +361,14 @@ final class AppEnvironment {
         return saved
     }
 
+    /// Settings › Router › SSH. A new session revision builds a backend
+    /// with or without the SSH runner; with it, the probe runs once.
+    func updateSSHSettings(_ settings: SSHSettings) {
+        guard model.mode == .live, persistence.selectedProfile?.ssh != settings else { return }
+        persistence.updateSSHSettings(settings)
+        reconnectLiveSession()
+    }
+
     /// AdGuard Home tab mutations that must reconnect the live session afterwards.
 
     func updateAdGuardSettings(_ settings: AdGuardSettings) {
@@ -390,8 +426,20 @@ final class AppEnvironment {
             adGuard: adGuardClient,
             trustStore: trust.store,
             trustPrompt: TrustPromptAdapter(controller: trustPrompt),
-            log: logging.eventLog
+            log: logging.eventLog,
+            sshRunner: makeSSHRunner(for: profile, host: endpoint.host)
         )
+    }
+
+    /// The live SSH runner, only when the profile switched SSH on (which
+    /// needed a trusted host key). Without one, Ping, Wake, Ports, Storage,
+    /// and Logs report that SSH is needed, and nothing attempts SSH.
+    private func makeSSHRunner(for profile: RouterProfile, host: String) -> (any SSHCommandRunning)? {
+        guard let settings = profile.ssh, settings.enabled, let identity = settings.identity,
+              let target = try? SSHTarget(host: host, port: settings.port, user: settings.user) else { return nil }
+        let connection = SSHConnection(target: target, identity: identity,
+                                       agentSocket: identity == .agent ? SSHAgentLocator.socket() : nil)
+        return LiveSSHCommandRunner(connection: connection, hostKeys: sshSetup.hostKeys, processes: processRunner)
     }
 
     private static func readPassword(_ store: any CredentialStore, _ reference: CredentialReference) async throws -> String {
@@ -605,6 +653,8 @@ final class AppEnvironment {
         let store: AtomicJSONStore? = persist ? AtomicJSONStore(directory:
             URL.applicationSupportDirectory.appendingPathComponent("Routewell", isDirectory: true)) : nil
         let credentials: any CredentialStore = persist ? KeychainCredentialStore() : InMemoryCredentialStore()
+        let sshDirectory: URL? = persist ? URL.applicationSupportDirectory
+            .appendingPathComponent("Routewell", isDirectory: true).appendingPathComponent("ssh", isDirectory: true) : nil
         #if DEBUG
         let allowsMock = true
         #else
@@ -616,7 +666,8 @@ final class AppEnvironment {
             return AppEnvironment(model: AppModel(mode: mode), backend: MockRouterBackend(), store: store, credentials: credentials)
         }
         #endif
-        return AppEnvironment(model: AppModel(mode: mode), backend: nil, store: store, credentials: credentials, transportFactory: transportFactory)
+        return AppEnvironment(model: AppModel(mode: mode), backend: nil, store: store, credentials: credentials,
+                              sshDirectory: sshDirectory, transportFactory: transportFactory)
     }
 }
 

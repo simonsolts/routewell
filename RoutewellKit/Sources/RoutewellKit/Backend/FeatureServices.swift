@@ -8,6 +8,8 @@ public enum CapabilityEvidence: Sendable, Equatable, Codable {
     case successfulResponse
     case methodNotFound(method: String)
     case mockScenario(String)
+    /// Chunk 15: the SSH probe failed for this reason (an `SSHFailure` name).
+    case sshProbeFailed(String)
 }
 
 public struct Capability: Sendable, Equatable, Codable {
@@ -68,6 +70,42 @@ public struct RouterDetailsResult: Sendable {
         self.wireless = wireless
         self.sqm = sqm
         self.sqmCapability = sqmCapability
+    }
+}
+
+/// SSH to the router (chunk 15), behind `RouterBackend.ssh`. The backend
+/// has one only when the profile has SSH set up and its host key trusted.
+/// Every call throws only `CancellationError`; every other failure is a
+/// result. The app reads nothing until `check()` has reported supported.
+public protocol SSHService: FeatureService {
+    /// `ubus call system board`: success is supported; a timeout or an
+    /// unreachable network is unknown; any other failure is unsupported.
+    func check() async throws -> SSHProbeResult
+    /// Router › Ports: the Ethernet interfaces from a prior enumeration.
+    func ports() async throws -> AreaRefreshResult<RouterPortsStatus>
+    /// Router › Storage: root filesystem, external volumes, Samba shares.
+    func storage() async throws -> AreaRefreshResult<StorageStatus>
+    /// Router › Logs: the last 250 lines, newest first.
+    func logTail() async throws -> AreaRefreshResult<RouterLogTail>
+    /// The AdGuard Home process ID; `unavailable` when no process runs.
+    func adGuardProcess() async throws -> Observed<Int>
+}
+
+public extension SSHService {
+    func probe() async -> Capability {
+        (try? await check())?.capability ?? Capability()
+    }
+}
+
+public struct SSHProbeResult: Sendable, Equatable {
+    public var capability: Capability
+    public var failure: SSHFailure?
+    public var board: SystemBoard?
+
+    public init(capability: Capability, failure: SSHFailure? = nil, board: SystemBoard? = nil) {
+        self.capability = capability
+        self.failure = failure
+        self.board = board
     }
 }
 

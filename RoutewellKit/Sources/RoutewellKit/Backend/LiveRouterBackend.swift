@@ -55,6 +55,7 @@ public actor LiveRouterBackend: RouterBackend, FixtureRecordableBackend {
     private let trustPrompt: any TrustPromptHandler
     private let clock: @Sendable () -> Date
     private let log: SessionEventLog?
+    private let sshRunner: (any SSHCommandRunning)?
 
     /// One `ProtectionMutationExecutor`, backed by one `MutationGate`, shared
     /// across every call for the lifetime of this backend instance — never
@@ -67,8 +68,11 @@ public actor LiveRouterBackend: RouterBackend, FixtureRecordableBackend {
     /// Read on demand by the Clients details pane. `nil` without AdGuard Home.
     public nonisolated let queryLog: (any QueryLogService)?
     /// Ping and Wake run over SSH; there is no client-scoped RPC. Without an
-    /// SSH runner (SSH is set up from chunk 15) the buttons explain that.
+    /// SSH runner (SSH is not set up) the buttons explain that.
     public nonisolated let clientActions: (any ClientActionsService)?
+    /// Ports, Storage, Logs, and the AdGuard process ID. `nil` without an
+    /// SSH runner, so nothing attempts SSH.
+    public nonisolated let ssh: (any SSHService)?
     /// Wi-Fi, SQM, and the firmware check for the Router screen.
     public nonisolated let router: (any RouterService)?
 
@@ -95,6 +99,8 @@ public actor LiveRouterBackend: RouterBackend, FixtureRecordableBackend {
         // One gate per router, shared by every write this backend runs.
         let gate = MutationGate()
         self.clientActions = sshRunner.map { SSHClientActions(runner: $0, gate: gate, clock: clock) } ?? SSHRequiredClientActions()
+        self.ssh = sshRunner.map { LiveSSHService(runner: $0, clock: clock) }
+        self.sshRunner = sshRunner
         if let adGuard {
             self.protection = ProtectionMutationExecutorService(
                 executor: ProtectionMutationExecutor(adGuard: adGuard, gate: gate, clock: clock, log: log)
@@ -117,6 +123,41 @@ public actor LiveRouterBackend: RouterBackend, FixtureRecordableBackend {
         case .adGuard:
             guard let adGuardClient else { return .object(["error": .object(["category": .string("not configured")])]) }
             return await adGuardClient.recordRead(path: call.method)
+        case .ssh:
+            // SSH output is text; `recordSSHFixture` records it.
+            return .object(["error": .string("invalid call")])
+        }
+    }
+
+    /// One allow-listed SSH read as text: a `# exit status` header, stdout,
+    /// and stderr as `#` lines. The telemetry read first enumerates the
+    /// interfaces and reads every valid name, so the review can check the
+    /// Ethernet filter. The AdGuard command line is cut after the program path.
+    public func recordSSHFixture(_ call: FixtureCall) async -> String? {
+        guard call.transport == .ssh, FixtureRecordingPlan.isReadOnly(call), let sshRunner else { return nil }
+        do {
+            let command: SSHCommand
+            if call.method == FixtureRecordingPlan.interfaceTelemetryKey {
+                let listing = try await sshRunner.run(.networkInterfaces, limits: LiveSSHService.limits)
+                let names = InterfaceParser.parseEnumeration(String(decoding: listing.stdout, as: UTF8.self)).map(\.name)
+                command = .interfaceTelemetry(names)
+            } else if let fixed = FixtureRecordingPlan.sshReads[call.method] {
+                command = fixed
+            } else {
+                return nil
+            }
+            let result = try await sshRunner.run(command, limits: LiveSSHService.limits)
+            var stdout = String(decoding: result.stdout, as: UTF8.self)
+            if command == .adGuardProcess {
+                stdout = stdout.split(whereSeparator: \.isNewline)
+                    .map { $0.split(separator: " ").prefix(2).joined(separator: " ") }.joined(separator: "\n")
+            }
+            let stderr = String(decoding: result.stderr, as: UTF8.self).split(whereSeparator: \.isNewline).map { "# stderr: \($0)" }
+            return (["# exit status: \(result.exitStatus)", stdout] + stderr).joined(separator: "\n")
+        } catch let failure as SSHFailure {
+            return "# failure: \(failure)"
+        } catch {
+            return "# failure: \(type(of: error))"
         }
     }
 

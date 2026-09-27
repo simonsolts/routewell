@@ -2,7 +2,7 @@ import SwiftUI
 import RoutewellKit
 
 /// Router: ten segments in the toolbar (design/router-screen.md). Every
-/// RPC segment is read-only; Ports, Storage, and Logs need SSH (chunk 15).
+/// segment is read-only; Ports, Storage, and Logs read over SSH (chunk 15).
 struct RouterScreen: View {
     @Environment(AppModel.self) private var model
 
@@ -12,7 +12,7 @@ struct RouterScreen: View {
 
     var body: some View {
         if segment.requiresSSH {
-            SSHRequiredView(title: segment.rawValue)
+            RouterSSHSegment(segment: segment)
         } else if model.snapshot == nil {
             RouterUnavailableView()
         } else {
@@ -62,7 +62,7 @@ struct RouterUnavailableView: View {
 
 /// Two equal columns, as in every Router mockup. The window's minimum
 /// width leaves each column more than 300 pt.
-private struct TwoColumns<Left: View, Right: View>: View {
+struct TwoColumns<Left: View, Right: View>: View {
     @ViewBuilder var left: () -> Left
     @ViewBuilder var right: () -> Right
 
@@ -80,7 +80,8 @@ struct RouterOverviewSegment: View {
     @Environment(AppModel.self) private var model
 
     var body: some View {
-        let overview = RouterOverviewModel(snapshot: model.snapshot ?? OverviewSnapshot(observedAt: .now), wireless: model.wireless)
+        let overview = RouterOverviewModel(snapshot: model.snapshot ?? OverviewSnapshot(observedAt: .now), wireless: model.wireless,
+                                           sshConfigured: model.sshConfigured, adGuardProcessID: model.adGuardProcessID)
         VStack(alignment: .leading, spacing: 22) {
             MetricStrip(metrics: overview.strip)
             TwoColumns {
@@ -108,7 +109,7 @@ struct RouterPerformanceSegment: View {
             MetricStrip(metrics: performance.strip)
             TwoColumns {
                 HeaderInset(title: "Memory") { RouterRows(rows: performance.memory) }
-                HeaderInset(title: "Storage", footnote: "Router storage as the router API reports it. Mount details need SSH.") {
+                HeaderInset(title: "Storage", footnote: "Router storage as the router API reports it. Router › Storage shows mount details over SSH.") {
                     RouterRows(rows: performance.storage)
                     Divider().padding(.leading, 12)
                     HStack(spacing: 12) {

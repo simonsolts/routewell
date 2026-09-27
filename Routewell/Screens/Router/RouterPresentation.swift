@@ -6,7 +6,7 @@ enum RouterSegment: String, CaseIterable {
     case overview = "Overview", ports = "Ports", wifi = "Wi-Fi", multiWAN = "Multi-WAN", dns = "DNS"
     case sqm = "SQM", performance = "Performance", storage = "Storage", firmware = "Firmware", logs = "Logs"
 
-    /// No RPC exists for these; they need SSH, which chunk 15 sets up.
+    /// No RPC exists for these; they read over SSH (chunk 15).
     var requiresSSH: Bool { self == .ports || self == .storage || self == .logs }
 }
 
@@ -157,7 +157,10 @@ struct RouterOverviewModel: Equatable {
 
     static let footnote = "Read-only telemetry reported by the router. Change settings in the router UI."
 
-    init(snapshot: OverviewSnapshot, wireless: WirelessStatus?, locale: Locale = .current) {
+    /// `adGuardProcessID` comes from `pgrep` over SSH; without SSH the row
+    /// says it needs SSH.
+    init(snapshot: OverviewSnapshot, wireless: WirelessStatus?, sshConfigured: Bool = false,
+         adGuardProcessID: Observed<Int> = .unknown, locale: Locale = .current) {
         let router = snapshot.router
         strip = RouterOverviewModel.strip(router, locale: locale)
         identity = [
@@ -189,7 +192,8 @@ struct RouterOverviewModel: Equatable {
         let adGuard = snapshot.adGuard
         let adGuardRow: RouterRowModel = switch (adGuard.reachability, adGuard.running) {
         case (.connected, .value(true)), (.connected, .unknown):
-            RouterRowModel(label: "AdGuard Home", detail: "\(adGuard.version ?? "Version unknown") · process ID needs SSH", value: "Active", tone: .healthy)
+            RouterRowModel(label: "AdGuard Home", detail: "\(adGuard.version ?? "Version unknown") · \(Self.process(adGuardProcessID, sshConfigured: sshConfigured))",
+                           value: "Active", tone: .healthy)
         case (.connected, .value(false)):
             RouterRowModel(label: "AdGuard Home", detail: adGuard.version, value: "Stopped", tone: .unknown)
         default:
@@ -211,6 +215,16 @@ struct RouterOverviewModel: Equatable {
             RouterRowModel(label: "Wi-Fi", detail: "Signal strength is not reported by the router", value: wifiValue),
             RouterRowModel(label: "Storage", value: storageValue),
         ]
+    }
+
+    /// "process 4321".
+    static func process(_ id: Observed<Int>, sshConfigured: Bool) -> String {
+        guard sshConfigured else { return "process ID needs SSH" }
+        switch id {
+        case .value(let pid): return "process \(pid)"
+        case .unavailable: return "no process found"
+        case .unknown: return "process ID unknown"
+        }
     }
 
     static func strip(_ router: RouterStatus, locale: Locale) -> [MetricModel] {

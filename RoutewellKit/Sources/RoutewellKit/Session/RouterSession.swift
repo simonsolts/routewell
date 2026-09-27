@@ -110,6 +110,47 @@ public actor RouterSession {
         return try result.get()
     }
 
+    /// Runs one fenced read against `lease.backend`: validated before it
+    /// starts and after it ends, so a result from an old lease is dropped.
+    private func fenced<Value: Sendable>(_ lease: SessionLease, _ body: @Sendable () async throws -> Value) async throws -> Value {
+        try validateBefore(lease)
+        let result: Result<Value, any Error>
+        do { result = .success(try await body()) }
+        catch { result = .failure(error) }
+        try validateAfter(lease)
+        return try result.get()
+    }
+
+    /// The SSH probe (chunk 15). `nil` when SSH is not set up.
+    public func sshProbe(using lease: SessionLease) async throws -> SSHProbeResult? {
+        guard let service = lease.backend.ssh else { try validateBefore(lease); return nil }
+        return try await fenced(lease) { try await service.check() }
+    }
+
+    /// Router › Ports over SSH. `nil` when SSH is not set up.
+    public func routerPorts(using lease: SessionLease) async throws -> AreaRefreshResult<RouterPortsStatus>? {
+        guard let service = lease.backend.ssh else { try validateBefore(lease); return nil }
+        return try await fenced(lease) { try await service.ports() }
+    }
+
+    /// Router › Storage over SSH. `nil` when SSH is not set up.
+    public func routerStorage(using lease: SessionLease) async throws -> AreaRefreshResult<StorageStatus>? {
+        guard let service = lease.backend.ssh else { try validateBefore(lease); return nil }
+        return try await fenced(lease) { try await service.storage() }
+    }
+
+    /// Router › Logs over SSH. `nil` when SSH is not set up.
+    public func routerLogs(using lease: SessionLease) async throws -> AreaRefreshResult<RouterLogTail>? {
+        guard let service = lease.backend.ssh else { try validateBefore(lease); return nil }
+        return try await fenced(lease) { try await service.logTail() }
+    }
+
+    /// The AdGuard Home process ID over SSH. `nil` when SSH is not set up.
+    public func adGuardProcess(using lease: SessionLease) async throws -> Observed<Int>? {
+        guard let service = lease.backend.ssh else { try validateBefore(lease); return nil }
+        return try await fenced(lease) { try await service.adGuardProcess() }
+    }
+
     /// Pings one client from the router, fenced like a read. `nil` when the
     /// backend offers no client actions.
     public func ping(using lease: SessionLease, address: IPv4Literal) async throws -> Result<PingResult, RefreshFailureCategory>? {

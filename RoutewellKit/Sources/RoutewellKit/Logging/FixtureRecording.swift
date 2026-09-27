@@ -1,7 +1,9 @@
 import Foundation
 
 public struct FixtureCall: Sendable, Equatable {
-    public enum Transport: String, Sendable { case rpc, adGuard }
+    /// `ssh` calls name one fixed `SSHCommand` by key (chunk 15); nothing
+    /// else can be run.
+    public enum Transport: String, Sendable { case rpc, adGuard, ssh }
     public let transport: Transport
     public let object: String?
     public let method: String
@@ -40,8 +42,33 @@ public enum FixtureRecordingPlan {
         .init(.adGuard, method: "control/stats", fileName: "adguard-stats.json"),
         .init(.adGuard, method: "control/clients", fileName: "adguard-clients.json"),
         .init(.adGuard, method: "control/querylog", fileName: "adguard-querylog.json"),
-        .init(.adGuard, method: "control/filtering/status", fileName: "adguard-filtering-status.json")
+        .init(.adGuard, method: "control/filtering/status", fileName: "adguard-filtering-status.json"),
+        // Chunk 15: the SSH reads. Recorded only when SSH is set up for the
+        // profile; otherwise they are skipped.
+        .init(.ssh, method: "system-board", fileName: "ssh-ubus-system-board.json"),
+        .init(.ssh, method: "log-tail", fileName: "ssh-logread-250.txt"),
+        .init(.ssh, method: "root-filesystem", fileName: "ssh-df-h-root.txt"),
+        .init(.ssh, method: "disk-usage", fileName: "ssh-df-k.txt"),
+        .init(.ssh, method: "mount-table", fileName: "ssh-proc-mounts.txt"),
+        .init(.ssh, method: "samba-shares", fileName: "ssh-samba-shares.txt"),
+        .init(.ssh, method: "network-interfaces", fileName: "ssh-sys-class-net-interfaces.txt"),
+        .init(.ssh, method: interfaceTelemetryKey, fileName: "ssh-sys-class-net-telemetry.txt"),
+        .init(.ssh, method: "adguard-process", fileName: "ssh-pgrep-adguardhome.txt"),
     ]
+
+    /// The fixed SSH reads the recorder may run, by key. The interface
+    /// telemetry is not here: its names come from the enumeration first.
+    public static let sshReads: [String: SSHCommand] = [
+        "system-board": .systemBoard,
+        "log-tail": .logTail,
+        "root-filesystem": .rootFilesystem,
+        "disk-usage": .diskUsage,
+        "mount-table": .mountTable,
+        "samba-shares": .sambaShares,
+        "network-interfaces": .networkInterfaces,
+        "adguard-process": .adGuardProcess,
+    ]
+    public static let interfaceTelemetryKey = "interface-telemetry"
 
     /// RPC reads whose names do not start with `get_`. Each one is named
     /// exactly; the prefix rule stays the only general rule.
@@ -54,6 +81,8 @@ public enum FixtureRecordingPlan {
             return call.method.hasPrefix("get_") || call.method == "list" || namedReads.contains("\(object).\(call.method)")
         case .adGuard:
             return call.method.hasPrefix("control/") && !call.method.contains("set") && !call.method.contains("update")
+        case .ssh:
+            return call.object == nil && (sshReads[call.method] != nil || call.method == interfaceTelemetryKey)
         }
     }
 }
@@ -185,6 +214,56 @@ public enum RecordedFixtureRedactor {
 
 public protocol FixtureRecordableBackend: Sendable {
     func recordFixture(_ call: FixtureCall) async -> JSONValue
+    /// The raw text of one SSH read, or `nil` when SSH is not set up.
+    func recordSSHFixture(_ call: FixtureCall) async -> String?
+}
+
+public extension FixtureRecordableBackend {
+    func recordSSHFixture(_ call: FixtureCall) async -> String? { nil }
+}
+
+/// Redacts SSH text output before it is written: IP and MAC addresses get
+/// the export's stable aliases, quoted text becomes an example name (yes/no
+/// flags stay), key fingerprints, DHCP host names, queried domains, and
+/// e-mail addresses are removed. Log messages can still hold other private
+/// text, so every recorded file is reviewed before any fixture is committed.
+public enum RecordedTextRedactor {
+    public static func redact(_ text: String, aliases: inout FixtureAliases) -> String {
+        var names = aliases
+        var output = text.replacing(/(?:[0-9A-Fa-f]{2}[:-]){5}[0-9A-Fa-f]{2}/) { match in
+            let mac = String(match.0)
+            if names.macAddresses[mac] == nil {
+                names.macAddresses[mac] = String(format: "02:00:00:00:%02X:%02X", names.macAddresses.count / 256, names.macAddresses.count % 256)
+            }
+            return names.macAddresses[mac]!
+        }
+        output = output.replacing(/(?:[0-9A-Fa-f]{0,4}:){2,7}[0-9A-Fa-f]{0,4}|\b(?:\d{1,3}\.){3}\d{1,3}\b/) { match in
+            let address = String(match.0)
+            guard IPAddressText.isValid(address) else { return address }
+            if names.ipAddresses[address] == nil {
+                let index = names.ipAddresses.count
+                names.ipAddresses[address] = "198.51.\(100 + index / 254).\(1 + index % 254)"
+            }
+            return names.ipAddresses[address]!
+        }
+        output = output.replacing(/SHA256:[A-Za-z0-9+\/=]+/) { _ in "SHA256:[REDACTED]" }
+        output = output.replacing(/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/) { _ in "[REDACTED EMAIL]" }
+        output = output.replacing(/(DHCP[A-Z]+\([^)]*\) \S+ \S+) \S+/) { match in "\(match.1) [REDACTED HOST]" }
+        output = output.replacing(/(query\[[A-Za-z0-9]+\]|reply|forwarded|cached|config) (\S+)/) { match in "\(match.1) [REDACTED DOMAIN]" }
+        output = output.replacing(/'([^'\n]*)'/) { match in "'\(quoted(String(match.1), names: &names))'" }
+        output = output.replacing(/"([^"\n]*)"/) { match in "\"\(quoted(String(match.1), names: &names))\"" }
+        aliases = names
+        return output
+    }
+
+    /// Flags and aliases stay; any other quoted text becomes "Example N".
+    private static func quoted(_ value: String, names: inout FixtureAliases) -> String {
+        let safe = value.isEmpty || ["yes", "no", "0", "1", "true", "false", "on", "off"].contains(value.lowercased())
+            || value.hasPrefix("198.51.") || value.hasPrefix("02:00:00:00:") || value.hasPrefix("[REDACTED")
+        if safe { return value }
+        if names.names[value] == nil { names.names[value] = "Example \(names.names.count + 1)" }
+        return names.names[value]!
+    }
 }
 
 public struct FixtureRecordingManifest: Sendable, Codable, Equatable {
@@ -209,22 +288,38 @@ public actor FixtureRecorder {
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         var count = 0
         var aliases = FixtureAliases()
+        var written: [String] = []
         for call in calls {
             try Task.checkCancellation()
             try await session.validateBefore(lease)
-            let value = await backend.recordFixture(call)
-            try Task.checkCancellation()
-            try await session.validateAfter(lease)
-            RecordedFixtureRedactor.collectAliases(value, into: &aliases)
-            let data = try PayloadRedactor.redact(JSONEncoder().encode(value), schema: .recordedFixture, aliases: aliases)
+            let data: Data
+            if call.transport == .ssh {
+                // Skipped, not written, when SSH is not set up for the profile.
+                guard let text = await backend.recordSSHFixture(call) else { continue }
+                try Task.checkCancellation()
+                try await session.validateAfter(lease)
+                if call.fileName.hasSuffix(".json"), let body = Self.jsonBody(text) {
+                    RecordedFixtureRedactor.collectAliases(body, into: &aliases)
+                    data = try PayloadRedactor.redact(JSONEncoder().encode(body), schema: .recordedFixture, aliases: aliases)
+                } else {
+                    data = Data(RecordedTextRedactor.redact(text, aliases: &aliases).utf8)
+                }
+            } else {
+                let value = await backend.recordFixture(call)
+                try Task.checkCancellation()
+                try await session.validateAfter(lease)
+                RecordedFixtureRedactor.collectAliases(value, into: &aliases)
+                data = try PayloadRedactor.redact(JSONEncoder().encode(value), schema: .recordedFixture, aliases: aliases)
+            }
             try data.write(to: directory.appendingPathComponent(call.fileName), options: .atomic)
+            written.append(call.fileName)
             count += 1
         }
         try Task.checkCancellation()
         try await session.validateAfter(lease)
         let manifest = FixtureRecordingManifest(
             source: backend is LiveRouterBackend ? "live-router" : "synthetic-test-backend",
-            files: calls.map(\.fileName)
+            files: written
         )
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
@@ -234,3 +329,11 @@ public actor FixtureRecorder {
 }
 
 public enum RecorderError: Error, Sendable { case unsafePlan, unavailable }
+
+extension FixtureRecorder {
+    /// The JSON after the `# ...` header lines of an SSH recording, if any.
+    static func jsonBody(_ text: String) -> JSONValue? {
+        let body = text.split(separator: "\n", omittingEmptySubsequences: false).filter { !$0.hasPrefix("#") }.joined(separator: "\n")
+        return try? JSONDecoder().decode(JSONValue.self, from: Data(body.utf8))
+    }
+}

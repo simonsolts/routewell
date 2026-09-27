@@ -1,0 +1,1 @@
+{"hostname":"example-router","release":{"version":"21.02-SNAPSHOT","revision":"","target":"example/target","description":"OpenWrt 21.02-SNAPSHOT","distribution":"OpenWrt"},"system":"ARMv8 Processor","model":"Example Router","board_name":"example,router","kernel":"5.4.0"}

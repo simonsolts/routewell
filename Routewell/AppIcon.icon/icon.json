@@ -4,112 +4,93 @@
   ],
   "fill" : {
     "linear-gradient" : [
-      "display-p3:0.18330,0.24864,0.31870,1.00000",
-      "display-p3:0.27166,0.33480,0.41581,1.00000"
+      "display-p3:0.24314,0.56870,1.00000,1.00000",
+      "extended-srgb:0.00000,0.53333,1.00000,1.00000"
     ]
   },
   "groups" : [
     {
-      "blur-material" : null,
+      "blur-material" : 0.5,
       "layers" : [
         {
-          "fill" : "none",
-          "glass" : true,
-          "hidden" : false,
-          "image-name" : "routers.png",
-          "name" : "routers",
-          "position-specializations" : [
-            {
-              "idiom" : "square",
-              "value" : {
-                "scale" : 1.5,
-                "translation-in-points" : [
-                  0,
-                  0
-                ]
-              }
-            }
-          ]
+          "image-name" : "4-status-light.png",
+          "name" : "4-status-light"
         }
       ],
-      "opacity" : 1,
-      "refractivity" : {
-        "depth" : 0.1501953125,
-        "enabled" : true,
-        "strength" : 0.501484375
-      },
-      "shadow" : {
-        "kind" : "layer-color",
-        "opacity" : 0.5
-      },
-      "specular" : false,
-      "translucency" : {
-        "enabled" : false,
-        "value" : 0.3
-      }
-    },
-    {
-      "blend-mode" : "normal",
-      "blur-material" : 0.16,
-      "hidden" : false,
-      "layers" : [
-        {
-          "blend-mode" : "screen",
-          "fill" : "none",
-          "glass" : true,
-          "hidden" : false,
-          "image-name" : "glow.png",
-          "name" : "glow",
-          "opacity" : 0.71,
-          "position-specializations" : [
-            {
-              "idiom" : "square",
-              "value" : {
-                "scale" : 1.5,
-                "translation-in-points" : [
-                  0,
-                  0
-                ]
-              }
-            }
-          ]
-        }
-      ],
-      "lighting" : "individual",
-      "opacity" : 1,
       "refractivity" : {
         "depth" : 0,
-        "enabled" : false,
+        "enabled" : true,
         "strength" : 0.5
       },
       "shadow" : {
-        "kind" : "none",
+        "kind" : "neutral",
         "opacity" : 0.5
       },
-      "specular" : false,
       "translucency" : {
-        "enabled" : false,
+        "enabled" : true,
         "value" : 0.3
       }
     },
     {
-      "hidden" : true,
+      "blur-material" : null,
       "layers" : [
         {
-          "glass" : false,
-          "hidden" : false,
-          "image-name" : "background.png",
-          "name" : "background"
+          "image-name" : "2-signal.png",
+          "name" : "2-signal"
+        }
+      ],
+      "refractivity" : {
+        "depth" : 0,
+        "enabled" : true,
+        "strength" : 0.5
+      },
+      "shadow" : {
+        "kind" : "neutral",
+        "opacity" : 0.5
+      },
+      "translucency" : {
+        "enabled" : true,
+        "value" : 0.3
+      }
+    },
+    {
+      "blur-material" : 0.5,
+      "layers" : [
+        {
+          "image-name" : "3-device.png",
+          "name" : "3-device"
         }
       ],
       "shadow" : {
         "kind" : "neutral",
         "opacity" : 0.5
       },
-      "specular" : false,
       "translucency" : {
-        "enabled" : false,
+        "enabled" : true,
         "value" : 0.3
+      }
+    },
+    {
+      "blend-mode" : "normal",
+      "blur-material" : null,
+      "layers" : [
+        {
+          "image-name" : "1-antennae.png",
+          "name" : "1-antennae"
+        }
+      ],
+      "refractivity" : {
+        "depth" : 0,
+        "enabled" : true,
+        "strength" : 0.5
+      },
+      "shadow" : {
+        "kind" : "neutral",
+        "opacity" : 0.5
+      },
+      "translucency" : {
+        "enabled" : true,
+        "value" : 0.4
       }
     }
   ],

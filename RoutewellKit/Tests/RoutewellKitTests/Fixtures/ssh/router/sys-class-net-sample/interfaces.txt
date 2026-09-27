@@ -1,0 +1,16 @@
+apcli0 1 1 1 0
+br-lan 1 0 0 1
+eth0 1 1 0 0
+eth1 1 1 0 0
+eth1.1 1 0 0 0
+eth2 1 1 0 0
+lan5 1 1 0 0
+lan6 1 1 0 0
+lan7 1 1 0 0
+lan8 1 1 0 0
+lo 772 0 0 0
+pppoe-wan 512 0 0 0
+ra0 1 1 1 0
+rai0 1 1 1 0
+rax0 1 1 1 0
+bad;name 1 1 0 0

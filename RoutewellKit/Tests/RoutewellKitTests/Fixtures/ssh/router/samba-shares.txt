@@ -1,0 +1,5 @@
+samba4.@sambashare[0].name='Backups'
+samba4.@sambashare[0].read_only='no'
+samba4.@sambashare[0].guest_ok='no'
+samba4.@sambashare[1].name='Media'
+samba4.@sambashare[1].read_only='yes'

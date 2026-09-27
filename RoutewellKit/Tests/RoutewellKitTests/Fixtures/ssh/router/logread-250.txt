@@ -1,0 +1,28 @@
+Thu Jan 15 10:00:01 2026 kern.warn kernel: [100001.000001] [wlan] BN0,mt7990_dump_rx_err_dbg_log() 3662: [rx_err] ICV Error!
+Thu Jan 15 10:00:01 2026 kern.warn kernel: [100001.000002] [wlan] BN0,mt7990_dump_rx_err_dbg_log() 3674: [rx_err] Peer Link Addr: 02:00:00:00:00:01
+Thu Jan 15 10:00:01 2026 kern.debug kernel: [100001.000003] [rx_err] RawData: 0000000000000000, len = 64
+Thu Jan 15 10:00:20 2026 daemon.info netifyd[1100]: netlink-ct: Exception while reading CT message: mnl_socket_recvfrom: No buffer space available
+Thu Jan 15 10:00:30 2026 daemon.info dnsmasq-dhcp[1200]: DHCPREQUEST(br-lan) 192.0.2.50 02:00:00:00:00:02
+Thu Jan 15 10:00:30 2026 daemon.info dnsmasq-dhcp[1200]: DHCPACK(br-lan) 192.0.2.50 02:00:00:00:00:02 host-a
+Thu Jan 15 10:00:40 2026 daemon.info eco[1300]: (gl-ngx-session:664) websocket proxy disconnected
+Thu Jan 15 10:00:40 2026 user.err : [screen][ws_callback][error]ws closed
+Thu Jan 15 10:00:45 2026 user.info : [screen][ws_client_wait][info]ws reconnecting...
+Thu Jan 15 10:00:45 2026 user.info : [screen][ws_callback][info]ws connected
+Thu Jan 15 10:00:45 2026 daemon.info eco[1300]: (gl-ngx-session:659) new websocket proxy connection
+Thu Jan 15 10:01:00 2026 daemon.info dnsmasq-dhcp[1200]: DHCPREQUEST(br-lan) 192.0.2.51 02:00:00:00:00:03
+Thu Jan 15 10:01:00 2026 daemon.info dnsmasq-dhcp[1200]: DHCPACK(br-lan) 192.0.2.51 02:00:00:00:00:03 host-b
+Thu Jan 15 10:01:10 2026 daemon.info dnsmasq-dhcp[1200]: DHCPDISCOVER(br-lan) 02:00:00:00:00:04
+Thu Jan 15 10:01:10 2026 daemon.info dnsmasq-dhcp[1200]: DHCPOFFER(br-lan) 192.0.2.52 02:00:00:00:00:04
+Thu Jan 15 10:01:10 2026 daemon.info dnsmasq-dhcp[1200]: DHCPACK(br-lan) 192.0.2.52 02:00:00:00:00:04 host-c
+Thu Jan 15 10:01:20 2026 authpriv.info dropbear[1400]: Child connection from 192.0.2.10:50000
+Thu Jan 15 10:01:20 2026 authpriv.notice dropbear[1400]: Pubkey auth succeeded for 'root' with ssh-rsa key SHA256:example from 192.0.2.10:50000
+Thu Jan 15 10:01:21 2026 authpriv.info dropbear[1400]: Exit (root) from <192.0.2.10:50000>: Disconnect received
+Thu Jan 15 10:02:00 2026 daemon.warn hostapd: ra0: STA 02:00:00:00:00:05 IEEE 802.11: disassociated due to inactivity
+Thu Jan 15 10:02:01 2026 daemon.notice netifd: Interface 'wan' is now up
+Thu Jan 15 10:02:02 2026 daemon.info odhcpd[1500]: Using a RA lifetime of 0 seconds on br-lan
+Thu Jan 15 10:02:03 2026 user.notice firewall: Reloading firewall due to ifup of wan (pppoe-wan)
+Thu Jan 15 10:02:04 2026 daemon.debug AdGuardHome[1600]: debug: dnsproxy: upstream exchange complete
+Thu Jan 15 10:02:05 2026 daemon.notice openvpn(client)[1700]: Initialization Sequence Completed
+Thu Jan 15 10:02:06 2026 daemon.info block: attempting to mount /dev/sda1
+Thu Jan 15 10:02:07 2026 daemon.crit procd: Instance adguardhome::instance1 s in a crash loop
+Jan 15 10:02:08 router odd line without a year

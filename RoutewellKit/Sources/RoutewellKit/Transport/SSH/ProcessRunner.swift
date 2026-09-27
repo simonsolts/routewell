@@ -20,6 +20,14 @@ public struct ProcessResult: Sendable, Equatable {
     public let stderr: Data
     public let stdoutTruncated: Bool
     public let stderrTruncated: Bool
+
+    public init(exitStatus: Int32, stdout: Data, stderr: Data, stdoutTruncated: Bool = false, stderrTruncated: Bool = false) {
+        self.exitStatus = exitStatus
+        self.stdout = stdout
+        self.stderr = stderr
+        self.stdoutTruncated = stdoutTruncated
+        self.stderrTruncated = stderrTruncated
+    }
 }
 
 public enum ProcessRunnerError: Error, Equatable, Sendable {
@@ -230,3 +238,11 @@ public actor ProcessRunner {
         }
     }
 }
+
+/// What the SSH runner and the host-key scanner need from `ProcessRunner`,
+/// so tests can serve canned results and never start `ssh` or `ssh-keyscan`.
+public protocol ProcessRunning: Sendable {
+    func run(executable: URL, arguments: [String], environment: [String: String], limits: ProcessLimits) async throws -> ProcessResult
+}
+
+extension ProcessRunner: ProcessRunning {}

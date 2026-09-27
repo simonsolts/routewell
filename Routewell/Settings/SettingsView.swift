@@ -151,10 +151,25 @@ struct SettingsView: View {
                             Text("Update available").tag(MockRouterService.FirmwareBehavior.updateAvailable)
                             Text("Up to date").tag(MockRouterService.FirmwareBehavior.upToDate)
                         }
+                        Picker("SSH", selection: Binding(
+                            get: { environment.mockSSHScenario },
+                            set: { environment.setMockSSHScenario($0) }
+                        )) {
+                            Text("Populated").tag(MockSSHService.Scenario.populated)
+                            Text("SSH off (not set up)").tag(MockSSHService.Scenario.off)
+                            Text("Probe pending").tag(MockSSHService.Scenario.probePending)
+                            Text("Probe fails (key refused)").tag(MockSSHService.Scenario.probeFails)
+                            Text("Probe times out").tag(MockSSHService.Scenario.probeTimesOut)
+                            Text("Host key changed").tag(MockSSHService.Scenario.hostKeyChanged)
+                        }
+                        HStack {
+                            Button("Preview New Host Key…") { environment.sshSetup.preview(.new) }
+                            Button("Preview Changed Host Key…") { environment.sshSetup.preview(.changed) }
+                        }
                     } header: {
                         Text("Mock router")
                     } footer: {
-                        Text("Wi-Fi always shows three populated bands. Multi-WAN reports no interface state. SSH is not set up, so Ports, Storage, and Logs ask for it. The firmware check runs when you press Check for Updates.")
+                        Text("Wi-Fi always shows three populated bands. Multi-WAN reports no interface state. The SSH picker drives Ports, Storage, Logs, and the AdGuard Home process ID; each change runs the SSH probe once. The host-key previews scan and store nothing. The firmware check runs when you press Check for Updates.")
                     }
                     #endif
                 }
@@ -185,7 +200,6 @@ struct SettingsView: View {
                         TextField("Address", text: $addressText, prompt: Text("Router hostname or IP address"))
                             .onSubmit { Task { await saveAddress() } }
                         if let addressError { Text(addressError).font(.caption).foregroundStyle(.red) }
-                        Picker("SSH authentication", selection: .constant("Key")) { Text("SSH key").tag("Key") }.disabled(true)
                         Button("Test Connection") {
                             routerConnectionTestTask?.cancel()
                             routerConnectionTestTask = Task { await testRouterConnection(profile: profile) }
@@ -209,13 +223,26 @@ struct SettingsView: View {
                         addressText = profile.liveEndpoint?.displayString ?? profile.endpoint
                         usernameText = profile.username
                     }
+                    SSHSettingsSection(environment: environment, profile: profile)
+                        .disabled(mutationInFlight)
                 } else {
                     Section {
                         Text("Set up a router in the Setup screen to edit its address and username here.")
                             .foregroundStyle(.secondary)
                     }
                 }
-            }.tabItem { Label("Router", systemImage: "wifi.router") }.tag("Router")
+            }
+            .sheet(isPresented: Binding(
+                get: { environment.sshSetup.prompt != nil },
+                set: { if !$0 { environment.sshSetup.resolve(false) } }
+            )) {
+                if let prompt = environment.sshSetup.prompt {
+                    SSHHostKeyPromptView(prompt: prompt,
+                                         onCancel: { environment.sshSetup.resolve(false) },
+                                         onApprove: { environment.sshSetup.resolve(true) })
+                }
+            }
+            .tabItem { Label("Router", systemImage: "wifi.router") }.tag("Router")
 
             Form {
                 if model.mode == .live, let profile = environment.persistence.selectedProfile, profile.liveEndpoint != nil {

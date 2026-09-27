@@ -189,7 +189,7 @@ struct OverviewScreen: View {
         switch area { case .router: "Router"; case .internet: "Internet"; case .adGuard: "AdGuard Home"; case .clients: "Clients"; default: area.rawValue }
     }
     private func sourceLabel(_ source: ObservationSource?) -> String {
-        switch source { case .mock: "Mock source"; case .routerRPC: "Router RPC"; case .adGuardAPI: "AdGuard API"; case nil: "No source" }
+        switch source { case .mock: "Mock source"; case .routerRPC: "Router RPC"; case .adGuardAPI: "AdGuard API"; case .routerSSH: "Router SSH"; case nil: "No source" }
     }
     private func freshnessSubtitle(_ freshness: Freshness) -> String {
         if freshness.isRefreshing { return String(localized: "Refreshing…") }

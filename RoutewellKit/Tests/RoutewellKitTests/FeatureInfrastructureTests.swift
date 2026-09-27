@@ -72,8 +72,11 @@ import RoutewellMock
     try await session.beginRevision(token)
     try await session.installLease(lease)
     let count = try await FixtureRecorder().record(session: session, lease: lease, to: directory)
-    #expect(count == FixtureRecordingPlan.calls.count)
-    for call in FixtureRecordingPlan.calls {
+    // This backend has no SSH, so the SSH calls are skipped, not written.
+    let recorded = FixtureRecordingPlan.calls.filter { $0.transport != .ssh }
+    #expect(count == recorded.count)
+    #expect(!FileManager.default.fileExists(atPath: directory.appendingPathComponent("ssh-logread-250.txt").path))
+    for call in recorded {
         let data = try Data(contentsOf: directory.appendingPathComponent(call.fileName))
         let text = String(decoding: data, as: UTF8.self)
         #expect(!text.contains("CANARY-PASSWORD"))
