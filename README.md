@@ -78,25 +78,23 @@ Tested on the GL.iNet Flint 4 (GL-BE14000) with firmware 4.9.1.
 There is no signed release yet. To build Routewell from source, see
 [Building Routewell](docs/building.md).
 
----
+#### Acknowledgements
 
-<sub>
-
-**Acknowledgements.** Routewell is heavily inspired by
+Routewell is heavily inspired by
 [RouterPilot](https://github.com/TCDemo777/RouterPilot), created by
-[Tristan](https://github.com/TCDemo777) and its contributors. RouterPilot is the
-reference for this app's feature set and how it is organised. Thanks to Tristan
-for releasing it as open source. Routewell is independently maintained and is
-not an official RouterPilot release. See
-[Third-party notices](THIRD_PARTY_NOTICES.md) for RouterPilot's licence and
-attribution details.
+[Tristan](https://github.com/TCDemo777) and its contributors.
 
-**Copyright and license.** Copyright © 2026 Simon Solts. Routewell is licensed
+#### Copyright
+
+Copyright © 2026 Simon Solts. Routewell is licensed
 under the GNU General Public License v3.0 only. See [LICENSE](LICENSE) and
 [COPYRIGHT](COPYRIGHT). Third-party contributions retain their respective
 copyright notices; see [Third-party notices](THIRD_PARTY_NOTICES.md).
 
-**Disclaimer.** Routewell is an independent, unofficial project. It is not
+
+#### Disclaimer
+
+Routewell is an independent, unofficial project. It is not
 affiliated with, endorsed, sponsored, or supported by GL.iNet. GL.iNet and its
 product names, logos, and trademarks belong to their respective owners. All
 other trademarks are the property of their respective owners. Use Routewell at
@@ -105,5 +103,3 @@ To the extent permitted by applicable law, the authors and contributors are not
 liable for any loss or damage arising from its use, including data loss, device
 damage, or network disruption. See [LICENSE](LICENSE) for the full warranty
 disclaimer and limitation of liability.
-
-</sub>
