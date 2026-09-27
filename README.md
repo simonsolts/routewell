@@ -5,7 +5,7 @@
   <img src="https://raw.githubusercontent.com/simonsolts/routewell/main/images/routewell-header-dark-text.png" alt="Routewell" width="380">
 </picture>
 
-**An (unofficial) macOS app for your GL.iNet Flint router.**
+# Routewell: an (unofficial) macOS app for your GL.iNet Flint router
 
 ![macOS 26+](https://img.shields.io/badge/macOS-26%2B-000000?logo=apple&logoColor=white)
 ![Swift](https://img.shields.io/badge/Swift-SwiftUI-F05138?logo=swift&logoColor=white)
