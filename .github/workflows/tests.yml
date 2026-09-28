@@ -18,29 +18,22 @@ permissions:
 jobs:
   package:
     name: Package tests
-    runs-on: macos-26
+    runs-on: xcode-27
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v5
-
-      # Use the runner's default Xcode. Print it so a failure shows which one.
-      - name: Show Xcode version
-        run: xcodebuild -version
 
       - name: Run package tests
         run: swift test --package-path RoutewellKit
 
   app:
     name: App tests
-    runs-on: macos-26
+    runs-on: xcode-27
     timeout-minutes: 30
     env:
       DERIVED_DATA: ${{ github.workspace }}/DerivedData
     steps:
       - uses: actions/checkout@v5
-
-      - name: Show Xcode version
-        run: xcodebuild -version
 
       # Ad-hoc signing: the runner has no development team or profile. Keep the
       # sandbox entitlements (the key file bookmark test needs them) but drop
@@ -50,15 +43,12 @@ jobs:
           cp Routewell/Routewell.entitlements "$RUNNER_TEMP/ci.entitlements"
           plutil -remove keychain-access-groups "$RUNNER_TEMP/ci.entitlements"
 
-      # The runner's Xcode 26 cannot compile AppIcon.icon, which was made with
-      # Xcode 27's Icon Composer. The tests do not need the icon, so leave it out.
       - name: Build app for testing
         run: |
           xcodebuild -project Routewell.xcodeproj -scheme 'Routewell (Mock)' \
             -destination 'platform=macOS,arch=arm64' -derivedDataPath "$DERIVED_DATA" \
             CODE_SIGN_IDENTITY=- DEVELOPMENT_TEAM= \
             CODE_SIGN_ENTITLEMENTS="$RUNNER_TEMP/ci.entitlements" \
-            EXCLUDED_SOURCE_FILE_NAMES=AppIcon.icon ASSETCATALOG_COMPILER_APPICON_NAME= \
             build-for-testing
 
       - name: Run app tests
