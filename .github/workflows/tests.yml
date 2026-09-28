@@ -1,0 +1,66 @@
+name: Tests
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# A new push to the same branch or PR cancels the run that is still going.
+concurrency:
+  group: tests-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    name: Package tests
+    runs-on: xcode-27
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Run package tests
+        run: swift test --package-path RoutewellKit
+
+  app:
+    name: App tests
+    runs-on: xcode-27
+    timeout-minutes: 30
+    env:
+      DERIVED_DATA: ${{ github.workspace }}/DerivedData
+    steps:
+      - uses: actions/checkout@v5
+
+      # Ad-hoc signing: the runner has no development team or profile. Keep the
+      # sandbox entitlements (the key file bookmark test needs them) but drop
+      # the Keychain access group, which needs a provisioning profile.
+      - name: Prepare CI entitlements
+        run: |
+          cp Routewell/Routewell.entitlements "$RUNNER_TEMP/ci.entitlements"
+          plutil -remove keychain-access-groups "$RUNNER_TEMP/ci.entitlements"
+
+      - name: Build app for testing
+        run: |
+          xcodebuild -project Routewell.xcodeproj -scheme 'Routewell (Mock)' \
+            -destination 'platform=macOS,arch=arm64' -derivedDataPath "$DERIVED_DATA" \
+            CODE_SIGN_IDENTITY=- DEVELOPMENT_TEAM= \
+            CODE_SIGN_ENTITLEMENTS="$RUNNER_TEMP/ci.entitlements" \
+            build-for-testing
+
+      - name: Run app tests
+        run: |
+          xcodebuild -project Routewell.xcodeproj -scheme 'Routewell (Mock)' \
+            -destination 'platform=macOS,arch=arm64' -derivedDataPath "$DERIVED_DATA" \
+            -resultBundlePath "$RUNNER_TEMP/AppTests.xcresult" \
+            test-without-building
+
+      - name: Upload test results
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: AppTests.xcresult
+          path: ${{ runner.temp }}/AppTests.xcresult

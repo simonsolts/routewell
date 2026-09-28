@@ -45,11 +45,18 @@ only) in its Application Support folder.
 
 ## Ad-hoc builds for CI
 
-To compile and test without a signing identity, override signing:
+To compile and test without a signing identity, sign ad hoc. Keep the sandbox
+entitlements, because the key file bookmark test needs them. Remove the
+Keychain access group, because it needs a provisioning profile:
 
 ```sh
+cp Routewell/Routewell.entitlements /tmp/ci.entitlements
+plutil -remove keychain-access-groups /tmp/ci.entitlements
 xcodebuild -project Routewell.xcodeproj -scheme 'Routewell (Mock)' \
-  -destination 'platform=macOS' CODE_SIGN_IDENTITY=- DEVELOPMENT_TEAM= CODE_SIGN_ENTITLEMENTS= test
+  -destination 'platform=macOS,arch=arm64' \
+  CODE_SIGN_IDENTITY=- DEVELOPMENT_TEAM= CODE_SIGN_ENTITLEMENTS=/tmp/ci.entitlements test
 ```
 
-Ad-hoc builds do not validate the Keychain identity.
+Ad-hoc builds do not validate the Keychain identity. The CI workflow in
+`.github/workflows/tests.yml` runs these steps on every pull request into
+`main`.
