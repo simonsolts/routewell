@@ -50,6 +50,13 @@ public actor MockRouterBackend: RouterBackend {
     /// mutation read `protectionBehavior`/`protectionOverride` mid-update.
     private let protectionGate = MutationGate()
     public nonisolated let hostname: String
+    /// The router's AdGuard Home setting and AdGuard Home itself (chunk 16).
+    public nonisolated let mockAdGuard = MockAdGuardTransport()
+    /// Turn On, Stop, Handle DNS, Restart through the real executor, under
+    /// the same gate as the mock Protection writes.
+    public nonisolated var adGuardService: (any AdGuardServiceControl)? {
+        AdGuardServiceExecutor(transport: mockAdGuard, gate: protectionGate, policy: .mock)
+    }
 
     public init(scenario: Scenario = .healthy, hostname: String = "flint-demo") {
         self.scenario = scenario
@@ -78,10 +85,37 @@ public actor MockRouterBackend: RouterBackend {
             adGuard.protection = protectionOverride
             result.adGuard = .success(adGuard, observedAt: observedAt, source: source)
         }
+        await applyAdGuardService(to: &result, scenario: scenario)
         return result
     }
 
     public func setScenario(_ scenario: Scenario) { self.scenario = scenario }
+
+    /// The AdGuard area follows the mock service: off and not answering fail
+    /// the area as live does; offline cannot read the router at all.
+    private func applyAdGuardService(to result: inout OverviewRefreshResult, scenario: Scenario) async {
+        let now = Date()
+        guard scenario != .offline else {
+            result.adGuardService = AdGuardServiceReading(config: .failure(.network), observedAt: now)
+            return
+        }
+        let reading = await mockAdGuard.reading(at: now)
+        result.adGuardService = reading
+        switch reading.answer {
+        case .answered(let status)?:
+            if case .success(var adGuard, let observedAt, let source) = result.adGuard {
+                if case .success(let config) = reading.config {
+                    adGuard.handlesClientRequests = config.handlesDNS.map(Observed.value) ?? .unknown
+                }
+                adGuard.version = status.version
+                result.adGuard = .success(adGuard, observedAt: observedAt, source: source)
+            }
+        case .failed(let category)?:
+            result.adGuard = .failure(category, attemptedAt: now)
+        case .notConfigured?, nil:
+            result.adGuard = .failure(.unavailable, attemptedAt: now)
+        }
+    }
 
     public func setFeatureBehavior(_ behavior: FeatureBehavior, for area: DataArea) async {
         if area == .clients { await mockClients.setBehavior(behavior) }
