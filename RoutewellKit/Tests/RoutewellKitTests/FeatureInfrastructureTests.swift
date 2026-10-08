@@ -94,12 +94,10 @@ import RoutewellMock
 }
 
 private struct NoFeaturesBackend: RouterBackend {
-    var protection: (any ProtectionService)? { nil }
     func overview() async throws -> OverviewRefreshResult { throw CancellationError() }
 }
 
 private struct FixtureBackend: RouterBackend, FixtureRecordableBackend {
-    var protection: (any ProtectionService)? { nil }
     func overview() async throws -> OverviewRefreshResult { throw CancellationError() }
     func recordFixture(_ call: FixtureCall) async -> JSONValue {
         .object([

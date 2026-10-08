@@ -2,9 +2,10 @@ import Foundation
 
 /// The saved copy of AdGuard Home's data for one router (architecture 05).
 /// One section per read, each with the date it was saved. Chunk 16 saves the
-/// service status and the router config; later chunks add their sections.
-/// A section is replaced only by a newer successful read while AdGuard Home
-/// runs.
+/// service status and the router config; chunk 17 adds the Overview's stats
+/// (per range), stats config, switches, and blocklists. A section is
+/// replaced only by a newer successful read while AdGuard Home runs. New
+/// sections are optional, so a chunk 16 file still loads.
 public struct AdGuardArchive: Sendable, Equatable, Codable {
     public struct Section<Value: Sendable & Equatable & Codable>: Sendable, Equatable, Codable {
         public var savedAt: Date
@@ -21,15 +22,39 @@ public struct AdGuardArchive: Sendable, Equatable, Codable {
     /// `adguardhome get_config`: the last Handle DNS setting while running.
     public var config: Section<AdGuardRouterConfig>?
 
-    public init(status: Section<AdGuardStatusResponse>? = nil, config: Section<AdGuardRouterConfig>? = nil) {
+    /// `control/stats`, one section per range the Overview showed, keyed
+    /// by `AdGuardStatsRange.rawValue`.
+    public var stats: [String: Section<AdGuardStats>]?
+    /// `control/stats/config`: the retention.
+    public var statsConfig: Section<AdGuardStatsConfig>?
+    /// The three Protection switches.
+    public var protection: Section<ProtectionOptions>?
+    /// `control/filtering/status`: the lists behind the Blocklists row.
+    public var filtering: Section<AdGuardFilteringStatus>?
+
+    public init(status: Section<AdGuardStatusResponse>? = nil, config: Section<AdGuardRouterConfig>? = nil,
+                stats: [String: Section<AdGuardStats>]? = nil, statsConfig: Section<AdGuardStatsConfig>? = nil,
+                protection: Section<ProtectionOptions>? = nil, filtering: Section<AdGuardFilteringStatus>? = nil) {
         self.status = status
         self.config = config
+        self.stats = stats
+        self.statsConfig = statsConfig
+        self.protection = protection
+        self.filtering = filtering
     }
 
-    public var isEmpty: Bool { status == nil && config == nil }
+    public var isEmpty: Bool {
+        status == nil && config == nil && (stats ?? [:]).isEmpty && statsConfig == nil && protection == nil && filtering == nil
+    }
 
     /// The newest section's date: the age the read-only strip shows.
-    public var savedAt: Date? { [status?.savedAt, config?.savedAt].compactMap { $0 }.max() }
+    public var savedAt: Date? {
+        ([status?.savedAt, config?.savedAt, statsConfig?.savedAt, protection?.savedAt, filtering?.savedAt]
+            + (stats ?? [:]).values.map(\.savedAt)).compactMap { $0 }.max()
+    }
+
+    /// The saved stats for one range.
+    public func stats(for range: AdGuardStatsRange) -> Section<AdGuardStats>? { stats?[range.rawValue] }
 }
 
 /// `adguard/<profile UUID>/archive.json` under the app's data folder, with
@@ -94,6 +119,43 @@ public actor AdGuardArchiveStore {
         }
         if force || Self.isDue(next.config?.savedAt, at: at) {
             next.config = .init(savedAt: at, value: config)
+            changed = true
+        }
+        guard changed else { return nil }
+        return await commit(next, for: profile, generation: generation)
+    }
+
+    /// Saves the parts of an Overview read that succeeded. The caller reads
+    /// only while AdGuard Home runs. Stats are saved per range; a reply that
+    /// did not honour `recent` is not saved as that range.
+    @discardableResult
+    public func save(_ overview: AdGuardOverviewReading, for profile: UUID, force: Bool = false) async -> StoreError? {
+        let generation = generations[profile, default: 0]
+        var next = await archive(for: profile) ?? AdGuardArchive()
+        let at = overview.observedAt
+        var changed = false
+        if case .success(let stats) = overview.stats, overview.rangeHonoured || overview.range == .day {
+            let key = overview.range.rawValue
+            if force || Self.isDue(next.stats?[key]?.savedAt, at: at) {
+                next.stats = (next.stats ?? [:]).merging([key: .init(savedAt: at, value: stats)]) { $1 }
+                changed = true
+            }
+        }
+        if case .success(let config) = overview.statsConfig, force || Self.isDue(next.statsConfig?.savedAt, at: at) {
+            next.statsConfig = .init(savedAt: at, value: config)
+            changed = true
+        }
+        if case .success(let options) = overview.protection, force || Self.isDue(next.protection?.savedAt, at: at) {
+            // A switch whose own read failed keeps its saved value.
+            var merged = options
+            for feature in AdGuardFeature.allCases where merged[feature] == nil {
+                merged[feature] = next.protection?.value[feature]
+            }
+            next.protection = .init(savedAt: at, value: merged)
+            changed = true
+        }
+        if case .success(let filtering) = overview.filtering, force || Self.isDue(next.filtering?.savedAt, at: at) {
+            next.filtering = .init(savedAt: at, value: filtering)
             changed = true
         }
         guard changed else { return nil }

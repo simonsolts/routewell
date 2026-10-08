@@ -5,19 +5,23 @@ import RoutewellKit
 public enum MockAdGuardScenario: String, CaseIterable, Sendable {
     case off
     case running
+    case paused
     case runningWithoutDNS
     case cached
     case unreachable
     case turnOnFails
+    case switchFails
 
     public var title: String {
         switch self {
         case .off: "Off, no saved copy"
         case .running: "Running"
+        case .paused: "Running, protection paused"
         case .runningWithoutDNS: "Running, not handling DNS"
         case .cached: "Off, saved copy"
         case .unreachable: "On, not answering"
         case .turnOnFails: "Turn On fails"
+        case .switchFails: "Running, Block adult content fails"
         }
     }
 
@@ -29,9 +33,14 @@ public enum MockAdGuardScenario: String, CaseIterable, Sendable {
             var status = AdGuardStatusResponse(version: MockAdGuardTransport.version, running: true, protectionEnabled: true,
                                                protectionDisabledDurationMilliseconds: 0)
             status.startTime = savedAt.addingTimeInterval(-3 * 24 * 60 * 60)
+            let overview = MockAdGuardTransport.overview(range: .day, now: savedAt, options: MockAdGuardTransport.defaultOptions)
             return AdGuardArchive(status: .init(savedAt: savedAt, value: status),
-                                  config: .init(savedAt: savedAt, value: AdGuardRouterConfig(enabled: true, handlesDNS: true)))
-        case .off, .running, .runningWithoutDNS, .turnOnFails:
+                                  config: .init(savedAt: savedAt, value: AdGuardRouterConfig(enabled: true, handlesDNS: true)),
+                                  stats: (try? overview.stats.get()).map { [AdGuardStatsRange.day.rawValue: .init(savedAt: savedAt, value: $0)] },
+                                  statsConfig: (try? overview.statsConfig.get()).map { .init(savedAt: savedAt, value: $0) },
+                                  protection: (try? overview.protection.get()).map { .init(savedAt: savedAt, value: $0) },
+                                  filtering: (try? overview.filtering.get()).map { .init(savedAt: savedAt, value: $0) })
+        case .off, .running, .paused, .runningWithoutDNS, .turnOnFails, .switchFails:
             return nil
         }
     }
@@ -49,6 +58,18 @@ public actor MockAdGuardTransport: AdGuardServiceTransport {
     private var refusesTurnOn = false
     private var answersAfter: Date?
     private var startTime = Date().addingTimeInterval(-5 * 24 * 60 * 60)
+    // Chunk 17: settings inside AdGuard Home.
+    var protectionEnabled = true
+    /// A timed pause ends on its own, as in AdGuard Home.
+    var pausedUntil: Date?
+    var options = MockAdGuardTransport.defaultOptions
+    /// Safe Search's engine flags, sent back unchanged by the switch.
+    var safeSearchEngines: [String: JSONValue] = ["bing": .bool(true), "duckduckgo": .bool(true), "ecosia": .bool(true),
+        "google": .bool(true), "pixabay": .bool(true), "yandex": .bool(true), "youtube": .bool(true)]
+    /// A switch that accepts writes but never changes (the "switch fails" scenario).
+    var stuckFeature: AdGuardFeature?
+    /// Every write AdGuard Home received, for tests.
+    public internal(set) var writes: [AdGuardWrite] = []
 
     public init() {}
 
@@ -56,9 +77,13 @@ public actor MockAdGuardTransport: AdGuardServiceTransport {
         answersAfter = nil
         refusesTurnOn = scenario == .turnOnFails
         answers = scenario != .unreachable
+        protectionEnabled = scenario != .paused
+        pausedUntil = scenario == .paused ? Date().addingTimeInterval(10 * 60) : nil
+        options = Self.defaultOptions
+        stuckFeature = scenario == .switchFails ? .parental : nil
         switch scenario {
         case .off, .cached, .turnOnFails: config = AdGuardRouterConfig(enabled: false, handlesDNS: true)
-        case .running, .unreachable: config = AdGuardRouterConfig(enabled: true, handlesDNS: true)
+        case .running, .paused, .unreachable, .switchFails: config = AdGuardRouterConfig(enabled: true, handlesDNS: true)
         case .runningWithoutDNS: config = AdGuardRouterConfig(enabled: true, handlesDNS: false)
         }
     }
@@ -87,8 +112,14 @@ public actor MockAdGuardTransport: AdGuardServiceTransport {
     /// What `control/status` answers now, or `nil` when it does not answer.
     func currentStatus(now: Date = Date()) -> AdGuardStatusResponse? {
         guard config.enabled == true, answers, answersAfter.map({ now >= $0 }) ?? true else { return nil }
-        var status = AdGuardStatusResponse(version: Self.version, running: true, protectionEnabled: true,
-                                           protectionDisabledDurationMilliseconds: 0)
+        if let until = pausedUntil, until <= now {
+            // The pause ended: AdGuard Home turns protection back on.
+            pausedUntil = nil
+            protectionEnabled = true
+        }
+        let remaining = pausedUntil.map { Int(($0.timeIntervalSince(now) * 1000).rounded()) } ?? 0
+        var status = AdGuardStatusResponse(version: Self.version, running: true, protectionEnabled: protectionEnabled,
+                                           protectionDisabledDurationMilliseconds: remaining)
         status.dnsPort = 3053
         status.startTime = startTime
         return status

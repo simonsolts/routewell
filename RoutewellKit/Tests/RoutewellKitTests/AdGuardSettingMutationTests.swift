@@ -2,7 +2,7 @@ import Foundation
 import Testing
 @testable import RoutewellKit
 
-/// A synchronous, lock-protected virtual clock. `ProtectionMutationExecutor`
+/// A synchronous, lock-protected virtual clock. `AdGuardSettingExecutor`
 /// needs a plain `@Sendable () -> Date` clock (not actor-isolated), so this
 /// is a small class with one manually-synchronized property rather than an
 /// actor. All access in these tests happens from a single virtual-time
@@ -157,24 +157,24 @@ private actor FailsOnSecondCallCredentials: AdGuardCredentialProvider {
 /// The "reach the deadline after exactly one read" policy: a 1ms deadline
 /// and 1ms poll interval mean the verify loop performs exactly one read
 /// before giving up, whether or not it matched.
-private var oneShotPolicy: ProtectionVerifyPolicy {
-    var policy = ProtectionVerifyPolicy()
+private var oneShotPolicy: AdGuardSettingVerifyPolicy {
+    var policy = AdGuardSettingVerifyPolicy()
     policy.deadline = .milliseconds(1)
     policy.pollInterval = .milliseconds(1)
     return policy
 }
 
-@Suite struct ProtectionMutationTests {
+@Suite struct AdGuardSettingMutationTests {
     @Test func enableHappyPathVerifiesOnFirstRead() async throws {
         let script = Script(reads: [.ok(enabled: true, durationMs: nil)])
         let transport = makeTransport(script)
         let clock = VirtualClock()
-        let executor = ProtectionMutationExecutor(
-            adGuard: makeClient(transport), gate: MutationGate(),
+        let executor = AdGuardSettingExecutor(
+            transport: LiveAdGuardSettingTransport(adGuard: makeClient(transport)), gate: MutationGate(),
             clock: { clock.now() }, sleep: { try await clock.sleep($0) }
         )
-        let report = await executor.run(.enable, allowRecovery: false)
-        #expect(report.outcome == .verifiedSuccess(.enabled))
+        let report = await executor.run(.protection(.enable), availability: .running)
+        #expect(report.outcome == .verifiedSuccess(.protection(.enabled)))
         #expect(report.dispatched == true)
         let recorded = await transport.recorded()
         #expect(recorded.filter { $0.request.httpMethod == "POST" }.count == 1)
@@ -190,12 +190,12 @@ private var oneShotPolicy: ProtectionVerifyPolicy {
         ])
         let transport = makeTransport(script)
         let clock = VirtualClock()
-        let executor = ProtectionMutationExecutor(
-            adGuard: makeClient(transport), gate: MutationGate(),
+        let executor = AdGuardSettingExecutor(
+            transport: LiveAdGuardSettingTransport(adGuard: makeClient(transport)), gate: MutationGate(),
             clock: { clock.now() }, sleep: { try await clock.sleep($0) }
         )
-        let report = await executor.run(.pause(.seconds(600)), allowRecovery: false)
-        guard case .verifiedSuccess(.paused) = report.outcome else {
+        let report = await executor.run(.protection(.pause(.seconds(600))), availability: .running)
+        guard case .verifiedSuccess(.protection(.paused)) = report.outcome else {
             Issue.record("expected verifiedSuccess(.paused), got \(report.outcome)")
             return
         }
@@ -207,12 +207,12 @@ private var oneShotPolicy: ProtectionVerifyPolicy {
         let script = Script(reads: [.ok(enabled: true, durationMs: nil)]) // always "enabled"
         let transport = makeTransport(script)
         let clock = VirtualClock()
-        let executor = ProtectionMutationExecutor(
-            adGuard: makeClient(transport), gate: MutationGate(), policy: oneShotPolicy,
+        let executor = AdGuardSettingExecutor(
+            transport: LiveAdGuardSettingTransport(adGuard: makeClient(transport)), gate: MutationGate(), policy: oneShotPolicy,
             clock: { clock.now() }, sleep: { try await clock.sleep($0) }
         )
-        let report = await executor.run(.disable, allowRecovery: false)
-        #expect(report.outcome == .verifiedMismatch(expected: .disabled, actual: .enabled))
+        let report = await executor.run(.protection(.disable), availability: .running)
+        #expect(report.outcome == .verifiedMismatch(expected: .protection(.disabled), actual: .protection(.enabled)))
         let recorded = await transport.recorded()
         #expect(recorded.filter { $0.request.httpMethod == "POST" }.count == 1)
     }
@@ -226,61 +226,30 @@ private var oneShotPolicy: ProtectionVerifyPolicy {
         ])
         let transport = makeTransport(script)
         let clock = VirtualClock()
-        let executor = ProtectionMutationExecutor(
-            adGuard: makeClient(transport), gate: MutationGate(),
+        let executor = AdGuardSettingExecutor(
+            transport: LiveAdGuardSettingTransport(adGuard: makeClient(transport)), gate: MutationGate(),
             clock: { clock.now() }, sleep: { try await clock.sleep($0) }
         )
-        let report = await executor.run(.disable, allowRecovery: false)
-        #expect(report.outcome == .verifiedSuccess(.disabled))
+        let report = await executor.run(.protection(.disable), availability: .running)
+        #expect(report.outcome == .verifiedSuccess(.protection(.disabled)))
         let recorded = await transport.recorded()
         #expect(recorded.filter { $0.request.httpMethod == "GET" }.count == 2)
     }
 
-    @Test func disableMismatchWithRecoveryRestoresAndVerifies() async throws {
-        // Before-state and every verify read say "enabled": the disable
-        // never took effect. Recovery re-enables (already true) and
-        // verifies it — succeeds on the very first recovery read.
+    /// `resync`: a verified mismatch reports what AdGuard Home says and
+    /// sends nothing more (chunk 10's executor sent the old state back).
+    @Test func mismatchSendsNoSecondWrite() async throws {
         let script = Script(reads: [.ok(enabled: true, durationMs: nil)])
         let transport = makeTransport(script)
         let clock = VirtualClock()
-        let executor = ProtectionMutationExecutor(
-            adGuard: makeClient(transport), gate: MutationGate(), policy: oneShotPolicy,
+        let executor = AdGuardSettingExecutor(
+            transport: LiveAdGuardSettingTransport(adGuard: makeClient(transport)), gate: MutationGate(), policy: oneShotPolicy,
             clock: { clock.now() }, sleep: { try await clock.sleep($0) }
         )
-        let report = await executor.run(.disable, allowRecovery: true)
-        #expect(report.outcome == .verifiedRecovery(restored: .enabled))
+        let report = await executor.run(.protection(.disable), availability: .running)
+        #expect(report.outcome == .verifiedMismatch(expected: .protection(.disabled), actual: .protection(.enabled)))
         let postCount = await script.postCount
-        #expect(postCount == 2) // the original disable write + the recovery write
-    }
-
-    @Test func recoveryWrite500ReportsRecoveryFailed() async throws {
-        // Before-state and the primary verify read both say "enabled":
-        // disable never took effect. The recovery write itself 500s, and
-        // by the time we read back, an external edit has left protection
-        // paused — the recovery is not verified.
-        let script = Script(
-            reads: [
-                .ok(enabled: true, durationMs: nil),           // before-state
-                .ok(enabled: true, durationMs: nil),           // primary verify read (still enabled -> mismatch)
-                .ok(enabled: false, durationMs: 300_000),       // recovery verify read (paused, not enabled)
-            ],
-            writes: [.ok, .httpStatus(500)]
-        )
-        let transport = makeTransport(script)
-        let clock = VirtualClock()
-        let executor = ProtectionMutationExecutor(
-            adGuard: makeClient(transport), gate: MutationGate(), policy: oneShotPolicy,
-            clock: { clock.now() }, sleep: { try await clock.sleep($0) }
-        )
-        let report = await executor.run(.disable, allowRecovery: true)
-        guard case .recoveryFailed(let expected, let actual) = report.outcome else {
-            Issue.record("expected recoveryFailed, got \(report.outcome)")
-            return
-        }
-        #expect(expected == .enabled)
-        #expect(actual == .paused(until: clock.now().addingTimeInterval(300)))
-        let postCount = await script.postCount
-        #expect(postCount == 2)
+        #expect(postCount == 1)
     }
 
     @Test func conflictingExternalEditDetected() async throws {
@@ -291,12 +260,12 @@ private var oneShotPolicy: ProtectionVerifyPolicy {
         ])
         let transport = makeTransport(script)
         let clock = VirtualClock()
-        let executor = ProtectionMutationExecutor(
-            adGuard: makeClient(transport), gate: MutationGate(), policy: oneShotPolicy,
+        let executor = AdGuardSettingExecutor(
+            transport: LiveAdGuardSettingTransport(adGuard: makeClient(transport)), gate: MutationGate(), policy: oneShotPolicy,
             clock: { clock.now() }, sleep: { try await clock.sleep($0) }
         )
-        let report = await executor.run(.disable, allowRecovery: false)
-        #expect(report.outcome == .conflictingExternalEdit(actual: .paused(until: clock.now().addingTimeInterval(300))))
+        let report = await executor.run(.protection(.disable), availability: .running)
+        #expect(report.outcome == .conflictingExternalEdit(actual: .protection(.paused(until: clock.now().addingTimeInterval(300)))))
         let recorded = await transport.recorded()
         #expect(recorded.filter { $0.request.httpMethod == "POST" }.count == 1)
     }
@@ -311,12 +280,12 @@ private var oneShotPolicy: ProtectionVerifyPolicy {
         )
         let transport = makeTransport(script)
         let clock = VirtualClock()
-        let executor = ProtectionMutationExecutor(
-            adGuard: makeClient(transport), gate: MutationGate(),
+        let executor = AdGuardSettingExecutor(
+            transport: LiveAdGuardSettingTransport(adGuard: makeClient(transport)), gate: MutationGate(),
             clock: { clock.now() }, sleep: { try await clock.sleep($0) }
         )
-        let report = await executor.run(.disable, allowRecovery: false)
-        #expect(report.outcome == .verifiedSuccess(.disabled))
+        let report = await executor.run(.protection(.disable), availability: .running)
+        #expect(report.outcome == .verifiedSuccess(.protection(.disabled)))
         #expect(report.dispatched == true)
         let postCount = await script.postCount
         #expect(postCount == 1)
@@ -332,11 +301,11 @@ private var oneShotPolicy: ProtectionVerifyPolicy {
         )
         let transport = makeTransport(script)
         let clock = VirtualClock()
-        let executor = ProtectionMutationExecutor(
-            adGuard: makeClient(transport), gate: MutationGate(), policy: oneShotPolicy,
+        let executor = AdGuardSettingExecutor(
+            transport: LiveAdGuardSettingTransport(adGuard: makeClient(transport)), gate: MutationGate(), policy: oneShotPolicy,
             clock: { clock.now() }, sleep: { try await clock.sleep($0) }
         )
-        let report = await executor.run(.disable, allowRecovery: false)
+        let report = await executor.run(.protection(.disable), availability: .running)
         #expect(report.outcome == .unknownAfterDispatch)
         #expect(report.dispatched == true)
         let postCount = await script.postCount
@@ -351,11 +320,11 @@ private var oneShotPolicy: ProtectionVerifyPolicy {
             return (Data(), StubHTTPTransport.response(401, url: request.url!))
         }
         let clock = VirtualClock()
-        let executor = ProtectionMutationExecutor(
-            adGuard: makeClient(transport, credentials: SucceedsTwiceThenFailsCredentials()), gate: MutationGate(),
+        let executor = AdGuardSettingExecutor(
+            transport: LiveAdGuardSettingTransport(adGuard: makeClient(transport, credentials: SucceedsTwiceThenFailsCredentials())), gate: MutationGate(),
             clock: { clock.now() }, sleep: { try await clock.sleep($0) }
         )
-        let report = await executor.run(.enable, allowRecovery: false)
+        let report = await executor.run(.protection(.enable), availability: .running)
         #expect(report.outcome == .rejected(.preconditionFailed("AdGuard Home refused the login")))
         #expect(report.dispatched == true)
         let recorded = await transport.recorded()
@@ -370,11 +339,11 @@ private var oneShotPolicy: ProtectionVerifyPolicy {
             return (Data(), StubHTTPTransport.response(200, url: request.url!))
         }
         let clock = VirtualClock()
-        let executor = ProtectionMutationExecutor(
-            adGuard: makeClient(transport, credentials: FailsOnSecondCallCredentials()), gate: MutationGate(),
+        let executor = AdGuardSettingExecutor(
+            transport: LiveAdGuardSettingTransport(adGuard: makeClient(transport, credentials: FailsOnSecondCallCredentials())), gate: MutationGate(),
             clock: { clock.now() }, sleep: { try await clock.sleep($0) }
         )
-        let report = await executor.run(.enable, allowRecovery: false)
+        let report = await executor.run(.protection(.enable), availability: .running)
         #expect(report.outcome == .rejected(.preconditionFailed("credential unavailable")))
         #expect(report.dispatched == false)
         let recorded = await transport.recorded()
@@ -385,16 +354,18 @@ private var oneShotPolicy: ProtectionVerifyPolicy {
         let script = Script(reads: [.ok(enabled: true, durationMs: nil)])
         let transport = makeTransport(script)
         let clock = VirtualClock()
-        let executor = ProtectionMutationExecutor(
-            adGuard: makeClient(transport), gate: MutationGate(),
+        let executor = AdGuardSettingExecutor(
+            transport: LiveAdGuardSettingTransport(adGuard: makeClient(transport)), gate: MutationGate(),
             clock: { clock.now() }, sleep: { try await clock.sleep($0) }
         )
-        let report = await executor.run(.pause(.seconds(10)), allowRecovery: false)
-        guard case .rejected(.invalidIntent) = report.outcome else {
-            Issue.record("expected rejected(.invalidIntent), got \(report.outcome)")
-            return
+        for duration in [Duration.zero, .seconds(48 * 60 * 60 + 1)] {
+            let report = await executor.run(.protection(.pause(duration)), availability: .running)
+            guard case .rejected(.invalidIntent) = report.outcome else {
+                Issue.record("expected rejected(.invalidIntent), got \(report.outcome)")
+                return
+            }
+            #expect(report.dispatched == false)
         }
-        #expect(report.dispatched == false)
         let recorded = await transport.recorded()
         #expect(recorded.isEmpty)
     }
@@ -415,17 +386,17 @@ private var oneShotPolicy: ProtectionVerifyPolicy {
         }
         let clock = VirtualClock()
         let gate = MutationGate()
-        let executor = ProtectionMutationExecutor(
-            adGuard: makeClient(transport), gate: gate,
+        let executor = AdGuardSettingExecutor(
+            transport: LiveAdGuardSettingTransport(adGuard: makeClient(transport)), gate: gate,
             clock: { clock.now() }, sleep: { try await clock.sleep($0) }
         )
 
-        async let first = executor.run(.enable, allowRecovery: false)
-        async let second = executor.run(.disable, allowRecovery: false)
+        async let first = executor.run(.protection(.enable), availability: .running)
+        async let second = executor.run(.protection(.disable), availability: .running)
         let (firstReport, secondReport) = await (first, second)
 
-        #expect(firstReport.outcome == .verifiedSuccess(.enabled))
-        #expect(secondReport.outcome == .verifiedSuccess(.disabled))
+        #expect(firstReport.outcome == .verifiedSuccess(.protection(.enabled)))
+        #expect(secondReport.outcome == .verifiedSuccess(.protection(.disabled)))
 
         let recorded = await transport.recorded()
         let methods = recorded.map { $0.request.httpMethod }
@@ -447,12 +418,12 @@ private var oneShotPolicy: ProtectionVerifyPolicy {
         let gate = MutationGate()
         let heldToken = try await gate.acquire() // occupy the gate so the executor must queue
 
-        let executor = ProtectionMutationExecutor(
-            adGuard: makeClient(transport), gate: gate,
+        let executor = AdGuardSettingExecutor(
+            transport: LiveAdGuardSettingTransport(adGuard: makeClient(transport)), gate: gate,
             clock: { clock.now() }, sleep: { try await clock.sleep($0) }
         )
 
-        let task = Task { await executor.run(.enable, allowRecovery: false) }
+        let task = Task { await executor.run(.protection(.enable), availability: .running) }
         try await Task.sleep(for: .milliseconds(50)) // let it start waiting on the gate
         task.cancel()
         let report = await task.value
@@ -479,19 +450,101 @@ private var oneShotPolicy: ProtectionVerifyPolicy {
             return try await innerTransport.send(request, limits: .init())
         }
         let clock = VirtualClock()
-        let executor = ProtectionMutationExecutor(
-            adGuard: makeClient(transport), gate: MutationGate(),
+        let executor = AdGuardSettingExecutor(
+            transport: LiveAdGuardSettingTransport(adGuard: makeClient(transport)), gate: MutationGate(),
             clock: { clock.now() }, sleep: { try await clock.sleep($0) }
         )
 
-        let task = Task { await executor.run(.enable, allowRecovery: false) }
+        let task = Task { await executor.run(.protection(.enable), availability: .running) }
         await signal.wait()
         task.cancel()
         let report = await task.value
 
-        #expect(report.outcome == .verifiedSuccess(.enabled))
+        #expect(report.outcome == .verifiedSuccess(.protection(.enabled)))
         #expect(report.dispatched == true)
     }
+
+    // MARK: Chunk 17: availability and the three switches
+
+    @Test func writesAreRejectedBeforeAnyRequestUnlessRunning() async throws {
+        let script = Script(reads: [.ok(enabled: true, durationMs: nil)])
+        let transport = makeTransport(script)
+        let executor = AdGuardSettingExecutor(transport: LiveAdGuardSettingTransport(adGuard: makeClient(transport)), gate: MutationGate())
+        for availability in [AdGuardAvailability.cached, .unreachable(.notAnswering(.timeout)), .off, .unknown] {
+            for intent in [AdGuardSettingIntent.protection(.enable), .feature(.parental, enabled: true)] {
+                let report = await executor.run(intent, availability: availability)
+                #expect(report.outcome == .rejected(.preconditionFailed("AdGuard Home is not running.")))
+                #expect(!report.dispatched)
+            }
+        }
+        #expect(await transport.recorded().isEmpty)
+    }
+
+    @Test func safeBrowsingOnPostsEnableWithoutBodyAndVerifies() async throws {
+        let server = FeatureServer()
+        let executor = AdGuardSettingExecutor(transport: LiveAdGuardSettingTransport(adGuard: makeClient(server.transport)), gate: MutationGate())
+        let report = await executor.run(.feature(.safeBrowsing, enabled: true), availability: .running)
+        #expect(report.outcome == .verifiedSuccess(.feature(true)))
+        #expect(report.dispatched)
+        let requests = await server.transport.recorded().map { "\($0.request.httpMethod!) \($0.request.url!.path)" }
+        #expect(requests == ["GET /control/safebrowsing/status", "POST /control/safebrowsing/enable", "GET /control/safebrowsing/status"])
+        #expect(await server.transport.recorded()[1].body == nil)
+    }
+
+    @Test func parentalOffPostsDisable() async throws {
+        let server = FeatureServer(parental: true)
+        let executor = AdGuardSettingExecutor(transport: LiveAdGuardSettingTransport(adGuard: makeClient(server.transport)), gate: MutationGate())
+        let report = await executor.run(.feature(.parental, enabled: false), availability: .running)
+        #expect(report.outcome == .verifiedSuccess(.feature(false)))
+        let paths = await server.transport.recorded().map { $0.request.url!.path }
+        #expect(paths.contains("/control/parental/disable"))
+    }
+
+    /// The engine flags go back exactly as read; only `enabled` changes.
+    @Test func safeSearchPutsTheReadSettingsWithEnabledChanged() async throws {
+        let server = FeatureServer()
+        let executor = AdGuardSettingExecutor(transport: LiveAdGuardSettingTransport(adGuard: makeClient(server.transport)), gate: MutationGate())
+        let report = await executor.run(.feature(.safeSearch, enabled: true), availability: .running)
+        #expect(report.outcome == .verifiedSuccess(.feature(true)))
+        let put = try #require(await server.transport.recorded().first { $0.request.httpMethod == "PUT" })
+        #expect(put.request.url!.path == "/control/safesearch/settings")
+        let body = try JSONDecoder().decode(JSONValue.self, from: try #require(put.body))
+        #expect(body == FeatureServer.safeSearch(enabled: true))
+    }
+
+    @Test func switchAlreadyInStateSendsNothing() async throws {
+        let server = FeatureServer(parental: true)
+        let executor = AdGuardSettingExecutor(transport: LiveAdGuardSettingTransport(adGuard: makeClient(server.transport)), gate: MutationGate())
+        let report = await executor.run(.feature(.parental, enabled: true), availability: .running)
+        #expect(report.outcome == .verifiedSuccess(.feature(true)))
+        #expect(!report.dispatched)
+        #expect(await server.transport.recorded().count == 1)
+    }
+
+    /// `resync`: AdGuard Home keeps the old value; the outcome says so and
+    /// no second write is sent.
+    @Test func switchThatDoesNotChangeIsMismatchWithOneWrite() async throws {
+        let server = FeatureServer(stuck: true)
+        let clock = VirtualClock()
+        let executor = AdGuardSettingExecutor(
+            transport: LiveAdGuardSettingTransport(adGuard: makeClient(server.transport)), gate: MutationGate(),
+            clock: { clock.now() }, sleep: { try await clock.sleep($0) }
+        )
+        let report = await executor.run(.feature(.parental, enabled: true), availability: .running)
+        #expect(report.outcome == .verifiedMismatch(expected: .feature(true), actual: .feature(false)))
+        let writes = await server.transport.recorded().filter { $0.request.httpMethod != "GET" }
+        #expect(writes.count == 1)
+    }
+
+    @Test func switchStatusReadFailureIsRejectedWithoutWrite() async throws {
+        let transport = StubHTTPTransport { request in (Data(), StubHTTPTransport.response(500, url: request.url!)) }
+        let executor = AdGuardSettingExecutor(transport: LiveAdGuardSettingTransport(adGuard: makeClient(transport)), gate: MutationGate())
+        let report = await executor.run(.feature(.safeBrowsing, enabled: true), availability: .running)
+        #expect(report.outcome == .rejected(.preconditionFailed("status unavailable")))
+        #expect(!report.dispatched)
+        #expect(await transport.recorded().count == 1)
+    }
+
 }
 
 private actor StatefulAdGuardState {
@@ -518,5 +571,58 @@ private actor Signal {
     func wait() async {
         if fired { return }
         await withCheckedContinuation { continuation = $0 }
+    }
+}
+
+/// AdGuard Home's three switch endpoints in memory. `stuck` accepts writes
+/// and changes nothing.
+private final class FeatureServer: Sendable {
+    let transport: StubHTTPTransport
+
+    static func safeSearch(enabled: Bool) -> JSONValue {
+        .object(["enabled": .bool(enabled), "bing": .bool(true), "duckduckgo": .bool(false), "ecosia": .bool(true),
+                 "google": .bool(true), "pixabay": .bool(false), "yandex": .bool(true), "youtube": .bool(false)])
+    }
+
+    init(parental: Bool = false, stuck: Bool = false) {
+        let state = FeatureState(parental: parental)
+        transport = StubHTTPTransport { request in
+            let url = request.url!
+            let path = url.path
+            if request.httpMethod == "GET" {
+                let body = try JSONEncoder().encode(await state.status(path))
+                return (body, StubHTTPTransport.response(200, url: url))
+            }
+            if !stuck { await state.apply(path: path, body: request.httpBody) }
+            return (Data(), StubHTTPTransport.response(200, url: url))
+        }
+    }
+}
+
+private actor FeatureState {
+    var safeBrowsing = false
+    var parental: Bool
+    var safeSearch = FeatureServer.safeSearch(enabled: false)
+
+    init(parental: Bool) { self.parental = parental }
+
+    func status(_ path: String) -> JSONValue {
+        switch path {
+        case "/control/safebrowsing/status": .object(["enabled": .bool(safeBrowsing)])
+        case "/control/parental/status": .object(["enabled": .bool(parental), "sensitivity": .number(13)])
+        default: safeSearch
+        }
+    }
+
+    func apply(path: String, body: Data?) {
+        switch path {
+        case "/control/safebrowsing/enable": safeBrowsing = true
+        case "/control/safebrowsing/disable": safeBrowsing = false
+        case "/control/parental/enable": parental = true
+        case "/control/parental/disable": parental = false
+        case "/control/safesearch/settings":
+            if let body, let value = try? JSONDecoder().decode(JSONValue.self, from: body) { safeSearch = value }
+        default: break
+        }
     }
 }

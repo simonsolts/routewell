@@ -28,131 +28,95 @@ import RoutewellMock
     #expect(observedAt == date.addingTimeInterval(-65 * 60))
 }
 
-@Test func succeedsBehaviorAppliesAndOverviewReflectsIt() async throws {
+/// Chunk 17: protection runs through the real executor against the mock
+/// AdGuard Home, and the overview shows the result.
+@Test func mockPauseAndResumeRunThroughTheExecutor() async throws {
     let backend = MockRouterBackend()
-    await backend.setProtectionBehavior(.succeeds)
-    guard let service = backend.protection else {
-        Issue.record("expected a protection service"); return
+    await backend.mockAdGuard.setScenario(.running)
+    let settings = try #require(backend.adGuardSettings)
+    let paused = await settings.run(.protection(.pause(.seconds(60))), availability: .running)
+    guard case .verifiedSuccess(.protection(.paused)) = paused.outcome else {
+        Issue.record("expected a verified pause, got \(paused.outcome)"); return
     }
-    let report = await service.setProtection(.disable, allowRecovery: false)
-    #expect(report.outcome == .verifiedSuccess(.disabled))
-    #expect(report.dispatched == true)
-
-    let overview = try await backend.overview()
-    guard case .success(let adGuard, _, _) = overview.adGuard else {
+    guard case .success(let adGuard, _, _) = try await backend.overview().adGuard, case .paused = adGuard.protection else {
+        Issue.record("expected the overview to show the pause"); return
+    }
+    let resumed = await settings.run(.protection(.enable), availability: .running)
+    #expect(resumed.outcome == .verifiedSuccess(.protection(.enabled)))
+    guard case .success(let after, _, _) = try await backend.overview().adGuard else {
         Issue.record("expected adGuard success"); return
     }
-    #expect(adGuard.protection == .disabled)
+    #expect(after.protection == .enabled)
 }
 
-@Test func mismatchThenRecoversBehaviorRestoresPreviousStateWhenAllowed() async throws {
+@Test func mockPausedScenarioStartsPaused() async throws {
     let backend = MockRouterBackend()
-    await backend.setProtectionBehavior(.mismatchThenRecovers)
-    let report = await backend.protection!.setProtection(.disable, allowRecovery: true)
-    guard case .verifiedRecovery(let restored) = report.outcome else {
-        Issue.record("expected verifiedRecovery, got \(report.outcome)"); return
+    await backend.mockAdGuard.setScenario(.paused)
+    guard case .success(let adGuard, _, _) = try await backend.overview().adGuard, case .paused(let until) = adGuard.protection else {
+        Issue.record("expected a paused protection"); return
     }
-    #expect(restored == .enabled)
-
-    let overview = try await backend.overview()
-    guard case .success(let adGuard, _, _) = overview.adGuard else {
-        Issue.record("expected adGuard success"); return
-    }
-    #expect(adGuard.protection == .enabled)
+    #expect(until > Date())
 }
 
-@Test func mismatchThenRecoversBehaviorLeavesMismatchWhenRecoveryNotAllowed() async throws {
+@Test func mockSwitchFailsScenarioReportsAMismatchForParentalOnly() async throws {
     let backend = MockRouterBackend()
-    await backend.setProtectionBehavior(.mismatchThenRecovers)
-    let report = await backend.protection!.setProtection(.disable, allowRecovery: false)
-    #expect(report.outcome == .verifiedMismatch(expected: .disabled, actual: .enabled))
+    await backend.mockAdGuard.setScenario(.switchFails)
+    let settings = try #require(backend.adGuardSettings)
+    let parental = await settings.run(.feature(.parental, enabled: true), availability: .running)
+    #expect(parental.outcome == .verifiedMismatch(expected: .feature(true), actual: .feature(false)))
+    let safeSearch = await settings.run(.feature(.safeSearch, enabled: true), availability: .running)
+    #expect(safeSearch.outcome == .verifiedSuccess(.feature(true)))
+    let writes = await backend.mockAdGuard.writes
+    #expect(writes.count == 2)
+    // Safe Search sends the engine flags back with the switch.
+    guard case .safeSearchSettings(let body)? = writes.last else { Issue.record("expected a Safe Search write"); return }
+    #expect(body["google"] == .bool(true))
 }
 
-@Test func lostResponseThenAppliedBehaviorStillApplies() async throws {
+@Test func mockOverviewLimitsRangesToTheRetention() async throws {
     let backend = MockRouterBackend()
-    await backend.setProtectionBehavior(.lostResponseThenApplied)
-    let report = await backend.protection!.setProtection(.enable, allowRecovery: false)
-    #expect(report.outcome == .verifiedSuccess(.enabled))
-    #expect(report.dispatched == true)
-
-    let overview = try await backend.overview()
-    guard case .success(let adGuard, _, _) = overview.adGuard else {
-        Issue.record("expected adGuard success"); return
-    }
-    #expect(adGuard.protection == .enabled)
+    await backend.mockAdGuard.setScenario(.running)
+    let overview = try #require(backend.adGuardOverview)
+    let day = try await overview.overview(range: .day)
+    #expect(try day.stats.get().matches(.day))
+    let retention = try day.statsConfig.get().intervalMilliseconds
+    #expect(AdGuardStatsRange.week.isAvailable(retentionMilliseconds: retention))
+    #expect(!AdGuardStatsRange.month.isAvailable(retentionMilliseconds: retention))
+    let week = try await overview.overview(range: .week)
+    #expect(try week.stats.get().matches(.week))
+    #expect(try day.protection.get() == ProtectionOptions(safeBrowsing: true, parental: false, safeSearch: false))
 }
 
-@Test func externalEditBehaviorReportsConflictAndOverviewReflectsIt() async throws {
+@Test func mockOverviewFailsWhenAdGuardDoesNotAnswer() async throws {
     let backend = MockRouterBackend()
-    await backend.setProtectionBehavior(.externalEdit)
-    let report = await backend.protection!.setProtection(.enable, allowRecovery: false)
-    guard case .conflictingExternalEdit(let actual) = report.outcome else {
-        Issue.record("expected conflictingExternalEdit, got \(report.outcome)"); return
-    }
-    guard case .paused = actual else {
-        Issue.record("expected a paused actual state"); return
-    }
-
-    let overview = try await backend.overview()
-    guard case .success(let adGuard, _, _) = overview.adGuard else {
-        Issue.record("expected adGuard success"); return
-    }
-    #expect(adGuard.protection == actual)
+    await backend.mockAdGuard.setScenario(.unreachable)
+    let reading = try await #require(backend.adGuardOverview).overview(range: .day)
+    #expect(reading.stats == .failure(.timeout))
+    let settings = await (try #require(backend.adGuardSettings)).run(.protection(.enable), availability: .running)
+    #expect(settings.outcome == .rejected(.preconditionFailed("status unavailable")))
 }
 
-@Test func unauthorizedBehaviorRejectsButStillCountsAsDispatched() async throws {
-    let backend = MockRouterBackend()
-    await backend.setProtectionBehavior(.unauthorized)
-    let report = await backend.protection!.setProtection(.enable, allowRecovery: false)
-    // Matches the live path: a 401/403 reaches the server and is a
-    // definitive rejection, not an ambiguous one, but a request was sent.
-    #expect(report.dispatched == true)
-    #expect(report.outcome == .rejected(.preconditionFailed("AdGuard Home refused the login")))
+@Test func mockCachedSeedHoldsTheOverviewSections() {
+    let archive = MockAdGuardScenario.cached.seedArchive(now: Date())
+    #expect(archive?.stats(for: .day) != nil)
+    #expect(archive?.protection?.value.safeBrowsing == true)
+    #expect(archive?.filtering?.value.enabledBlocklists.count == 3)
+    #expect(MockAdGuardScenario.running.seedArchive(now: Date()) == nil)
 }
 
-@Test func invalidIntentIsRejectedRegardlessOfBehavior() async throws {
+/// Service and setting writes share the router's one gate.
+@Test func mockSettingAndServiceWritesShareOneGate() async throws {
     let backend = MockRouterBackend()
-    await backend.setProtectionBehavior(.succeeds)
-    let report = await backend.protection!.setProtection(.pause(.seconds(10)), allowRecovery: false)
-    #expect(report.dispatched == false)
-    guard case .rejected(.invalidIntent) = report.outcome else {
-        Issue.record("expected rejected(.invalidIntent), got \(report.outcome)"); return
-    }
-}
-
-@Test func concurrentMockMutationsSerializeThroughAGateAndOverviewReflectsConsistentState() async throws {
-    let backend = MockRouterBackend()
-    await backend.setProtectionBehavior(.succeeds)
-
+    await backend.mockAdGuard.setScenario(.running)
     let clock = ContinuousClock()
     let start = clock.now
-    async let reportA = backend.protection!.setProtection(.enable, allowRecovery: false)
-    async let reportB = backend.protection!.setProtection(.disable, allowRecovery: false)
-    let (a, b) = await (reportA, reportB)
-    let elapsed = clock.now - start
-
-    // Each mock mutation sleeps ~50ms while it reads and writes shared
-    // state. If the two calls are serialized through a shared gate, the
-    // wall-clock time for both is close to 2x that sleep; if they
-    // interleaved instead (the bug this guards against), it would be
-    // close to 1x. 90ms only ever fails in the interleaved case: any
-    // amount of extra CI slowness only makes the serialized case slower,
-    // never faster.
-    #expect(elapsed >= .milliseconds(90))
-
-    #expect(a.outcome == .verifiedSuccess(.enabled))
-    #expect(a.dispatched == true)
-    #expect(b.outcome == .verifiedSuccess(.disabled))
-    #expect(b.dispatched == true)
-
-    let overview = try await backend.overview()
-    guard case .success(let adGuard, _, _) = overview.adGuard else {
-        Issue.record("expected adGuard success"); return
-    }
-    // Whichever call actually ran last through the gate determines the
-    // final state; either is a valid, self-consistent outcome, but it
-    // must match one of the two intended states exactly, never a mix.
-    #expect(adGuard.protection == .enabled || adGuard.protection == .disabled)
+    async let first = backend.adGuardSettings!.run(.feature(.safeBrowsing, enabled: false), availability: .running)
+    async let second = backend.adGuardSettings!.run(.feature(.parental, enabled: true), availability: .running)
+    let (a, b) = await (first, second)
+    // Each mock write waits 150 ms; serialized, the two take at least 300 ms.
+    #expect(clock.now - start >= .milliseconds(290))
+    #expect(a.outcome == .verifiedSuccess(.feature(false)))
+    #expect(b.outcome == .verifiedSuccess(.feature(true)))
 }
 
 @Test func cancelledReadDoesNotReturnData() async {

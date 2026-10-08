@@ -36,6 +36,19 @@ public enum ClientNaming {
         return ResolvedClientName(nil, source: .none)
     }
 
+    /// The automatic name for an address AdGuard Home saw (Overview › Top
+    /// devices, chunk 17): the router client that holds the IP now, else
+    /// the remembered device last seen with it. `nil` shows the IP with
+    /// "Unnamed".
+    public static func automatic(ip: String, clients: [Client], records: [MACAddress: DeviceRecord]) -> String? {
+        if let client = clients.first(where: { $0.ip == ip }) {
+            return automatic(client: client, record: records[client.mac]).text
+        }
+        let remembered = records.values.filter { $0.lastIP == ip }
+            .max { ($0.lastSeen ?? .distantPast) < ($1.lastSeen ?? .distantPast) }
+        return remembered.flatMap { automatic(client: nil, record: $0).text }
+    }
+
     /// Hostname and Display name show only that source, with no fallback, so
     /// each mode means what it says.
     public static func name(_ mode: ClientNameMode, client: Client?, record: DeviceRecord?) -> ResolvedClientName {

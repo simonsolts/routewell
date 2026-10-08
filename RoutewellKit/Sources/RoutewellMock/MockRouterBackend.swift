@@ -7,17 +7,6 @@ public actor MockRouterBackend: RouterBackend {
         case healthy, partial, offline, stale, slow
     }
 
-    /// Which outcome the mock Protection service produces on its next
-    /// `setProtection` call. Selectable in DEBUG builds via a picker so the
-    /// app's outcome-text mapping can be exercised without a live router.
-    public enum ProtectionBehavior: String, CaseIterable, Sendable {
-        case succeeds
-        case mismatchThenRecovers
-        case lostResponseThenApplied
-        case externalEdit
-        case unauthorized
-    }
-
     public enum FeatureBehavior: String, CaseIterable, Sendable {
         case supported, unsupported, unknown, slow, failing
     }
@@ -40,23 +29,21 @@ public actor MockRouterBackend: RouterBackend {
     private let featureProbes: [DataArea: MockFeatureProbe]
 
     private var scenario: Scenario
-    private var protectionBehavior: ProtectionBehavior = .succeeds
-    /// Overrides `adGuard.protection` in the next `overview()` result once a
-    /// mock mutation has run; `nil` means "use the scenario's own value."
-    private var protectionOverride: ProtectionState?
-    /// Serializes `runProtectionMutation` the same way the live path
-    /// serializes through one `MutationGate` per backend: without it, an
-    /// actor's reentrancy across `await Task.sleep` lets a second concurrent
-    /// mutation read `protectionBehavior`/`protectionOverride` mid-update.
-    private let protectionGate = MutationGate()
+    /// The router's one gate, shared by every mock AdGuard Home write, as
+    /// `LiveRouterBackend` shares one.
+    private let gate = MutationGate()
     public nonisolated let hostname: String
     /// The router's AdGuard Home setting and AdGuard Home itself (chunk 16).
     public nonisolated let mockAdGuard = MockAdGuardTransport()
-    /// Turn On, Stop, Handle DNS, Restart through the real executor, under
-    /// the same gate as the mock Protection writes.
+    /// Turn On, Stop, Handle DNS, Restart through the real executor.
     public nonisolated var adGuardService: (any AdGuardServiceControl)? {
-        AdGuardServiceExecutor(transport: mockAdGuard, gate: protectionGate, policy: .mock)
+        AdGuardServiceExecutor(transport: mockAdGuard, gate: gate, policy: .mock)
     }
+    /// Protection and the three switches through the real executor (chunk 17).
+    public nonisolated var adGuardSettings: (any AdGuardSettingControl)? {
+        AdGuardSettingExecutor(transport: mockAdGuard, gate: gate, policy: .mock)
+    }
+    public nonisolated var adGuardOverview: (any AdGuardOverviewService)? { mockAdGuard }
 
     public init(scenario: Scenario = .healthy, hostname: String = "flint-demo") {
         self.scenario = scenario
@@ -81,10 +68,6 @@ public actor MockRouterBackend: RouterBackend {
             clients.listed = await mockClients.listedPresence()
             result.clients = .success(clients, observedAt: observedAt, source: source)
         }
-        if let protectionOverride, case .success(var adGuard, let observedAt, let source) = result.adGuard {
-            adGuard.protection = protectionOverride
-            result.adGuard = .success(adGuard, observedAt: observedAt, source: source)
-        }
         await applyAdGuardService(to: &result, scenario: scenario)
         return result
     }
@@ -108,6 +91,7 @@ public actor MockRouterBackend: RouterBackend {
                     adGuard.handlesClientRequests = config.handlesDNS.map(Observed.value) ?? .unknown
                 }
                 adGuard.version = status.version
+                adGuard.protection = AdGuardClient.adGuardStatus(status: status, stats: nil, now: now).protection
                 result.adGuard = .success(adGuard, observedAt: observedAt, source: source)
             }
         case .failed(let category)?:
@@ -136,93 +120,6 @@ public actor MockRouterBackend: RouterBackend {
     /// `nil` hides Ping and Wake.
     public nonisolated var clientActions: (any ClientActionsService)? {
         mockClientActions.currentMechanism == nil ? nil : mockClientActions
-    }
-
-    public func setProtectionBehavior(_ behavior: ProtectionBehavior) {
-        protectionBehavior = behavior
-    }
-
-    // MARK: - ProtectionService
-
-    public nonisolated var protection: (any ProtectionService)? {
-        MockProtectionService(backend: self)
-    }
-
-    /// Runs the currently selected `ProtectionBehavior` against `intent`,
-    /// updating `protectionOverride` so the next `overview()` reflects the
-    /// change, and returns the matching `MutationOutcome`. Never sleeps more
-    /// than 100 ms. Serialized through `protectionGate`: a second concurrent
-    /// call waits for the first to finish reading and writing shared state
-    /// before it starts its own.
-    func runProtectionMutation(_ intent: ProtectionIntent, allowRecovery: Bool) async -> MutationReport<ProtectionState> {
-        let startedAt = Date()
-        if let rejection = intent.validate() {
-            return MutationReport(outcome: .rejected(rejection), dispatched: false, startedAt: startedAt, finishedAt: startedAt, failure: nil)
-        }
-
-        let token: MutationGateToken
-        do {
-            token = try await protectionGate.acquire()
-        } catch {
-            return MutationReport(
-                outcome: .rejected(.preconditionFailed("Cancelled before dispatch")),
-                dispatched: false, startedAt: startedAt, finishedAt: Date(), failure: nil
-            )
-        }
-        let report = await performProtectionMutation(intent, allowRecovery: allowRecovery, startedAt: startedAt)
-        await protectionGate.release(token)
-        return report
-    }
-
-    private func performProtectionMutation(
-        _ intent: ProtectionIntent, allowRecovery: Bool, startedAt: Date
-    ) async -> MutationReport<ProtectionState> {
-        try? await Task.sleep(for: .milliseconds(50))
-
-        let intended = Self.intendedState(for: intent)
-        let before = protectionOverride ?? .enabled
-
-        switch protectionBehavior {
-        case .succeeds:
-            protectionOverride = intended
-            return MutationReport(outcome: .verifiedSuccess(intended), dispatched: true, startedAt: startedAt, finishedAt: Date(), failure: nil)
-
-        case .mismatchThenRecovers:
-            guard allowRecovery else {
-                return MutationReport(outcome: .verifiedMismatch(expected: intended, actual: before), dispatched: true, startedAt: startedAt, finishedAt: Date(), failure: nil)
-            }
-            protectionOverride = before
-            return MutationReport(outcome: .verifiedRecovery(restored: before), dispatched: true, startedAt: startedAt, finishedAt: Date(), failure: nil)
-
-        case .lostResponseThenApplied:
-            protectionOverride = intended
-            return MutationReport(outcome: .verifiedSuccess(intended), dispatched: true, startedAt: startedAt, finishedAt: Date(), failure: nil)
-
-        case .externalEdit:
-            let actual: ProtectionState = .paused(until: Date().addingTimeInterval(300))
-            protectionOverride = actual
-            return MutationReport(outcome: .conflictingExternalEdit(actual: actual), dispatched: true, startedAt: startedAt, finishedAt: Date(), failure: nil)
-
-        case .unauthorized:
-            // Matches the live path's semantics: a 401/403 reaches the
-            // server and is a definitive rejection, not an ambiguous one,
-            // but a request was still sent — so `dispatched` is `true`.
-            return MutationReport(
-                outcome: .rejected(.preconditionFailed("AdGuard Home refused the login")),
-                dispatched: true, startedAt: startedAt, finishedAt: Date(), failure: .authentication
-            )
-        }
-    }
-
-    private static func intendedState(for intent: ProtectionIntent) -> ProtectionState {
-        switch intent {
-        case .enable: return .enabled
-        case .disable: return .disabled
-        case .pause(let duration):
-            let components = duration.components
-            let seconds = Double(components.seconds) + Double(components.attoseconds) / 1e18
-            return .paused(until: Date().addingTimeInterval(seconds))
-        }
     }
 
     public static func result(
@@ -323,13 +220,5 @@ private actor MockFeatureProbe: NetworkService,
         case .unsupported: return Capability(.unsupported, evidence: .mockScenario("unsupported"), observedAt: .now)
         case .unknown, .slow, .failing: return Capability()
         }
-    }
-}
-
-private struct MockProtectionService: ProtectionService {
-    let backend: MockRouterBackend
-
-    func setProtection(_ intent: ProtectionIntent, allowRecovery: Bool) async -> MutationReport<ProtectionState> {
-        await backend.runProtectionMutation(intent, allowRecovery: allowRecovery)
     }
 }
