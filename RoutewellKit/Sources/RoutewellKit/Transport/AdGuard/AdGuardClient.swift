@@ -2,7 +2,7 @@ import Foundation
 
 /// `control/status` fields Routewell reads. Every field is optional: a
 /// missing or differently-typed field yields `nil`, never a thrown error.
-public struct AdGuardStatusResponse: Sendable, Equatable {
+public struct AdGuardStatusResponse: Sendable, Equatable, Codable {
     public var version: String?
     public var running: Bool?
     public var protectionEnabled: Bool?
@@ -10,6 +10,9 @@ public struct AdGuardStatusResponse: Sendable, Equatable {
     public var dnsAddresses: [String] = []
     /// `dns_port` `[verified live]`: 3053 on 4.9.1, behind the router's dnsmasq.
     public var dnsPort: Int?
+    /// `start_time` `[verified live]`: when AdGuard Home started, in
+    /// milliseconds since 1970 (fractional on 4.9.1).
+    public var startTime: Date?
 
     public init(
         version: String? = nil,
@@ -89,6 +92,7 @@ public actor AdGuardClient {
         response.protectionDisabledDurationMilliseconds = json["protection_disabled_duration"]?.int
         response.dnsAddresses = json["dns_addresses"]?.array?.compactMap(\.string) ?? []
         response.dnsPort = json["dns_port"]?.int
+        response.startTime = json["start_time"]?.double.map { Date(timeIntervalSince1970: $0 / 1000) }
         return response
     }
 

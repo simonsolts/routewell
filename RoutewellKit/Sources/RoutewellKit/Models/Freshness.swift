@@ -49,17 +49,22 @@ public struct OverviewRefreshResult: Sendable {
     public var internet: AreaRefreshResult<InternetStatus>
     public var adGuard: AreaRefreshResult<AdGuardStatus>
     public var clients: AreaRefreshResult<ClientStatus>
+    /// The router's AdGuard Home setting and whether AdGuard Home answered
+    /// (chunk 16). `nil` when the backend did not read it.
+    public var adGuardService: AdGuardServiceReading?
 
     public init(
         router: AreaRefreshResult<RouterStatus>,
         internet: AreaRefreshResult<InternetStatus>,
         adGuard: AreaRefreshResult<AdGuardStatus>,
-        clients: AreaRefreshResult<ClientStatus>
+        clients: AreaRefreshResult<ClientStatus>,
+        adGuardService: AdGuardServiceReading? = nil
     ) {
         self.router = router
         self.internet = internet
         self.adGuard = adGuard
         self.clients = clients
+        self.adGuardService = adGuardService
     }
 }
 

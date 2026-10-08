@@ -37,6 +37,20 @@ private actor StubSessionProvider: RouterSessionTokenProvider {
         #expect(status.dnsAddresses == ["192.168.8.1:53"])
     }
 
+    /// The 4.9.1 recording: `start_time` is milliseconds with a fraction.
+    @Test func statusParsesRecordedStartTime() async throws {
+        let body = fixtureData("control-status-4.9.1", subdirectory: "Fixtures/adguard")
+        let transport = StubHTTPTransport { request in
+            (body, StubHTTPTransport.response(200, url: request.url!))
+        }
+        let client = AdGuardClient(baseURL: Self.baseURL, credentials: BasicAdGuardCredentials(username: "admin", password: { "secret" }), transport: transport)
+        let status = try await client.status()
+        let startTime = try #require(status.startTime)
+        #expect(abs(startTime.timeIntervalSince1970 - 1_789_837_749.014) < 0.01)
+        #expect(status.version == "0.107.73")
+        #expect(status.dnsPort == 3053)
+    }
+
     @Test func statsParsesFixture() async throws {
         let body = fixtureData("control-stats", subdirectory: "Fixtures/adguard")
         let transport = StubHTTPTransport { request in

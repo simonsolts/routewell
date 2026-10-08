@@ -15,6 +15,7 @@ private func fixtureData(_ name: String, subdirectory: String) -> Data {
 /// One canned outcome for an authenticated `object.method` RPC call.
 private enum MethodOutcome: Sendable {
     case fixture(String) // fixture name under Fixtures/glinet, used verbatim as the response envelope
+    case result(JSONValue)
     case rpcError(code: Int)
     case transportError(TransportError)
 }
@@ -126,6 +127,8 @@ private enum LiveFixtures {
                         return (Data(), StubHTTPTransport.response(500, url: url))
                     }
                     return okResponse(id: id, result: result, url: url)
+                case .result(let result):
+                    return okResponse(id: id, result: result, url: url)
                 case .rpcError(let code):
                     return errorResponse(id: id, code: code, url: url)
                 case .transportError(let error):
@@ -223,6 +226,53 @@ private actor SpyTrustPromptHandler: TrustPromptHandler {
         Issue.record("expected clients success, got \(result.clients)"); return
     }
     #expect(clients.activeCount == .value(1))
+}
+
+// MARK: - The AdGuard Home service reading (chunk 16)
+
+private func serviceReading(config: MethodOutcome, status: AdGuardOutcome?, adGuardSettings: AdGuardSettings? = AdGuardSettings(port: 3000, useRouterCredentials: true)) async throws -> AdGuardServiceReading? {
+    var adGuard: [String: @Sendable (Int) -> AdGuardOutcome] = ["stats": { _ in .fixture("control-stats") }]
+    if let status { adGuard["status"] = { _ in status } }
+    let transport = LiveFixtures.makeTransport(
+        methods: [
+            "system.get_status": { _ in .fixture("system-get_status") },
+            "system.get_info": { _ in .fixture("system-get_info") },
+            "cable.get_status": { _ in .fixture("cable-get_status") },
+            "clients.get_list": { _ in .fixture("clients-get_list") },
+            "adguardhome.get_config": { _ in config },
+        ],
+        adGuard: adGuard
+    )
+    return try await LiveFixtures.makeBackend(transport: transport, adGuardSettings: adGuardSettings).overview().adGuardService
+}
+
+@Test func overviewReadsTheServiceStateForEachCombination() async throws {
+    let on: JSONValue = .object(["enabled": .bool(true), "dns_enabled": .bool(false)])
+    let off: JSONValue = .object(["enabled": .bool(false), "dns_enabled": .bool(true)])
+
+    let running = try #require(try await serviceReading(config: .result(on), status: .fixture("control-status-4.9.1")))
+    #expect(running.config == .success(AdGuardRouterConfig(enabled: true, handlesDNS: false)))
+    #expect(running.status?.version == "0.107.73")
+    #expect(AdGuardAvailability.decide(running, hasArchive: false) == .running)
+
+    // Off: AdGuard Home is not asked.
+    let stopped = try #require(try await serviceReading(config: .result(off), status: nil))
+    #expect(stopped.answer == nil)
+    #expect(AdGuardAvailability.decide(stopped, hasArchive: false) == .off)
+    #expect(AdGuardAvailability.decide(stopped, hasArchive: true) == .cached)
+
+    let refused = try #require(try await serviceReading(config: .result(on), status: .httpStatus(403)))
+    #expect(AdGuardAvailability.decide(refused, hasArchive: true) == .unreachable(.notAnswering(.authentication)))
+
+    let silent = try #require(try await serviceReading(config: .result(on), status: .transportError(.timedOut)))
+    #expect(AdGuardAvailability.decide(silent, hasArchive: false) == .unreachable(.notAnswering(.timeout)))
+
+    // A failed router read is never off.
+    let unreadable = try #require(try await serviceReading(config: .transportError(.timedOut), status: nil))
+    #expect(AdGuardAvailability.decide(unreadable, hasArchive: false) == .unreachable(.routerUnreadable(.timeout)))
+
+    let notConfigured = try #require(try await serviceReading(config: .result(on), status: nil, adGuardSettings: nil))
+    #expect(AdGuardAvailability.decide(notConfigured, hasArchive: false) == .unreachable(.notConfigured))
 }
 
 // MARK: - AdGuard 403 fails only the AdGuard area

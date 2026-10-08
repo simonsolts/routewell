@@ -173,6 +173,25 @@ public actor RouterSession {
         return report
     }
 
+    /// Runs one AdGuard Home service write (chunk 16). Fenced like
+    /// `setProtection`: a `.stale` from `validateAfter` means the write may
+    /// have reached the router.
+    public func runAdGuardService(
+        using lease: SessionLease, intent: AdGuardServiceIntent, availability: AdGuardAvailability,
+        beforeDispatch: @escaping @Sendable (AdGuardServiceReading) async -> Void = { _ in }
+    ) async throws -> MutationReport<AdGuardServiceState> {
+        try validateBefore(lease)
+        let report: MutationReport<AdGuardServiceState>
+        if let service = lease.backend.adGuardService {
+            report = await service.run(intent, availability: availability, beforeDispatch: beforeDispatch)
+        } else {
+            let now = Date()
+            report = MutationReport(outcome: .rejected(.capabilityUnavailable), dispatched: false, startedAt: now, finishedAt: now, failure: nil)
+        }
+        try validateAfter(lease)
+        return report
+    }
+
     /// Runs one Protection mutation against `lease.backend`. `validateBefore`
     /// fences it against a lease that's already stale or mid-switch;
     /// `validateAfter` fences the result. If `validateAfter` throws
