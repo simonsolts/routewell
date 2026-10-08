@@ -14,7 +14,7 @@ struct MenuBarExtraView: View {
         Text("VPN: Unknown")
         Divider()
         Button("Open Routewell") {
-            openWindow(id: "main")
+            openWindow(id: model.needsSetup ? "onboarding" : "main")
             NSApp.activate(ignoringOtherApps: true)
         }.keyboardShortcut("o", modifiers: .command)
         Button("Settings…") {

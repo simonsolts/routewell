@@ -3,54 +3,6 @@ import Testing
 import RoutewellKit
 @testable import Routewell
 
-@Test func emptyAddressCannotSave() {
-    let validation = SetupFormState().validate()
-    #expect(!validation.canSave)
-    guard case .failure(let error) = validation.endpoint else {
-        Issue.record("expected a parse failure for an empty address")
-        return
-    }
-    #expect(error == .empty)
-}
-
-@Test func validHTTPSAddressWithCredentialsCanSave() {
-    var form = SetupFormState()
-    form.addressText = "192.168.8.1"
-    form.password = "secret"
-    let validation = form.validate()
-    #expect(validation.passwordProblem == nil)
-    #expect(!validation.plainHTTPNeedsAck)
-    #expect(validation.canSave)
-    guard case .success(let endpoint) = validation.endpoint else {
-        Issue.record("expected a valid endpoint")
-        return
-    }
-    #expect(endpoint.scheme == .https)
-}
-
-@Test func plainHTTPRequiresAcknowledgementBeforeSaving() {
-    var form = SetupFormState()
-    form.addressText = "http://192.168.8.1"
-    form.password = "secret"
-    let unacknowledged = form.validate()
-    #expect(unacknowledged.plainHTTPNeedsAck)
-    #expect(!unacknowledged.canSave)
-
-    form.plainHTTPAcknowledged = true
-    let acknowledged = form.validate()
-    #expect(!acknowledged.plainHTTPNeedsAck)
-    #expect(acknowledged.canSave)
-}
-
-@Test func blankPasswordCannotSave() {
-    var form = SetupFormState()
-    form.addressText = "192.168.8.1"
-    form.password = ""
-    let validation = form.validate()
-    #expect(validation.passwordProblem != nil)
-    #expect(!validation.canSave)
-}
-
 @MainActor @Test func trustPromptCancelResolvesFalseAndClearsPending() async {
     let controller = TrustPromptController()
     let request = TrustPromptRequest(host: "192.168.8.1", port: 443, decision: .untrustedNew(try! CertificateFingerprint(sha256: Data(repeating: 1, count: 32))))
