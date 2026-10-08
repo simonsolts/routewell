@@ -16,6 +16,12 @@ struct RouterSettingsTab: View {
         _model = State(initialValue: RouterSettingsModel(services: services, app: app))
     }
 
+    /// A given model, for previews and snapshots.
+    init(environment: AppEnvironment, model: RouterSettingsModel) {
+        self.environment = environment
+        _model = State(initialValue: model)
+    }
+
     private var services: any RouterSettingsServices { model.services }
     private var mutationInFlight: Bool { environment.mutation.inFlight != nil }
 
