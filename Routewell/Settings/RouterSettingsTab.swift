@@ -23,7 +23,7 @@ struct RouterSettingsTab: View {
     }
 
     private var services: any RouterSettingsServices { model.services }
-    private var mutationInFlight: Bool { environment.mutation.inFlight != nil }
+    private var mutationInFlight: Bool { environment.adGuard.isWriting }
 
     var body: some View {
         Form {

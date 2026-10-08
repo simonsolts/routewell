@@ -49,6 +49,89 @@ public struct AdGuardStatsResponse: Sendable, Equatable {
 public enum AdGuardReadPath: String, Sendable, CaseIterable {
     case clients = "control/clients"
     case stats = "control/stats"
+    // Chunk 17: the Overview tab.
+    case statsConfig = "control/stats/config"
+    case safeBrowsingStatus = "control/safebrowsing/status"
+    case parentalStatus = "control/parental/status"
+    case safeSearchStatus = "control/safesearch/status"
+    case filteringStatus = "control/filtering/status"
+
+    /// The name in the session log.
+    var logName: String {
+        switch self {
+        case .clients: "clients"
+        case .stats: "stats"
+        case .statsConfig: "stats config"
+        case .safeBrowsingStatus: "safebrowsing status"
+        case .parentalStatus: "parental status"
+        case .safeSearchStatus: "safesearch status"
+        case .filteringStatus: "filtering status"
+        }
+    }
+
+    public static func status(of feature: AdGuardFeature) -> AdGuardReadPath {
+        switch feature {
+        case .safeBrowsing: .safeBrowsingStatus
+        case .parental: .parentalStatus
+        case .safeSearch: .safeSearchStatus
+        }
+    }
+}
+
+/// The AdGuard Home writes Routewell sends (architecture 04). Every other
+/// path is out of reach of `AdGuardClient.write`.
+public enum AdGuardWrite: Sendable, Equatable {
+    /// `POST control/protection {"enabled", "duration"}`.
+    case protection(enabled: Bool, durationMilliseconds: Int)
+    /// `POST control/safebrowsing/enable` or `.../disable`, no body; the same
+    /// for Parental.
+    case feature(AdGuardFeature, enabled: Bool)
+    /// `PUT control/safesearch/settings`: the status object as read, with
+    /// `enabled` replaced, so the engine flags go back unchanged.
+    case safeSearchSettings(JSONValue)
+    /// `POST control/filtering/config {"enabled", "interval"}`: AdGuard
+    /// Home's "Filter requests" (chunk 17, user request). The interval goes
+    /// back as read. The web UI sends this shape (user, 2026-10-08).
+    case filteringConfig(enabled: Bool, intervalHours: Int)
+
+    var httpMethod: String {
+        if case .safeSearchSettings = self { return "PUT" }
+        return "POST"
+    }
+
+    var path: String {
+        switch self {
+        case .protection: "control/protection"
+        case .feature(let feature, let enabled):
+            switch feature {
+            case .safeBrowsing: enabled ? "control/safebrowsing/enable" : "control/safebrowsing/disable"
+            case .parental: enabled ? "control/parental/enable" : "control/parental/disable"
+            case .safeSearch: "control/safesearch/settings"
+            }
+        case .safeSearchSettings: "control/safesearch/settings"
+        case .filteringConfig: "control/filtering/config"
+        }
+    }
+
+    var body: JSONValue? {
+        switch self {
+        case .protection(let enabled, let duration):
+            .object(["enabled": .bool(enabled), "duration": .number(Double(duration))])
+        case .feature: nil
+        case .safeSearchSettings(let settings): settings
+        case .filteringConfig(let enabled, let interval):
+            .object(["enabled": .bool(enabled), "interval": .number(Double(interval))])
+        }
+    }
+
+    var logName: String {
+        switch self {
+        case .protection: "setProtection"
+        case .feature(let feature, _): "set \(feature.rawValue)"
+        case .safeSearchSettings: "set safeSearch"
+        case .filteringConfig: "set filtering"
+        }
+    }
 }
 
 public enum AdGuardClientError: Error, Equatable, Sendable {
@@ -97,7 +180,15 @@ public actor AdGuardClient {
     }
 
     public func read(_ path: AdGuardReadPath) async throws -> JSONValue {
-        try await get(path: path.rawValue, method: path == .clients ? "clients" : "stats")
+        try await get(path: path.rawValue, method: path.logName)
+    }
+
+    /// `GET control/stats?recent=<ms>` (chunk 17). `recent` is the lookback,
+    /// a whole number of hours, at most the stats retention; `nil` is the
+    /// plain read. A version without `recent` may ignore it or answer 400.
+    public func stats(recentMilliseconds: Int?) async throws -> JSONValue {
+        let query = recentMilliseconds.map { [URLQueryItem(name: "recent", value: String($0))] } ?? []
+        return try await get(path: AdGuardReadPath.stats.rawValue, query: query, method: "stats", retried: false)
     }
 
     /// `GET control/querylog?limit=<N>[&search=<text>]`: one bounded page of
@@ -109,11 +200,25 @@ public actor AdGuardClient {
         return try await get(path: "control/querylog", query: query, method: "querylog", retried: false)
     }
 
+    /// `path` may end in a query (`control/stats?recent=86400000`). Only
+    /// letters, digits, and `_` are allowed in its names and values.
     public func recordRead(path: String) async -> JSONValue {
-        guard path.hasPrefix("control/"), !path.contains("..") else {
+        let parts = path.split(separator: "?", maxSplits: 1, omittingEmptySubsequences: false)
+        let route = String(parts[0])
+        var query: [URLQueryItem] = []
+        if parts.count == 2 {
+            for pair in parts[1].split(separator: "&") {
+                let field = pair.split(separator: "=", maxSplits: 1, omittingEmptySubsequences: false).map(String.init)
+                guard field.count == 2, field.allSatisfy({ !$0.isEmpty && $0.allSatisfy { $0.isLetter || $0.isNumber || $0 == "_" } }) else {
+                    return .object(["error": .object(["category": .string("invalid path")])])
+                }
+                query.append(URLQueryItem(name: field[0], value: field[1]))
+            }
+        }
+        guard route.hasPrefix("control/"), !route.contains("..") else {
             return .object(["error": .object(["category": .string("invalid path")])])
         }
-        do { return try await get(path: path, method: "fixture") }
+        do { return try await get(path: route, query: query, method: "fixture", retried: false) }
         catch AdGuardClientError.unauthorized {
             return .object(["error": .object(["category": .string("authentication")])])
         } catch AdGuardClientError.httpStatus(let status) {
@@ -123,73 +228,77 @@ public actor AdGuardClient {
         }
     }
 
-    /// `POST control/protection`. Dispatches at most once per call: a
-    /// 401/403 that arrives before the body is accepted is re-authenticated
-    /// and re-dispatched exactly once, which still counts as the single
+    /// `POST control/protection`: `write(.protection(...))`.
+    public func setProtection(enabled: Bool, durationMilliseconds: Int) async throws {
+        try await write(.protection(enabled: enabled, durationMilliseconds: durationMilliseconds))
+    }
+
+    /// One AdGuard Home write. Dispatches at most once per call: a 401/403
+    /// that arrives before the body is accepted is re-authenticated and
+    /// re-dispatched exactly once, which still counts as the single
     /// accepted attempt (the first response was a rejection, not an
     /// ambiguous outcome). Any other failure — transport error, timeout,
     /// non-2xx after the retry — is surfaced as a thrown error; the caller
     /// (the mutation executor) treats that as "dispatched, outcome
     /// unknown" rather than replaying the write.
-    public func setProtection(enabled: Bool, durationMilliseconds: Int) async throws {
-        try await setProtection(enabled: enabled, durationMilliseconds: durationMilliseconds, previousUnauthorizedStatus: nil)
+    public func write(_ write: AdGuardWrite) async throws {
+        try await send(write, previousUnauthorizedStatus: nil)
     }
 
     /// `previousUnauthorizedStatus` is non-nil only on the single retry
-    /// after a 401/403: at that point a POST has already reached the
+    /// after a 401/403: at that point a request has already reached the
     /// server and was rejected. If re-authenticating (or just re-reading
     /// the credential for the retry's headers) fails here, that is not the
     /// same as "nothing was ever sent" — surface `.unauthorized` (the
     /// original rejection status) rather than `.credentialUnavailable`, so
     /// callers know a dispatch already happened.
-    private func setProtection(enabled: Bool, durationMilliseconds: Int, previousUnauthorizedStatus: Int?) async throws {
+    private func send(_ write: AdGuardWrite, previousUnauthorizedStatus: Int?) async throws {
+        let name = write.logName
         let headers: [String: String]
         do {
             headers = try await credentials.authorizationHeaders()
         } catch {
             if let previousUnauthorizedStatus {
-                await log?.record(LogEvent(level: .warning, kind: .refresh, message: "adguard setProtection retry credential fetch failed"))
+                await log?.record(LogEvent(level: .warning, kind: .refresh, message: "adguard \(name) retry credential fetch failed"))
                 throw AdGuardClientError.unauthorized(previousUnauthorizedStatus)
             }
-            await log?.record(LogEvent(level: .warning, kind: .refresh, message: "adguard setProtection failed credentialUnavailable"))
+            await log?.record(LogEvent(level: .warning, kind: .refresh, message: "adguard \(name) failed credentialUnavailable"))
             throw AdGuardClientError.credentialUnavailable
         }
 
-        let url = requestURL(path: "control/protection")
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        var request = URLRequest(url: requestURL(path: write.path))
+        request.httpMethod = write.httpMethod
         for (field, value) in headers {
             request.setValue(value, forHTTPHeaderField: field)
         }
-        request.httpBody = try JSONSerialization.data(
-            withJSONObject: ["enabled": enabled, "duration": durationMilliseconds],
-            options: [.sortedKeys]
-        )
+        if let body = write.body {
+            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            let encoder = JSONEncoder()
+            encoder.outputFormatting = [.sortedKeys]
+            request.httpBody = try encoder.encode(body)
+        }
 
-        let data: Data
         let response: HTTPURLResponse
         do {
-            (data, response) = try await transport.send(request, limits: limits)
+            (_, response) = try await transport.send(request, limits: limits)
         } catch let error as TransportError {
-            await log?.record(LogEvent(level: .warning, kind: .refresh, message: "adguard setProtection failed transport"))
+            await log?.record(LogEvent(level: .warning, kind: .refresh, message: "adguard \(name) failed transport"))
             throw AdGuardClientError.transport(error)
         }
-        _ = data
 
         if response.statusCode == 401 || response.statusCode == 403 {
             if previousUnauthorizedStatus == nil, await credentials.handleUnauthorized() {
-                return try await setProtection(enabled: enabled, durationMilliseconds: durationMilliseconds, previousUnauthorizedStatus: response.statusCode)
+                return try await send(write, previousUnauthorizedStatus: response.statusCode)
             }
-            await log?.record(LogEvent(level: .warning, kind: .refresh, message: "adguard setProtection failed unauthorized"))
+            await log?.record(LogEvent(level: .warning, kind: .refresh, message: "adguard \(name) failed unauthorized"))
             throw AdGuardClientError.unauthorized(response.statusCode)
         }
         guard (200...204).contains(response.statusCode) else {
-            await log?.record(LogEvent(level: .warning, kind: .refresh, message: "adguard setProtection failed httpStatus \(response.statusCode)"))
+            await log?.record(LogEvent(level: .warning, kind: .refresh, message: "adguard \(name) failed httpStatus \(response.statusCode)"))
             throw AdGuardClientError.httpStatus(response.statusCode)
         }
 
-        await log?.record(LogEvent(level: .info, kind: .refresh, message: "adguard setProtection ok"))
+        await log?.record(LogEvent(level: .info, kind: .refresh, message: "adguard \(name) ok"))
     }
 
     public func stats() async throws -> AdGuardStatsResponse {

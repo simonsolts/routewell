@@ -7,6 +7,9 @@ public enum DataArea: String, CaseIterable, Sendable, Hashable, Codable {
     /// SSH-backed Router reads: Ports, Storage, Logs, and the AdGuard
     /// process ID (chunk 15).
     case ssh
+    /// AdGuard Home › Overview: stats for the range, the switches, the
+    /// blocklists (chunk 17). Read only while AdGuard Home runs.
+    case adGuardOverview
 }
 
 public enum ObservationSource: Sendable, Equatable, Codable {

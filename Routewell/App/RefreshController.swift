@@ -28,6 +28,8 @@ final class RefreshController {
     /// Each overview's AdGuard Home reading, for the AdGuard Home screen and
     /// its saved copy (chunk 16).
     var onAdGuardReading: ((AdGuardServiceReading, SessionToken) async -> Void)?
+    /// AdGuard Home › Overview's reads while the tab is visible (chunk 17).
+    var onAdGuardOverview: ((SessionLease) async throws -> Void)?
 
     var isAvailable: Bool { model.session.isReady && !sleeping }
 
@@ -203,8 +205,11 @@ final class RefreshController {
                         for request in requests where !ScreenRefreshPlan.overviewAreas.contains(request.area) || request.area == .clients {
                             if !force, (self?.featureElapsed[request.area] ?? .zero) < request.interval { continue }
                             if request.area == .clients {
-                                // The inventory is read only while the Clients screen is visible.
-                                guard model.selection == .clients else { continue }
+                                // The inventory is read only while the Clients screen, or
+                                // AdGuard Home › Overview (Top devices' names), is visible.
+                                let topDevices = model.selection == .adGuard
+                                    && (model.subpages[.adGuard] ?? AdGuardTab.overview.rawValue) == AdGuardTab.overview.rawValue
+                                guard model.selection == .clients || topDevices else { continue }
                                 guard let result = try await model.session.routerSession.clientInventory(using: lease) else { continue }
                                 guard !Task.isCancelled, model.session.expectedToken == lease.token else { return }
                                 model.acceptCapability(result.capability, area: .clients, token: lease.token)
@@ -225,6 +230,14 @@ final class RefreshController {
                                 // Logs read only on demand: a manual refresh or showing the segment.
                                 self?.requestSSH(lease: lease, reads: self?.visibleSSHReads(includeLogs: force) ?? [])
                                 self?.featureElapsed[.ssh] = .zero
+                                continue
+                            }
+                            if request.area == .adGuardOverview {
+                                // Read only while AdGuard Home › Overview is visible.
+                                guard model.selection == .adGuard else { continue }
+                                try await self?.onAdGuardOverview?(lease)
+                                guard !Task.isCancelled, model.session.expectedToken == lease.token else { return }
+                                self?.featureElapsed[.adGuardOverview] = .zero
                                 continue
                             }
                             if request.area == .routerDetail {

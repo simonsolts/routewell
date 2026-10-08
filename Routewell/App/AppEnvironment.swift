@@ -13,7 +13,6 @@ final class AppEnvironment {
     let persistence: PersistenceController
     let logging: LoggingController
     let trust: TrustController
-    let mutation: MutationController
     let adGuard: AdGuardController
     let clients: ClientsController
     let clientDNS: ClientDNSController
@@ -88,7 +87,6 @@ final class AppEnvironment {
         self.router = RouterController(model: model, baselines: UpgradeBaselineStore(store: model.mode == .live ? store : nil))
         self.persistence = PersistenceController(model: model, store: store, credentials: credentials)
         self.trust = TrustController(atomicStore: store, mode: model.mode)
-        self.mutation = MutationController(model: model, refresh: refresh)
         // Mock copies stay in memory; live ones use `adguard/<profile>/archive.json`.
         self.adGuard = AdGuardController(model: model, refresh: refresh,
                                          store: AdGuardArchiveStore(root: model.mode == .live ? dataDirectory : nil))
@@ -98,6 +96,7 @@ final class AppEnvironment {
         sshSetup.save = { [weak self] settings in self?.updateSSHSettings(settings) }
         adGuard.profileID = { [weak self] in self?.persistence.selectedProfile?.id }
         refresh.onAdGuardReading = { [weak self] reading, token in await self?.adGuard.observe(reading, token: token) }
+        refresh.onAdGuardOverview = { [weak self] lease in try await self?.adGuard.refreshOverview(using: lease) }
         onboarding.environment = self
         router.routerURL = { [weak self] in
             guard let self, self.model.mode == .live else { return nil }
@@ -229,13 +228,6 @@ final class AppEnvironment {
     }
 
     #if DEBUG
-    /// DEBUG-only dev tool: selects which outcome the mock Protection
-    /// service produces on its next `setProtection` call.
-    func setMockProtectionBehavior(_ behavior: MockRouterBackend.ProtectionBehavior) {
-        guard model.mode == .mock, let mockBackend else { return }
-        Task { await mockBackend.setProtectionBehavior(behavior) }
-    }
-
     func setMockFeatureBehavior(_ behavior: MockRouterBackend.FeatureBehavior, for area: DataArea) {
         guard model.mode == .mock, let mockBackend else { return }
         Task {
@@ -275,6 +267,11 @@ final class AppEnvironment {
         mockBackend.mockSSH.setScenario(scenario)
         refresh.reprobeSSH()
         refresh.refreshNow()
+    }
+
+    /// Chunk 17: the writes the mock AdGuard Home received, for tests.
+    func mockAdGuardWrites() async -> [AdGuardWrite] {
+        await mockBackend?.mockAdGuard.writes ?? []
     }
 
     /// Chunk 16: the router's AdGuard Home setting and the saved copy.
@@ -319,11 +316,35 @@ final class AppEnvironment {
                 alert.informativeText = "Recorded \(count) read-only calls from the connected live router. Example addresses and names are privacy aliases, not mock responses.\(sshNote) Check _recording-manifest.json and review the files before committing."
                 alert.runModal()
             } catch {
+                let reason = Self.recordingFailure(error)
+                self.logging.record(level: .warning, kind: .session, message: "Fixture recording stopped", fields: ["reason": reason])
                 let alert = NSAlert()
                 alert.messageText = "Fixture recording stopped"
-                alert.informativeText = "The session changed or a file could not be written."
+                alert.informativeText = reason
                 alert.runModal()
             }
+        }
+    }
+
+    /// The real reason a recording stopped, in plain words.
+    nonisolated static func recordingFailure(_ error: any Error) -> String {
+        switch error {
+        case SessionError.stale:
+            return "The router session changed during the recording, for example after a reconnect or a settings change. Record again."
+        case SessionError.switching:
+            return "The router session was still connecting. Wait for the sidebar to show the router, then record again."
+        case RecorderError.unsafePlan:
+            return "The recording plan holds a call that is not a read, so nothing was sent."
+        case RecorderError.unavailable:
+            return "This router session cannot record fixtures."
+        case is CancellationError:
+            return "The recording was cancelled."
+        case let error as CocoaError:
+            let path = error.filePath ?? (error.userInfo[NSURLErrorKey] as? URL)?.path ?? "unknown path"
+            return "A file could not be written: \(error.localizedDescription) (\(path), code \(error.code.rawValue))."
+        default:
+            let error = error as NSError
+            return "Unexpected error: \(error.domain) \(error.code): \(error.localizedDescription)"
         }
     }
     #endif
@@ -418,7 +439,7 @@ final class AppEnvironment {
     /// over at construction time, which a changed address or a deleted/
     /// replaced Keychain item can leave dangling.
     func reconnectLiveSession() {
-        guard mutation.inFlight == nil, adGuard.inFlight == nil else {
+        guard !adGuard.isWriting else {
             logging.record(kind: .session, message: "Reconnect refused: an AdGuard Home change is running")
             return
         }

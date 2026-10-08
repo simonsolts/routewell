@@ -1,13 +1,5 @@
-/// Runs one verified Protection mutation. `nil` from `RouterBackend.protection`
-/// means the capability itself is unavailable (no AdGuard Home configured for
-/// this router), not a transient failure.
-public protocol ProtectionService: Sendable {
-    func setProtection(_ intent: ProtectionIntent, allowRecovery: Bool) async -> MutationReport<ProtectionState>
-}
-
 public protocol RouterBackend: Sendable {
     func overview() async throws -> OverviewRefreshResult
-    var protection: (any ProtectionService)? { get }
     var clients: (any ClientsService)? { get }
     var queryLog: (any QueryLogService)? { get }
     var network: (any NetworkService)? { get }
@@ -27,6 +19,13 @@ public protocol RouterBackend: Sendable {
     /// Turn On, Stop, Handle DNS, and Restart for AdGuard Home (chunk 16).
     /// `nil` when the profile has no AdGuard Home connection.
     var adGuardService: (any AdGuardServiceControl)? { get }
+    /// Protection on, off, and paused, and the three Protection switches
+    /// (chunk 17). `nil` when the profile has no AdGuard Home connection:
+    /// the capability is unavailable, not a transient failure.
+    var adGuardSettings: (any AdGuardSettingControl)? { get }
+    /// AdGuard Home › Overview's reads (chunk 17). `nil` without an AdGuard
+    /// Home connection.
+    var adGuardOverview: (any AdGuardOverviewService)? { get }
 }
 
 public extension RouterBackend {
@@ -41,6 +40,8 @@ public extension RouterBackend {
     var router: (any RouterService)? { nil }
     var ssh: (any SSHService)? { nil }
     var adGuardService: (any AdGuardServiceControl)? { nil }
+    var adGuardSettings: (any AdGuardSettingControl)? { nil }
+    var adGuardOverview: (any AdGuardOverviewService)? { nil }
 
     func service(for area: DataArea) -> (any FeatureService)? {
         switch area {

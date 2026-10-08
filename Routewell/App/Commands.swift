@@ -36,10 +36,13 @@ struct RoutewellCommands: Commands {
             Button("Reconnect WAN") {}.disabled(true)
             Button("Reboot Router…") {}.disabled(true)
             Divider()
-            Button("Enable Protection") {}.disabled(true)
+            // Chunk 17: the same writes and items as the Overview banner.
+            Button("Enable Protection") { environment.adGuard.runSetting(.protection(.enable)) }
+                .disabled(!canWriteProtection || environment.adGuard.protection == .enabled)
             Menu("Pause Protection") {
-                Button("30 Minutes") {}.disabled(true)
-            }.disabled(true)
+                ProtectionMenuItems(adGuard: environment.adGuard)
+            }
+            .disabled(!canWriteProtection || environment.adGuard.protection != .enabled)
             Divider()
             Button("Open Router UI") {}.disabled(true)
             Button("Open AdGuard Home UI") {}.disabled(true)
@@ -62,6 +65,10 @@ struct RoutewellCommands: Commands {
             }
         }
         #endif
+    }
+
+    private var canWriteProtection: Bool {
+        environment.adGuard.availability == .running && !environment.adGuard.isWriting && environment.model.session.isReady
     }
 
     private func select(_ destination: SidebarDestination) {

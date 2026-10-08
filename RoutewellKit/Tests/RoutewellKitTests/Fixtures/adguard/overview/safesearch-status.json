@@ -1,0 +1,10 @@
+{
+ "bing": true,
+ "duckduckgo": true,
+ "ecosia": true,
+ "enabled": false,
+ "google": true,
+ "pixabay": true,
+ "yandex": true,
+ "youtube": true
+}

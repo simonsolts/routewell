@@ -31,9 +31,9 @@ private func statusBody(enabled: Bool, durationMs: Int) -> Data {
 
 @Suite struct ProtectionServiceTests {
     /// The plan's Task 10.2 requirement: `LiveRouterBackend` builds one
-    /// `ProtectionMutationExecutor` backed by one `MutationGate` per backend
-    /// instance, so two separate reads of `.protection` still serialize
-    /// through the same gate rather than each getting its own.
+    /// `AdGuardSettingExecutor` backed by one `MutationGate` per backend
+    /// instance, so two separate reads of `.adGuardSettings` still
+    /// serialize through the same gate rather than each getting its own.
     @Test func liveBackendSharesOneGateAcrossProtectionAccesses() async throws {
         let recorder = OrderRecorder()
         let state = MockAdGuardState()
@@ -56,25 +56,27 @@ private func statusBody(enabled: Bool, durationMs: Int) -> Data {
         }
         let backend = Self.makeBackend(transport: transport, adGuard: Self.makeAdGuardClient(transport))
 
-        let serviceA = backend.protection
-        let serviceB = backend.protection
+        let serviceA = backend.adGuardSettings
+        let serviceB = backend.adGuardSettings
         #expect(serviceA != nil)
         #expect(serviceB != nil)
 
-        async let reportA = serviceA!.setProtection(.enable, allowRecovery: false)
-        async let reportB = serviceB!.setProtection(.disable, allowRecovery: false)
+        async let reportA = serviceA!.run(.protection(.enable), availability: .running)
+        async let reportB = serviceB!.run(.protection(.disable), availability: .running)
         let (a, b) = await (reportA, reportB)
 
-        #expect(a.outcome == .verifiedSuccess(.enabled) || b.outcome == .verifiedSuccess(.enabled))
+        // A is verified at once (protection starts on), so only B writes.
+        #expect(a.outcome == .verifiedSuccess(.protection(.enabled)) || b.outcome == .verifiedSuccess(.protection(.enabled)))
 
         let events = await recorder.events
         #expect(events == ["start-write", "end-write", "start-write", "end-write"])
     }
 
-    @Test func liveBackendProtectionIsNilWithoutAdGuard() throws {
+    @Test func liveBackendSettingsAndOverviewAreNilWithoutAdGuard() throws {
         let transport = StubHTTPTransport { request in (Data(), StubHTTPTransport.response(200, url: request.url!)) }
         let backend = Self.makeBackend(transport: transport, adGuard: nil)
-        #expect(backend.protection == nil)
+        #expect(backend.adGuardSettings == nil)
+        #expect(backend.adGuardOverview == nil)
     }
 
     @Test func sessionRejectsWithCapabilityUnavailableWhenBackendHasNoAdGuard() async throws {
@@ -86,7 +88,7 @@ private func statusBody(enabled: Bool, durationMs: Int) -> Data {
         try await session.beginRevision(token)
         try await session.installLease(lease)
 
-        let report = try await session.setProtection(using: lease, intent: .enable, allowRecovery: false)
+        let report = try await session.runAdGuardSetting(using: lease, intent: .protection(.enable), availability: .running)
         #expect(report.outcome == .rejected(.capabilityUnavailable))
         #expect(report.dispatched == false)
     }

@@ -192,27 +192,31 @@ public actor RouterSession {
         return report
     }
 
-    /// Runs one Protection mutation against `lease.backend`. `validateBefore`
-    /// fences it against a lease that's already stale or mid-switch;
-    /// `validateAfter` fences the result. If `validateAfter` throws
-    /// `.stale`, the write may still have reached the router — the caller
-    /// must treat the outcome as unknown and refresh rather than re-send,
-    /// since a `MutationReport` is never returned in that case.
-    public func setProtection(
-        using lease: SessionLease, intent: ProtectionIntent, allowRecovery: Bool
-    ) async throws -> MutationReport<ProtectionState> {
+    /// Runs one AdGuard Home setting write (chunk 17: protection and the
+    /// three switches). `validateBefore` fences it against a lease that's
+    /// already stale or mid-switch; `validateAfter` fences the result. If
+    /// `validateAfter` throws `.stale`, the write may still have reached
+    /// AdGuard Home — the caller must treat the outcome as unknown and
+    /// refresh rather than re-send, since no report is returned then.
+    public func runAdGuardSetting(
+        using lease: SessionLease, intent: AdGuardSettingIntent, availability: AdGuardAvailability
+    ) async throws -> MutationReport<AdGuardSettingState> {
         try validateBefore(lease)
-        let startedAt = Date()
-        let report: MutationReport<ProtectionState>
-        if let protection = lease.backend.protection {
-            report = await protection.setProtection(intent, allowRecovery: allowRecovery)
+        let report: MutationReport<AdGuardSettingState>
+        if let settings = lease.backend.adGuardSettings {
+            report = await settings.run(intent, availability: availability)
         } else {
-            report = MutationReport(
-                outcome: .rejected(.capabilityUnavailable),
-                dispatched: false, startedAt: startedAt, finishedAt: startedAt, failure: nil
-            )
+            let now = Date()
+            report = MutationReport(outcome: .rejected(.capabilityUnavailable), dispatched: false, startedAt: now, finishedAt: now, failure: nil)
         }
         try validateAfter(lease)
         return report
+    }
+
+    /// AdGuard Home › Overview's reads, fenced like the others. `nil` when
+    /// the backend has no AdGuard Home connection.
+    public func adGuardOverview(using lease: SessionLease, range: AdGuardStatsRange) async throws -> AdGuardOverviewReading? {
+        guard let service = lease.backend.adGuardOverview else { try validateBefore(lease); return nil }
+        return try await fenced(lease) { try await service.overview(range: range) }
     }
 }

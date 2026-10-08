@@ -36,6 +36,10 @@ public enum ScreenRefreshPlan {
         if destination == "router", let segment, ["Overview", "Ports", "Storage", "Logs"].contains(segment) {
             intervals[.ssh] = defaultInterval
         }
+        // Chunk 17: the Overview tab's stats, switches, and blocklists.
+        if destination == "adGuard", segment == nil || segment == "Overview" {
+            intervals[.adGuardOverview] = defaultInterval
+        }
         return intervals.map { AreaCadence($0.key, every: $0.value) }.sorted { $0.area.rawValue < $1.area.rawValue }
     }
 }

@@ -3,7 +3,6 @@ import Testing
 @testable import RoutewellKit
 
 private struct Backend: RouterBackend {
-    var protection: (any ProtectionService)? { nil }
     func overview() async throws -> OverviewRefreshResult { result() }
 }
 
@@ -67,17 +66,17 @@ func allLateCompletionsAreStaleBeforeNewResult(_ event: String) async throws {
     await #expect(throws: SessionError.stale) { try await request.value }
 }
 
-@Test func setProtectionStaleAfterCompletionThrows() async throws {
-    let backend = HeldProtectionBackend()
+@Test func settingWriteStaleAfterCompletionThrows() async throws {
+    let backend = HeldSettingBackend()
     let session = RouterSession()
     let old = SessionLease(token: SessionToken(profileID: "old", revision: 1), backend: backend)
     try await session.beginRevision(old.token)
     try await session.installLease(old)
-    let request = Task { try await session.setProtection(using: old, intent: .enable, allowRecovery: false) }
+    let request = Task { try await session.runAdGuardSetting(using: old, intent: .protection(.enable), availability: .running) }
     await backend.waitForStart()
     try await session.beginRevision(lease(2).token)
-    let finishedReport = MutationReport<ProtectionState>(
-        outcome: .verifiedSuccess(.enabled), dispatched: true,
+    let finishedReport = MutationReport<AdGuardSettingState>(
+        outcome: .verifiedSuccess(.protection(.enabled)), dispatched: true,
         startedAt: .distantPast, finishedAt: .distantPast, failure: nil
     )
     await backend.finish(finishedReport)
@@ -86,13 +85,24 @@ func allLateCompletionsAreStaleBeforeNewResult(_ event: String) async throws {
     await #expect(throws: SessionError.stale) { try await request.value }
 }
 
-private actor HeldProtectionBackend: RouterBackend {
-    nonisolated var protection: (any ProtectionService)? { HeldProtectionService(backend: self) }
-    private var completion: CheckedContinuation<MutationReport<ProtectionState>, Never>?
+@Test func settingWriteWithoutAdGuardIsCapabilityUnavailable() async throws {
+    let session = RouterSession()
+    let current = lease(1)
+    try await session.beginRevision(current.token)
+    try await session.installLease(current)
+    let report = try await session.runAdGuardSetting(using: current, intent: .feature(.parental, enabled: true), availability: .running)
+    #expect(report.outcome == .rejected(.capabilityUnavailable))
+    #expect(!report.dispatched)
+    #expect(try await session.adGuardOverview(using: current, range: .day) == nil)
+}
+
+private actor HeldSettingBackend: RouterBackend {
+    nonisolated var adGuardSettings: (any AdGuardSettingControl)? { HeldSettingControl(backend: self) }
+    private var completion: CheckedContinuation<MutationReport<AdGuardSettingState>, Never>?
     private var started: CheckedContinuation<Void, Never>?
     func overview() async throws -> OverviewRefreshResult { result() }
-    func runProtection() async -> MutationReport<ProtectionState> {
-        await withCheckedContinuation { (continuation: CheckedContinuation<MutationReport<ProtectionState>, Never>) in
+    func runSetting() async -> MutationReport<AdGuardSettingState> {
+        await withCheckedContinuation { (continuation: CheckedContinuation<MutationReport<AdGuardSettingState>, Never>) in
             completion = continuation
             started?.resume()
             started = nil
@@ -102,21 +112,20 @@ private actor HeldProtectionBackend: RouterBackend {
         if completion != nil { return }
         await withCheckedContinuation { started = $0 }
     }
-    func finish(_ report: MutationReport<ProtectionState>) {
+    func finish(_ report: MutationReport<AdGuardSettingState>) {
         completion?.resume(returning: report)
         completion = nil
     }
 }
 
-private struct HeldProtectionService: ProtectionService {
-    let backend: HeldProtectionBackend
-    func setProtection(_ intent: ProtectionIntent, allowRecovery: Bool) async -> MutationReport<ProtectionState> {
-        await backend.runProtection()
+private struct HeldSettingControl: AdGuardSettingControl {
+    let backend: HeldSettingBackend
+    func run(_ intent: AdGuardSettingIntent, availability: AdGuardAvailability) async -> MutationReport<AdGuardSettingState> {
+        await backend.runSetting()
     }
 }
 
 private actor HeldBackend: RouterBackend {
-    nonisolated let protection: (any ProtectionService)? = nil
     private var completion: CheckedContinuation<OverviewRefreshResult, any Error>?
     private var started: CheckedContinuation<Void, Never>?
     func overview() async throws -> OverviewRefreshResult {

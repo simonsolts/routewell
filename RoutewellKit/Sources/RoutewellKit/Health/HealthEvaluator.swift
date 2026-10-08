@@ -97,7 +97,7 @@ public struct HealthEvaluator: Sendable {
         switch area {
         case .router, .routerDetail, .ssh: .router
         case .internet: .network
-        case .adGuard: .protection
+        case .adGuard, .adGuardOverview: .protection
         case .clients: .clients
         case .queryLog, .maintenance, .plugins, .telemetry, .vpn, .network, .publicIP, .schedules: .network
         }

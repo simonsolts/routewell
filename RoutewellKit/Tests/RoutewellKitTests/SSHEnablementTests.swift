@@ -608,7 +608,6 @@ private let postQuantumWarning = """
 }
 
 private struct SSHFixtureBackend: RouterBackend, FixtureRecordableBackend {
-    var protection: (any ProtectionService)? { nil }
     func overview() async throws -> OverviewRefreshResult { throw CancellationError() }
     func recordFixture(_ call: FixtureCall) async -> JSONValue { .object([:]) }
     func recordSSHFixture(_ call: FixtureCall) async -> String? {

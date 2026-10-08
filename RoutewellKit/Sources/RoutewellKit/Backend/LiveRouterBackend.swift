@@ -57,11 +57,14 @@ public actor LiveRouterBackend: RouterBackend, FixtureRecordableBackend, AdGuard
     private let log: SessionEventLog?
     private let sshRunner: (any SSHCommandRunning)?
 
-    /// One `ProtectionMutationExecutor`, backed by one `MutationGate`, shared
-    /// across every call for the lifetime of this backend instance — never
-    /// rebuilt per call, so "one mutation in flight per router" actually
-    /// holds. `nil` when no AdGuard Home instance is configured.
-    public nonisolated let protection: (any ProtectionService)?
+    /// One `AdGuardSettingExecutor`, backed by the router's one
+    /// `MutationGate`, shared across every call for the lifetime of this
+    /// backend instance — never rebuilt per call, so "one mutation in
+    /// flight per router" actually holds. `nil` when no AdGuard Home
+    /// instance is configured.
+    public nonisolated let adGuardSettings: (any AdGuardSettingControl)?
+    /// AdGuard Home › Overview's reads. `nil` without AdGuard Home.
+    public nonisolated let adGuardOverview: (any AdGuardOverviewService)?
     /// Reads the client inventory only when the Clients screen asks for it;
     /// `overview()` keeps its own client count.
     public nonisolated let clients: (any ClientsService)?
@@ -105,13 +108,10 @@ public actor LiveRouterBackend: RouterBackend, FixtureRecordableBackend, AdGuard
         self.clientActions = sshRunner.map { SSHClientActions(runner: $0, gate: gate, clock: clock) } ?? SSHRequiredClientActions()
         self.ssh = sshRunner.map { LiveSSHService(runner: $0, clock: clock) }
         self.sshRunner = sshRunner
-        if let adGuard {
-            self.protection = ProtectionMutationExecutorService(
-                executor: ProtectionMutationExecutor(adGuard: adGuard, gate: gate, clock: clock, log: log)
-            )
-        } else {
-            self.protection = nil
+        self.adGuardSettings = adGuard.map {
+            AdGuardSettingExecutor(transport: LiveAdGuardSettingTransport(adGuard: $0), gate: gate, clock: clock, log: log)
         }
+        self.adGuardOverview = adGuard.map { LiveAdGuardOverviewService(adGuard: $0, clock: clock) }
         self.adGuardService = AdGuardServiceExecutor(
             transport: LiveAdGuardServiceTransport(rpc: rpc, adGuard: adGuard), gate: gate, clock: clock, log: log
         )
@@ -541,16 +541,5 @@ public actor LiveRouterBackend: RouterBackend, FixtureRecordableBackend, AdGuard
         case .untrustedChanged(_, let actual):
             return actual
         }
-    }
-}
-
-/// Adapts `ProtectionMutationExecutor` (a plain `struct`, not actor-isolated)
-/// to `ProtectionService` so `LiveRouterBackend.protection` can be a
-/// `nonisolated let`, matching the protocol's non-async requirement.
-private struct ProtectionMutationExecutorService: ProtectionService {
-    let executor: ProtectionMutationExecutor
-
-    func setProtection(_ intent: ProtectionIntent, allowRecovery: Bool) async -> MutationReport<ProtectionState> {
-        await executor.run(intent, allowRecovery: allowRecovery)
     }
 }
