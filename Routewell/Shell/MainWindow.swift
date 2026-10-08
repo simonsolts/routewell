@@ -183,14 +183,6 @@ struct MainWindow: View {
                 Button("Router UI", systemImage: "arrow.up.right.square") {}.disabled(true)
             }
         }
-        if model.selection == .adGuard {
-            ToolbarItem(placement: .primaryAction) {
-                Text(AdGuardPresentation.freshness(environment.adGuard.availability, archive: environment.adGuard.archive,
-                                                   observedAt: environment.adGuard.reading?.observedAt, now: model.evaluatedAt))
-                    .font(.caption).foregroundStyle(.secondary)
-                    .fixedSize()
-            }
-        }
         ToolbarItem(placement: .primaryAction) {
             Button("Refresh", systemImage: "arrow.clockwise") { environment.refresh.refreshNow() }
                 .labelStyle(.iconOnly)

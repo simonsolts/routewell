@@ -98,7 +98,6 @@ final class AdGuardController {
         lastReport = nil
         Task { [weak self] in
             guard let self else { return }
-            let startedAt = Date()
             let report: MutationReport<AdGuardServiceState>
             do {
                 report = try await self.model.session.routerSession.runAdGuardService(
@@ -109,9 +108,10 @@ final class AdGuardController {
                     await store.save(reading, for: profile, force: true)
                 }
             } catch {
-                // The session changed: the write may have happened. Never re-send.
-                report = MutationReport(outcome: .rejected(.staleSession), dispatched: false,
-                                        startedAt: startedAt, finishedAt: Date(), failure: nil)
+                // The session changed during the write: its result belongs
+                // to no one. The new session reads the router afresh.
+                self.inFlight = nil
+                return
             }
             guard lease.token == self.model.session.expectedToken else { self.inFlight = nil; return }
             self.lastReport = report
@@ -120,9 +120,7 @@ final class AdGuardController {
                 // The design opens Overview once AdGuard Home runs.
                 self.model.subpages[.adGuard] = AdGuardTab.overview.rawValue
             }
-            if report.dispatched || report.outcome != .rejected(.staleSession) {
-                self.refresh.refreshNow()
-            }
+            self.refresh.refreshNow()
         }
     }
 

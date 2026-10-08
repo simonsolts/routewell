@@ -49,6 +49,13 @@ public protocol AdGuardServiceTransport: Sendable {
     /// reply's `err_code`, if the router named one.
     func writeConfig(enabled: Bool, handlesDNS: Bool?) async throws -> Int?
     func readStatus() async throws -> AdGuardStatusResponse
+    /// False when the profile has no AdGuard Home connection: writes are
+    /// verified with the router's `get_config` only.
+    var canReadStatus: Bool { get }
+}
+
+public extension AdGuardServiceTransport {
+    var canReadStatus: Bool { true }
 }
 
 /// Runs one AdGuard Home service write. `beforeDispatch` runs only for
@@ -158,9 +165,11 @@ public struct AdGuardServiceExecutor: AdGuardServiceControl {
                 return (.rejected(.preconditionFailed("AdGuard Home is already off.")), false, nil)
             }
             // The final sync: the freshest status, if AdGuard Home answers.
-            let answer: AdGuardServiceReading.Answer
-            do { answer = .answered(try await transport.readStatus()) }
-            catch { answer = .failed(Self.category(for: error)) }
+            var answer: AdGuardServiceReading.Answer = .notConfigured
+            if transport.canReadStatus {
+                do { answer = .answered(try await transport.readStatus()) }
+                catch { answer = .failed(Self.category(for: error)) }
+            }
             await beforeDispatch(AdGuardServiceReading(config: .success(before), answer: answer, observedAt: clock()))
             let expected = AdGuardServiceState(enabled: false, handlesDNS: before.handlesDNS)
             if let stop = await dispatch(enabled: false, handlesDNS: before.handlesDNS, expected: expected) { return stop }
@@ -191,6 +200,9 @@ public struct AdGuardServiceExecutor: AdGuardServiceControl {
                 // The router kept AdGuard Home on: nothing more is sent.
                 return stopped
             }
+            // `dispatch` above already returned for a refused off write
+            // (an `err_code`), even when the read after it failed: a router
+            // that refused "off" is not sent "on".
             let expected = AdGuardServiceState(enabled: true, handlesDNS: before.handlesDNS, answering: true)
             if let stop = await dispatch(enabled: true, handlesDNS: before.handlesDNS, expected: expected) { return stop }
             return await verifyOn(handlesDNS: before.handlesDNS, expected: expected)
@@ -202,9 +214,16 @@ public struct AdGuardServiceExecutor: AdGuardServiceControl {
     private func dispatch(enabled: Bool, handlesDNS: Bool?, expected: AdGuardServiceState) async -> Step? {
         do {
             guard let code = try await transport.writeConfig(enabled: enabled, handlesDNS: handlesDNS) else { return nil }
-            // The router answered with an error code: it refused the change.
+            // The router answered with an error code. Its setting decides.
             await log?.record(LogEvent(level: .warning, kind: .session, message: "adguardhome set_config err_code \(code)"))
             guard let actual = try? await transport.readConfig() else { return (.unknownAfterDispatch, true, nil) }
+            if actual.enabled == expected.enabled, expected.handlesDNS == nil || actual.handlesDNS == expected.handlesDNS {
+                return nil
+            }
+            if code == 1 {
+                // GL.iNet: "Other DNS not closed" `[assumed]` meaning.
+                return (.rejected(.preconditionFailed(Self.otherDNSMessage)), true, nil)
+            }
             return (.verifiedMismatch(expected: expected, actual: AdGuardServiceState(actual)), true, nil)
         } catch GLiNetRPCError.credentialUnavailable {
             return (.rejected(.preconditionFailed("The router password is not available.")), false, .authentication)
@@ -229,6 +248,9 @@ public struct AdGuardServiceExecutor: AdGuardServiceControl {
             config.enabled == true && (handlesDNS == nil || config.handlesDNS == handlesDNS)
         }
         guard case .verifiedSuccess(var state) = configured.outcome else { return configured }
+        // Without an AdGuard Home connection the router's setting is all
+        // Routewell can check.
+        guard transport.canReadStatus else { return configured }
         let deadline = clock().addingTimeInterval(Self.seconds(policy.answerDeadline))
         var lastFailure: RefreshFailureCategory?
         while true {
@@ -270,6 +292,8 @@ public struct AdGuardServiceExecutor: AdGuardServiceControl {
 
     // MARK: Mapping
 
+    public static let otherDNSMessage = "The router says another DNS setting is on. Turn it off in the router's settings, then try again."
+
     static func category(for error: Error) -> RefreshFailureCategory {
         switch error {
         case let error as GLiNetRPCError: LiveRouterBackend.category(for: error)
@@ -308,9 +332,10 @@ public struct AdGuardServiceExecutor: AdGuardServiceControl {
 /// `dns_enabled` comes from the 4.9.1 `get_config` recording.
 public struct LiveAdGuardServiceTransport: AdGuardServiceTransport {
     let rpc: GLiNetRPCClient
-    let adGuard: AdGuardClient
+    /// `nil` when the profile has no AdGuard Home connection.
+    let adGuard: AdGuardClient?
 
-    public init(rpc: GLiNetRPCClient, adGuard: AdGuardClient) {
+    public init(rpc: GLiNetRPCClient, adGuard: AdGuardClient?) {
         self.rpc = rpc
         self.adGuard = adGuard
     }
@@ -327,8 +352,11 @@ public struct LiveAdGuardServiceTransport: AdGuardServiceTransport {
     }
 
     public func readStatus() async throws -> AdGuardStatusResponse {
-        try await adGuard.status()
+        guard let adGuard else { throw AdGuardClientError.credentialUnavailable }
+        return try await adGuard.status()
     }
+
+    public var canReadStatus: Bool { adGuard != nil }
 
     /// A non-zero `err_code` in the reply. `null` and `{}` are success.
     static func errorCode(_ reply: JSONValue) -> Int? {

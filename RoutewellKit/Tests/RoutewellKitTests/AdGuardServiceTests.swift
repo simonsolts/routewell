@@ -118,6 +118,51 @@ private func running(_ version: String, at date: Date, handlesDNS: Bool = true) 
     #expect(await AdGuardArchiveStore(root: root).archive(for: profile)?.status?.value.version == "0.107.1")
 }
 
+@Test func removingTheRouterWhileASaveWaitsKeepsItRemoved() async throws {
+    let root = temporaryRoot()
+    defer { try? FileManager.default.removeItem(at: root) }
+    let gate = CommitGate()
+    let store = AdGuardArchiveStore(root: root, beforeCommit: { gate.pass() })
+    let profile = UUID()
+    let saving = Task { await store.save(running("0.107.1", at: at), for: profile) }
+    await gate.waitUntilEntered()
+    await store.remove(profile: profile)
+    gate.release()
+    _ = await saving.value
+    #expect(await store.archive(for: profile) == nil)
+    #expect(!FileManager.default.fileExists(atPath: AdGuardArchiveStore.folder(root: root, profile: profile).path))
+    #expect(await AdGuardArchiveStore(root: root).archive(for: profile) == nil)
+}
+
+/// Holds the first file write until the test releases it.
+private final class CommitGate: Sendable {
+    private let entered = DispatchSemaphore(value: 0)
+    private let proceed = DispatchSemaphore(value: 0)
+    private nonisolated(unsafe) var used = false
+    private let lock = NSLock()
+
+    func pass() {
+        lock.lock()
+        let first = !used
+        used = true
+        lock.unlock()
+        guard first else { return }
+        entered.signal()
+        proceed.wait()
+    }
+
+    func waitUntilEntered() async {
+        await withCheckedContinuation { continuation in
+            DispatchQueue.global().async {
+                self.entered.wait()
+                continuation.resume()
+            }
+        }
+    }
+
+    func release() { proceed.signal() }
+}
+
 @Test func replaceSeedsAndClearsTheCopy() async {
     let store = AdGuardArchiveStore(root: nil)
     let profile = UUID()
@@ -132,7 +177,7 @@ private func running(_ version: String, at date: Date, handlesDNS: Bool = true) 
 /// Scripted router and AdGuard Home. The router keeps one config; a write
 /// applies, is ignored, loses its answer, or is refused.
 private actor FakeService: AdGuardServiceTransport {
-    enum Write { case apply, ignore, lostThenApply, lostNoApply, errorCode(Int), invalidParameters, accessDenied }
+    enum Write { case apply, ignore, lostThenApply, lostNoApply, errorCode(Int), errorCodeApplied(Int), invalidParameters, accessDenied }
 
     var config: AdGuardRouterConfig
     var answers: Bool
@@ -144,10 +189,13 @@ private actor FakeService: AdGuardServiceTransport {
     private(set) var events: [String] = []
     private(set) var statusReads = 0
 
-    init(config: AdGuardRouterConfig, answers: Bool = true, writes: [Write] = [.apply]) {
+    nonisolated let canReadStatus: Bool
+
+    init(config: AdGuardRouterConfig, answers: Bool = true, writes: [Write] = [.apply], canReadStatus: Bool = true) {
         self.config = config
         self.answers = answers
         self.writes = writes
+        self.canReadStatus = canReadStatus
     }
 
     func setConfigReadsLeft(_ count: Int) { configReadsLeft = count }
@@ -175,6 +223,7 @@ private actor FakeService: AdGuardServiceTransport {
         case .lostThenApply: apply(); throw GLiNetRPCError.transport(.timedOut)
         case .lostNoApply: throw GLiNetRPCError.transport(.timedOut)
         case .errorCode(let code): return code
+        case .errorCodeApplied(let code): apply(); return code
         case .invalidParameters: throw GLiNetRPCError.invalidParameters
         case .accessDenied: throw GLiNetRPCError.accessDenied
         }
@@ -242,12 +291,48 @@ private func executor(_ service: FakeService, gate: MutationGate = MutationGate(
 }
 
 @Test func turnOnThatTheRouterRefusesWithAnErrorCodeIsAMismatch() async {
-    let service = FakeService(config: AdGuardRouterConfig(enabled: false, handlesDNS: true), writes: [.errorCode(1)])
+    let service = FakeService(config: AdGuardRouterConfig(enabled: false, handlesDNS: true), writes: [.errorCode(2)])
     let report = await executor(service).run(.turnOn(handlesDNS: true), availability: .off)
     #expect(report.outcome == .verifiedMismatch(expected: AdGuardServiceState(enabled: true, handlesDNS: true, answering: true),
                                                actual: AdGuardServiceState(enabled: false, handlesDNS: true)))
     #expect(report.dispatched)
     #expect(await service.sent.count == 1)
+}
+
+@Test func errorCodeOneSaysAnotherDNSSettingIsOn() async {
+    let service = FakeService(config: AdGuardRouterConfig(enabled: false, handlesDNS: true), writes: [.errorCode(1)])
+    let report = await executor(service).run(.turnOn(handlesDNS: true), availability: .off)
+    #expect(report.outcome == .rejected(.preconditionFailed(AdGuardServiceExecutor.otherDNSMessage)))
+    #expect(report.dispatched)
+}
+
+@Test func anErrorCodeWithTheChangeAppliedIsVerifiedAsUsual() async {
+    let service = FakeService(config: AdGuardRouterConfig(enabled: false, handlesDNS: true), writes: [.errorCodeApplied(1)])
+    #expect(await executor(service).run(.turnOn(handlesDNS: true), availability: .off).outcome
+            == .verifiedSuccess(AdGuardServiceState(enabled: true, handlesDNS: true, answering: true)))
+    #expect(await service.sent.count == 1)
+}
+
+@Test func withoutAnAdGuardConnectionTheRouterSettingDecides() async {
+    let service = FakeService(config: AdGuardRouterConfig(enabled: false, handlesDNS: true), canReadStatus: false)
+    let report = await executor(service).run(.turnOn(handlesDNS: true), availability: .off)
+    #expect(report.outcome == .verifiedSuccess(AdGuardServiceState(enabled: true, handlesDNS: true)))
+    #expect(await service.statusReads == 0)
+
+    let stop = await executor(service).run(.turnOff, availability: .running) { reading in
+        #expect(reading.answer == .notConfigured)
+    }
+    #expect(stop.outcome == .verifiedSuccess(AdGuardServiceState(enabled: false, handlesDNS: true)))
+    #expect(await service.statusReads == 0)
+}
+
+@Test func restartStopsWhenTheRouterRefusesOffAndCannotBeRead() async {
+    let service = FakeService(config: AdGuardRouterConfig(enabled: true, handlesDNS: true), writes: [.errorCode(2)])
+    await service.setConfigReadsLeft(1)
+    let report = await executor(service).run(.restart, availability: .running)
+    #expect(report.outcome == .unknownAfterDispatch)
+    // A router that refused "off" is not sent "on".
+    #expect(await service.sent.map(\.enabled) == [false])
 }
 
 @Test func turnOnWhoseServiceNeverAnswersIsAMismatch() async {

@@ -76,7 +76,8 @@ public actor LiveRouterBackend: RouterBackend, FixtureRecordableBackend, AdGuard
     /// Wi-Fi, SQM, and the firmware check for the Router screen.
     public nonisolated let router: (any RouterService)?
     /// Turn On, Stop, Handle DNS, Restart (chunk 16), under the same gate as
-    /// Protection and Wake. `nil` without AdGuard Home.
+    /// Protection and Wake. Without an AdGuard Home connection, writes are
+    /// verified with the router's setting only.
     public nonisolated let adGuardService: (any AdGuardServiceControl)?
 
     public init(
@@ -108,13 +109,12 @@ public actor LiveRouterBackend: RouterBackend, FixtureRecordableBackend, AdGuard
             self.protection = ProtectionMutationExecutorService(
                 executor: ProtectionMutationExecutor(adGuard: adGuard, gate: gate, clock: clock, log: log)
             )
-            self.adGuardService = AdGuardServiceExecutor(
-                transport: LiveAdGuardServiceTransport(rpc: rpc, adGuard: adGuard), gate: gate, clock: clock, log: log
-            )
         } else {
             self.protection = nil
-            self.adGuardService = nil
         }
+        self.adGuardService = AdGuardServiceExecutor(
+            transport: LiveAdGuardServiceTransport(rpc: rpc, adGuard: adGuard), gate: gate, clock: clock, log: log
+        )
     }
 
     // MARK: RouterBackend

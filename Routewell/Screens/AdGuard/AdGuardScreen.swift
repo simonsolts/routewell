@@ -3,8 +3,7 @@ import RoutewellKit
 
 /// AdGuard Home (chunk 16): the empty state when it is off with no saved
 /// copy, else the five tabs, read-only under a strip when AdGuard Home is
-/// off or does not answer. The toolbar's tab bar and freshness text live in
-/// `MainWindow`.
+/// off or does not answer. The toolbar's tab bar lives in `MainWindow`.
 struct AdGuardScreen: View {
     @Environment(AppModel.self) private var model
     @Environment(AppEnvironment.self) private var environment

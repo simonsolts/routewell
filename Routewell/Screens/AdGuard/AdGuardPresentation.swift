@@ -11,25 +11,6 @@ enum AdGuardPresentation {
         return "\(day) at \(time)"
     }
 
-    /// The toolbar's trailing text: "Updated just now", or "Saved Oct 7, 15:02"
-    /// when the tabs show the saved copy. Empty for the empty state.
-    static func freshness(_ availability: AdGuardAvailability, archive: AdGuardArchive?, observedAt: Date?, now: Date) -> String {
-        switch availability {
-        case .running:
-            guard let observedAt else { return "" }
-            if now.timeIntervalSince(observedAt) < 60 { return "Updated just now" }
-            let formatter = RelativeDateTimeFormatter()
-            formatter.unitsStyle = .full
-            return "Updated \(formatter.localizedString(for: observedAt, relativeTo: now))"
-        case .cached, .unreachable:
-            guard let savedAt = archive?.savedAt else { return "" }
-            let day = savedAt.formatted(.dateTime.month(.abbreviated).day())
-            return "Saved \(day), \(savedAt.formatted(date: .omitted, time: .shortened))"
-        case .off, .unknown:
-            return ""
-        }
-    }
-
     enum StripAction: Equatable { case turnOn, openRouterSettings }
 
     struct Strip: Equatable {

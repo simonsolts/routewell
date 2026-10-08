@@ -42,13 +42,19 @@ public actor AdGuardArchiveStore {
     public static let minimumInterval: TimeInterval = 60
 
     private let root: URL?
+    private let beforeCommit: @Sendable () throws -> Void
     private var archives: [UUID: AdGuardArchive] = [:]
     private var loaded: Set<UUID> = []
     private var stores: [UUID: AtomicJSONStore] = [:]
     private var revisions: [UUID: UInt64] = [:]
+    /// Bumped by `remove`, so a save that was waiting on the file when the
+    /// router was removed does not bring its copy back.
+    private var generations: [UUID: Int] = [:]
 
-    public init(root: URL?) {
+    /// `beforeCommit` is for tests: it runs inside each file write.
+    public init(root: URL?, beforeCommit: @escaping @Sendable () throws -> Void = {}) {
         self.root = root
+        self.beforeCommit = beforeCommit
     }
 
     /// `<root>/adguard/<profile UUID>`.
@@ -78,6 +84,7 @@ public actor AdGuardArchiveStore {
     public func save(_ reading: AdGuardServiceReading, for profile: UUID, force: Bool = false) async -> StoreError? {
         guard case .success(let config) = reading.config, config.enabled == true,
               let status = reading.status else { return nil }
+        let generation = generations[profile, default: 0]
         var next = await archive(for: profile) ?? AdGuardArchive()
         let at = reading.observedAt
         var changed = false
@@ -90,7 +97,7 @@ public actor AdGuardArchiveStore {
             changed = true
         }
         guard changed else { return nil }
-        return await commit(next, for: profile)
+        return await commit(next, for: profile, generation: generation)
     }
 
     /// Replaces the whole copy. Mock scenarios seed it; `nil` removes it from
@@ -99,11 +106,12 @@ public actor AdGuardArchiveStore {
     public func replace(_ archive: AdGuardArchive?, for profile: UUID) async -> StoreError? {
         guard let archive, !archive.isEmpty else { await remove(profile: profile); return nil }
         loaded.insert(profile)
-        return await commit(archive, for: profile)
+        return await commit(archive, for: profile, generation: generations[profile, default: 0])
     }
 
     /// Start Setup Again and profile removal: the whole folder goes.
     public func remove(profile: UUID) async {
+        generations[profile, default: 0] += 1
         archives[profile] = nil
         stores[profile] = nil
         loaded.insert(profile)
@@ -119,18 +127,25 @@ public actor AdGuardArchiveStore {
     private func store(for profile: UUID) -> AtomicJSONStore? {
         guard let root else { return nil }
         if let store = stores[profile] { return store }
-        let store = AtomicJSONStore(directory: Self.folder(root: root, profile: profile))
+        let store = AtomicJSONStore(directory: Self.folder(root: root, profile: profile), beforeCommit: beforeCommit)
         stores[profile] = store
         return store
     }
 
-    private func commit(_ next: AdGuardArchive, for profile: UUID) async -> StoreError? {
+    private func commit(_ next: AdGuardArchive, for profile: UUID, generation: Int) async -> StoreError? {
+        guard generations[profile, default: 0] == generation else { return nil }
         guard let store = store(for: profile) else { archives[profile] = next; return nil }
         let revision = (revisions[profile] ?? 0) + 1
         revisions[profile] = revision
         do {
-            try await store.save(next, to: .archive, revision: revision)
-            archives[profile] = next
+            let written = try await store.save(next, to: .archive, revision: revision)
+            guard generations[profile, default: 0] == generation else {
+                // Removed while this write waited: the file goes too.
+                if let root { try? FileManager.default.removeItem(at: Self.folder(root: root, profile: profile)) }
+                return nil
+            }
+            // A newer write already landed; this one was dropped.
+            if written { archives[profile] = next }
             return nil
         } catch let error as StoreError {
             return error

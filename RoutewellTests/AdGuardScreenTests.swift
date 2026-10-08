@@ -81,12 +81,8 @@ private func settle(_ environment: AppEnvironment, _ scenario: MockAdGuardScenar
     }
 }
 
-@Test func freshnessSidebarDotAndInstanceLine() {
+@Test func sidebarDotAndInstanceLine() {
     let now = Date(timeIntervalSince1970: 1_800_000_000)
-    #expect(AdGuardPresentation.freshness(.running, archive: nil, observedAt: now.addingTimeInterval(-5), now: now) == "Updated just now")
-    #expect(AdGuardPresentation.freshness(.off, archive: nil, observedAt: now, now: now) == "")
-    let archive = AdGuardArchive(config: .init(savedAt: now, value: AdGuardRouterConfig(enabled: true)))
-    #expect(AdGuardPresentation.freshness(.cached, archive: archive, observedAt: now, now: now).hasPrefix("Saved "))
 
     #expect(AdGuardPresentation.sidebarTone(.running, protection: .enabled) == .healthy)
     #expect(AdGuardPresentation.sidebarTone(.running, protection: .paused(until: now)) == .degraded)
@@ -190,7 +186,8 @@ private func settle(_ environment: AppEnvironment, _ scenario: MockAdGuardScenar
     adGuard.run(.turnOn(handlesDNS: true))
     await eventually { adGuard.inFlight == nil }
     let outcome = adGuard.lastReport?.outcome
-    #expect(outcome.flatMap { AdGuardPresentation.outcomeText(.turnOn(handlesDNS: true), $0) } == "The router did not turn AdGuard Home on.")
+    // The mock refuses as GL.iNet documents it: `err_code` 1.
+    #expect(outcome.flatMap { AdGuardPresentation.outcomeText(.turnOn(handlesDNS: true), $0) } == AdGuardServiceExecutor.otherDNSMessage)
     await settle(environment, .off)
 }
 
