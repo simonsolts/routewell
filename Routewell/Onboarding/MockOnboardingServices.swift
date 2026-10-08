@@ -57,7 +57,8 @@ final class MockOnboardingServices: OnboardingServices {
         let prober = MockProber(scenario: scenario, delay: delay)
         let denied = scenario == .denied && denials == 0
         if denied { denials += 1 }
-        let timing = RouterDiscovery.Timing(attempt: delay * 2, firstRow: delay * 2, total: delay * 4,
+        let slack = Duration.milliseconds(300)
+        let timing = RouterDiscovery.Timing(attempt: delay + slack, firstRow: delay * 2 + slack, total: delay * 4 + slack * 2,
                                             retryPause: delay / 4, gatewayGrace: delay)
         let discovery = RouterDiscovery(prober: prober, gateway: MockGateway(), resolver: MockResolver(),
                                         localNetwork: MockLocalNetwork(denied: denied), timing: timing)

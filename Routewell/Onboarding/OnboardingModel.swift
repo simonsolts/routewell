@@ -7,7 +7,9 @@ import RoutewellKit
 /// primary button on every step leads to a safe, working setup.
 @MainActor @Observable
 final class OnboardingModel {
-    private(set) var state: OnboardingState = .welcome
+    private(set) var state: OnboardingState = .welcome { didSet { history.append(state) } }
+    /// Every state this run showed, in order. Tests read it.
+    @ObservationIgnored private(set) var history: [OnboardingState] = [.welcome]
     /// The Manual step's field. Also shows the found address elsewhere.
     var address = ""
     var name = "router"
@@ -60,7 +62,14 @@ final class OnboardingModel {
     }
 
     /// "<address>" for rows, notes, and the fingerprint box.
-    var displayAddress: String { router?.endpoint.displayString ?? address }
+    var displayAddress: String { router.map { Self.shortAddress($0.endpoint) } ?? address }
+
+    /// "192.168.8.1", or "host:port" when the port is not 443. Onboarding
+    /// always uses HTTPS, so the scheme is left out, as in the design.
+    static func shortAddress(_ endpoint: RouterEndpoint) -> String {
+        let host = endpoint.host.contains(":") ? "[\(endpoint.host)]" : endpoint.host
+        return endpoint.port == 443 ? host : "\(host):\(endpoint.port)"
+    }
     var host: String { router?.endpoint.host ?? address }
 
     // MARK: Buttons
@@ -90,7 +99,7 @@ final class OnboardingModel {
         case .manual, .denied: search()
         case .name: go(foundManually ? .manual : .found)
         case .unreach:
-            address = router?.endpoint.displayString ?? address
+            address = displayAddress
             go(.manual)
         case .sshOffer: skipSSH()
         case .sshRejected:
@@ -109,7 +118,7 @@ final class OnboardingModel {
 
     /// "Enter Address Manually…" and "Use a Different Address…".
     func enterAddress() {
-        if let router { address = router.endpoint.displayString }
+        if router != nil { address = displayAddress }
         go(.manual)
     }
 
@@ -129,6 +138,30 @@ final class OnboardingModel {
 
     /// Waits for the work the last button started. For tests.
     func settle() async { await work?.value }
+
+    #if DEBUG
+    /// Puts the run in `state` with mock values, for previews and snapshots.
+    func preview(_ state: OnboardingState) {
+        let endpoint = try! RouterEndpoint.parse(MockOnboardingServices.gateway)
+        router = DiscoveredRouter(endpoint: endpoint, source: .gateway, fingerprint: MockOnboardingServices.fingerprint)
+        address = Self.shortAddress(endpoint)
+        probe = MockOnboardingServices.probe
+        if state.kind == .key || state.kind == .hostkey || state.kind == .check || state.isFinish {
+            key = state == .sshKey ? nil : ChosenSSHKey(url: MockOnboardingServices.keyURL, bookmark: nil,
+                                                        inspection: state == .sshPass ? .passphraseProtected : .usable(kind: "ED25519"))
+        }
+        if state == .hostkey {
+            hostKey = SSHHostKeyCandidate(keyLine: "192.0.2.1 ssh-ed25519 \(Data(repeating: 0x11, count: 32).base64EncodedString())")
+        }
+        if state.isFinish {
+            summary = OnboardingSummary(name: name, address: address, probe: probe,
+                                        ssh: state == .doneNoSsh ? .off : .connected(keyName: key?.name ?? ""),
+                                        adGuardEnabled: .value(state != .doneNoAdg))
+        }
+        if state == .password || state == .wrong { password = "example" }
+        self.state = state
+    }
+    #endif
 
     // MARK: Steps
 
@@ -158,7 +191,7 @@ final class OnboardingModel {
             case .found(let found):
                 model.router = found
                 model.foundManually = false
-                model.address = found.endpoint.displayString
+                model.address = Self.shortAddress(found.endpoint)
                 model.state = .found
             case .notFound:
                 model.manualMessage = nil
@@ -194,9 +227,9 @@ final class OnboardingModel {
                 model.foundManually = true
                 model.state = .name
             case .notGLiNet:
-                model.manualMessage = "Something answered at \(endpoint.displayString), but it isn’t a GL.iNet router."
+                model.manualMessage = "Something answered at \(Self.shortAddress(endpoint)), but it isn’t a GL.iNet router."
             case .noAnswer:
-                model.manualMessage = "No response from \(endpoint.displayString)."
+                model.manualMessage = "No response from \(Self.shortAddress(endpoint))."
             case .localNetworkDenied:
                 model.state = .denied
             }
