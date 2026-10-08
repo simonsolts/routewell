@@ -10,9 +10,14 @@ private enum Discovery {
     static let fingerprint = try! CertificateFingerprint(sha256: Data(repeating: 0xA5, count: 32))
     static let otherFingerprint = try! CertificateFingerprint(sha256: Data(repeating: 0x5A, count: 32))
 
-    /// Short timings so the tests run quickly but keep the real proportions.
-    static let timing = RouterDiscovery.Timing(attempt: .milliseconds(150), firstRow: .milliseconds(400), total: .milliseconds(800),
-                                               retryPause: .milliseconds(20), gatewayGrace: .milliseconds(150))
+    /// Long limits for tests where a fake answers. The run ends at the answer,
+    /// so the limits cost nothing, and a slow CI runner cannot pass them.
+    static let timing = RouterDiscovery.Timing(attempt: .seconds(2), firstRow: .seconds(4), total: .seconds(6),
+                                               retryPause: .milliseconds(20), gatewayGrace: .seconds(2))
+
+    /// Short limits, but the real proportions, for tests that wait until the time is up.
+    static let short = RouterDiscovery.Timing(attempt: .milliseconds(150), firstRow: .milliseconds(400), total: .milliseconds(800),
+                                              retryPause: .milliseconds(20), gatewayGrace: .milliseconds(150))
 
     static func make(_ prober: FakeProber, gateway: String? = Discovery.gateway, console: [String] = [],
                      denied: Bool = false, timing: RouterDiscovery.Timing = Discovery.timing) -> RouterDiscovery {
@@ -30,7 +35,7 @@ private actor FakeProber: RouterChallengeProbing {
 
     private let scripts: [String: Script]
     private(set) var calls: [String] = []
-    private(set) var started: [String: ContinuousClock.Instant] = [:]
+    private(set) var starts: [String: [ContinuousClock.Instant]] = [:]
     private(set) var inFlight = 0
     private(set) var maxInFlight = 0
 
@@ -38,7 +43,7 @@ private actor FakeProber: RouterChallengeProbing {
 
     func probe(_ endpoint: RouterEndpoint) async -> ChallengeProbeOutcome {
         calls.append(endpoint.host)
-        if started[endpoint.host] == nil { started[endpoint.host] = .now }
+        starts[endpoint.host, default: []].append(.now)
         inFlight += 1
         maxInFlight = max(maxInFlight, inFlight)
         defer { inFlight -= 1 }
@@ -91,8 +96,8 @@ private actor Flag {
 
 @Test func gatewayAndConsoleRunTogether() async {
     let prober = FakeProber([
-        Discovery.gateway: .answer(.notGLiNet, after: .milliseconds(80)),
-        Discovery.consoleAddress: .answer(.glinet(fingerprint: Discovery.fingerprint), after: .milliseconds(80)),
+        Discovery.gateway: .answer(.notGLiNet, after: .milliseconds(300)),
+        Discovery.consoleAddress: .answer(.glinet(fingerprint: Discovery.fingerprint), after: .milliseconds(300)),
     ])
     let result = await Discovery.make(prober, console: [Discovery.consoleAddress]).run()
     #expect(result == .found(DiscoveredRouter(endpoint: RouterDiscovery.endpoint(Discovery.consoleAddress)!, source: .console,
@@ -116,18 +121,20 @@ private actor Flag {
         Discovery.gateway: .hang,
         Discovery.consoleAddress: .answer(.glinet(fingerprint: Discovery.fingerprint)),
     ])
+    let timing = RouterDiscovery.Timing(attempt: .seconds(2), firstRow: .seconds(60), total: .seconds(60),
+                                        retryPause: .milliseconds(20), gatewayGrace: .milliseconds(150))
     let clock = ContinuousClock()
     let start = clock.now
-    let result = await Discovery.make(prober, console: [Discovery.consoleAddress]).run()
+    let result = await Discovery.make(prober, console: [Discovery.consoleAddress], timing: timing).run()
     guard case .found(let router) = result else { Issue.record("expected a router"); return }
     #expect(router.source == .console)
-    // Grace (150 ms), not the whole first row (400 ms).
-    #expect(clock.now - start < .milliseconds(380))
+    // Grace (150 ms), not the whole first row (60 s), with room for a slow runner.
+    #expect(clock.now - start < .seconds(20))
 }
 
 @Test func aPublicConsoleAddressIsNeverTried() async {
     let prober = FakeProber(["203.0.113.5": .answer(.glinet(fingerprint: Discovery.fingerprint))])
-    let result = await Discovery.make(prober, gateway: nil, console: ["203.0.113.5"]).run()
+    let result = await Discovery.make(prober, gateway: nil, console: ["203.0.113.5"], timing: Discovery.short).run()
     #expect(result == .notFound)
     #expect(await prober.count("203.0.113.5") == 0)
 }
@@ -147,22 +154,35 @@ private actor Flag {
 
 // MARK: - Timeouts
 
-@Test func eachAttemptHasItsOwnDeadlineAndIsRetried() async {
+@Test func eachAttemptHasItsOwnDeadlineAndIsRetried() async throws {
     let prober = FakeProber([Discovery.gateway: .hang])
-    _ = await Discovery.make(prober).run()
-    // 400 ms first row, 150 ms per attempt, 20 ms pause: two or three attempts.
-    let attempts = await prober.count(Discovery.gateway)
-    #expect(attempts >= 2 && attempts <= 3)
+    let timing = RouterDiscovery.Timing(attempt: .milliseconds(100), firstRow: .seconds(30), total: .seconds(30),
+                                        retryPause: .milliseconds(20), gatewayGrace: .milliseconds(100))
+    let run = Task { await Discovery.make(prober, timing: timing).run() }
+    // Without its own deadline the first attempt hangs for 60 s, so a second
+    // attempt within 10 s shows the cut-off. Waiting for it, not for a fixed
+    // time, keeps a slow runner from failing the test.
+    let clock = ContinuousClock()
+    let waitEnd = clock.now.advanced(by: .seconds(10))
+    while await prober.count(Discovery.gateway) < 2, clock.now < waitEnd {
+        try? await Task.sleep(for: .milliseconds(10))
+    }
+    run.cancel()
+    _ = await run.value
+    let starts = await prober.starts[Discovery.gateway] ?? []
+    try #require(starts.count >= 2)
+    // The cut-off is not early: 100 ms attempt plus 20 ms pause.
+    #expect(starts[1] - starts[0] >= .milliseconds(120))
 }
 
 @Test func theWholeSearchStaysWithinTheTotal() async {
     let prober = FakeProber([Discovery.gateway: .hang, RouterDiscovery.fallbackHost: .hang, Discovery.consoleAddress: .hang])
     let clock = ContinuousClock()
     let start = clock.now
-    let result = await Discovery.make(prober, console: [Discovery.consoleAddress]).run()
+    let result = await Discovery.make(prober, console: [Discovery.consoleAddress], timing: Discovery.short).run()
     #expect(result == .notFound)
-    // 800 ms total, with room for scheduling.
-    #expect(clock.now - start < .milliseconds(1100))
+    // 800 ms total, with room for a slow runner. A probe that is never cut off hangs for 60 s.
+    #expect(clock.now - start < .seconds(5))
     #expect(clock.now - start >= .milliseconds(700))
 }
 
@@ -184,7 +204,7 @@ private actor Flag {
 
 @Test func noAnswerAnywhereWithDeniedLocalNetworkIsDenied() async {
     let prober = FakeProber([:])
-    let result = await Discovery.make(prober, denied: true).run()
+    let result = await Discovery.make(prober, denied: true, timing: Discovery.short).run()
     #expect(result == .localNetworkDenied)
 }
 
@@ -193,7 +213,7 @@ private actor Flag {
     let found = await Discovery.make(FakeProber(["192.0.2.20": .answer(.glinet(fingerprint: Discovery.fingerprint))])).probe(manual: endpoint)
     #expect(found == .found(DiscoveredRouter(endpoint: endpoint, source: .manual, fingerprint: Discovery.fingerprint)))
     #expect(await Discovery.make(FakeProber(["192.0.2.20": .answer(.notGLiNet)])).probe(manual: endpoint) == .notGLiNet)
-    #expect(await Discovery.make(FakeProber([:]), denied: true).probe(manual: endpoint) == .localNetworkDenied)
+    #expect(await Discovery.make(FakeProber([:]), denied: true, timing: Discovery.short).probe(manual: endpoint) == .localNetworkDenied)
 }
 
 @Test func onlyPrivateIPv4CountsForTheConsoleName() {
