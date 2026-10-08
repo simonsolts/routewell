@@ -224,8 +224,23 @@ struct SVGShape: Shape {
             cache.withLock { $0[d] = made }
             return made
         case .rect(let x, let y, let w, let h, let rx):
+            // Built from plain segments. `Path(roundedRect:)` is a special
+            // primitive that the on-screen renderer drew at the wrong size
+            // inside the scaled, shadowed glyph group.
             let r = CGRect(x: x, y: y, width: w, height: h)
-            return Geometry(path: rx > 0 ? Path(roundedRect: r, cornerRadius: rx, style: .circular) : Path(r), bounds: r)
+            let radius = min(rx, w / 2, h / 2)
+            var path = Path()
+            path.move(to: CGPoint(x: r.minX + radius, y: r.minY))
+            path.addLine(to: CGPoint(x: r.maxX - radius, y: r.minY))
+            path.addArc(tangent1End: CGPoint(x: r.maxX, y: r.minY), tangent2End: CGPoint(x: r.maxX, y: r.maxY), radius: radius)
+            path.addLine(to: CGPoint(x: r.maxX, y: r.maxY - radius))
+            path.addArc(tangent1End: CGPoint(x: r.maxX, y: r.maxY), tangent2End: CGPoint(x: r.minX, y: r.maxY), radius: radius)
+            path.addLine(to: CGPoint(x: r.minX + radius, y: r.maxY))
+            path.addArc(tangent1End: CGPoint(x: r.minX, y: r.maxY), tangent2End: CGPoint(x: r.minX, y: r.minY), radius: radius)
+            path.addLine(to: CGPoint(x: r.minX, y: r.minY + radius))
+            path.addArc(tangent1End: CGPoint(x: r.minX, y: r.minY), tangent2End: CGPoint(x: r.maxX, y: r.minY), radius: radius)
+            path.closeSubpath()
+            return Geometry(path: path, bounds: r)
         case .circle(let cx, let cy, let r):
             // Starts at 3 o'clock and runs clockwise, like an SVG circle, so dashes line up.
             var path = Path()
