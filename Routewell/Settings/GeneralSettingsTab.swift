@@ -27,9 +27,16 @@ struct GeneralSettingsTab: View {
                 Text("Refresh settings are saved on this Mac. When paused with the window hidden, the menu bar refreshes every 60 seconds. Appearance follows macOS.")
             }
             Section {
-                LabeledContent("Version", value: "0.1 (1)")
+                LabeledContent("Version", value: Self.versionText(Bundle.main.infoDictionary))
                 LabeledContent("Router", value: model.session.expectedToken?.profileID ?? "Not connected")
             }
         }
+    }
+
+    /// "0.15.2 (3)": the version and build number from the app's Info.plist.
+    static func versionText(_ info: [String: Any]?) -> String {
+        let version = info?["CFBundleShortVersionString"] as? String ?? "Unknown"
+        guard let build = info?["CFBundleVersion"] as? String else { return version }
+        return "\(version) (\(build))"
     }
 }
