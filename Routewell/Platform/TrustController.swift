@@ -2,7 +2,7 @@ import Foundation
 import Observation
 import RoutewellKit
 
-/// Owns the trusted-certificate list shown in Settings > Advanced. Starts
+/// Owns the trusted-certificate list. Settings › Router shows this router's pin. Starts
 /// in-memory and, when a persisted store is available, switches to it during
 /// `load()` — mirroring how `PersistenceController` loads its files.
 @MainActor @Observable
@@ -33,6 +33,12 @@ final class TrustController {
             backing = persistent
             isPersistent = true
         }
+        trusted = await backing.all()
+    }
+
+    /// Reads the list again after a backend approved a certificate through
+    /// `store` directly.
+    func reload() async {
         trusted = await backing.all()
     }
 

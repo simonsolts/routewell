@@ -34,10 +34,10 @@ private let british = Locale(identifier: "en_GB")
 @MainActor @Test func portsStorageAndLogsAskForSSHAndOpenRouterSettings() {
     #expect(RouterSegment.allCases.filter(\.requiresSSH) == [.ports, .storage, .logs])
     let model = AppModel(mode: .mock)
-    model.settingsTab = "General"
+    model.settingsTab = .general
     var opened = false
     SSHRequiredView.openRouterSettings(model) { opened = true }
-    #expect(model.settingsTab == "Router")
+    #expect(model.settingsTab == .router)
     #expect(opened)
 }
 

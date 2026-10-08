@@ -193,6 +193,8 @@ final class PersistenceController {
     func updateLiveAddress(_ endpoint: RouterEndpoint) async -> Bool {
         guard let old = selectedProfile, old.liveEndpoint != nil, !credentialBusy,
               let index = profiles.profiles.firstIndex(where: { $0.id == old.id }) else { return false }
+        // The same address keys the same Keychain items: nothing to move.
+        guard endpoint != old.liveEndpoint else { return true }
         credentialBusy = true
         defer { credentialBusy = false }
         let rebuilt = RouterProfile(
@@ -200,10 +202,17 @@ final class PersistenceController {
             plainHTTPAcknowledged: old.plainHTTPAcknowledged, adGuard: old.adGuard, ssh: old.ssh,
             setupComplete: old.setupComplete
         )
+        // A separate AdGuard Home password is keyed by the address too.
+        let oldAdGuard = CredentialReference(profileID: old.id, endpoint: old.endpoint, kind: .adGuardPassword)
+        let newAdGuard = CredentialReference(profileID: rebuilt.id, endpoint: rebuilt.endpoint, kind: .adGuardPassword)
         do {
             let secret = try await credentials.read(old.credential)
             try await credentials.save(secret, for: rebuilt.credential)
+            if let adGuardSecret = try? await credentials.read(oldAdGuard) {
+                try await credentials.save(adGuardSecret, for: newAdGuard)
+            }
         } catch {
+            try? await credentials.delete(rebuilt.credential)
             credentialMessage = credentialError(error)
             return false
         }
@@ -212,18 +221,21 @@ final class PersistenceController {
         guard errors[.profiles] == nil else {
             profiles.profiles[index] = old
             try? await credentials.delete(rebuilt.credential)
+            try? await credentials.delete(newAdGuard)
             credentialMessage = "Router address could not be saved. Try again."
             return false
         }
         try? await credentials.delete(old.credential)
+        try? await credentials.delete(oldAdGuard)
         return true
     }
 
-    func updateLiveUsername(_ username: String) {
-        guard var profile = selectedProfile, profile.liveEndpoint != nil,
-              let index = profiles.profiles.firstIndex(where: { $0.id == profile.id }) else { return }
-        profile.username = username
-        profiles.profiles[index] = profile
+    /// Settings › Router › Name. The name is only a label, so the session
+    /// is not rebuilt.
+    func renameSelectedProfile(_ name: String) {
+        guard let index = profiles.profiles.firstIndex(where: { $0.id == profiles.selectedID }),
+              profiles.profiles[index].name != name else { return }
+        profiles.profiles[index].name = name
         scheduleSave()
     }
 
