@@ -109,11 +109,25 @@ public actor AdGuardClient {
         return try await get(path: "control/querylog", query: query, method: "querylog", retried: false)
     }
 
+    /// `path` may end in a query (`control/stats?recent=86400000`). Only
+    /// letters, digits, and `_` are allowed in its names and values.
     public func recordRead(path: String) async -> JSONValue {
-        guard path.hasPrefix("control/"), !path.contains("..") else {
+        let parts = path.split(separator: "?", maxSplits: 1, omittingEmptySubsequences: false)
+        let route = String(parts[0])
+        var query: [URLQueryItem] = []
+        if parts.count == 2 {
+            for pair in parts[1].split(separator: "&") {
+                let field = pair.split(separator: "=", maxSplits: 1, omittingEmptySubsequences: false).map(String.init)
+                guard field.count == 2, field.allSatisfy({ !$0.isEmpty && $0.allSatisfy { $0.isLetter || $0.isNumber || $0 == "_" } }) else {
+                    return .object(["error": .object(["category": .string("invalid path")])])
+                }
+                query.append(URLQueryItem(name: field[0], value: field[1]))
+            }
+        }
+        guard route.hasPrefix("control/"), !route.contains("..") else {
             return .object(["error": .object(["category": .string("invalid path")])])
         }
-        do { return try await get(path: path, method: "fixture") }
+        do { return try await get(path: route, query: query, method: "fixture", retried: false) }
         catch AdGuardClientError.unauthorized {
             return .object(["error": .object(["category": .string("authentication")])])
         } catch AdGuardClientError.httpStatus(let status) {

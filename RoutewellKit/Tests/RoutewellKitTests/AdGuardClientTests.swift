@@ -51,6 +51,21 @@ private actor StubSessionProvider: RouterSessionTokenProvider {
         #expect(status.dnsPort == 3053)
     }
 
+    /// Chunk 17: the recorder sends a plan query as URL query items, and
+    /// refuses any other characters.
+    @Test func recordReadSendsPlanQuery() async throws {
+        let transport = StubHTTPTransport { request in
+            (Data(#"{"time_units":"hours"}"#.utf8), StubHTTPTransport.response(200, url: request.url!))
+        }
+        let client = AdGuardClient(baseURL: Self.baseURL, credentials: BasicAdGuardCredentials(username: "admin", password: { "secret" }), transport: transport)
+        let value = await client.recordRead(path: "control/stats?recent=86400000")
+        #expect(value["time_units"]?.string == "hours")
+        let refused = await client.recordRead(path: "control/stats?recent=1&x=a/b")
+        #expect(refused["error"]?["category"]?.string == "invalid path")
+        let urls = await transport.recorded().map { $0.request.url?.absoluteString }
+        #expect(urls == ["http://192.168.8.1:3000/control/stats?recent=86400000"])
+    }
+
     @Test func statsParsesFixture() async throws {
         let body = fixtureData("control-stats", subdirectory: "Fixtures/adguard")
         let transport = StubHTTPTransport { request in

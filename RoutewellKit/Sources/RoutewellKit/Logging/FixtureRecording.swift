@@ -43,6 +43,15 @@ public enum FixtureRecordingPlan {
         .init(.adGuard, method: "control/clients", fileName: "adguard-clients.json"),
         .init(.adGuard, method: "control/querylog", fileName: "adguard-querylog.json"),
         .init(.adGuard, method: "control/filtering/status", fileName: "adguard-filtering-status.json"),
+        // Chunk 17: Overview ranges. `recent` is the lookback in ms; an older
+        // AdGuard Home ignores it or answers 400. Both are useful evidence.
+        .init(.adGuard, method: "control/stats?recent=86400000", fileName: "adguard-stats-recent-24h.json"),
+        .init(.adGuard, method: "control/stats?recent=604800000", fileName: "adguard-stats-recent-7d.json"),
+        .init(.adGuard, method: "control/stats?recent=2592000000", fileName: "adguard-stats-recent-30d.json"),
+        .init(.adGuard, method: "control/stats/config", fileName: "adguard-stats-config.json"),
+        .init(.adGuard, method: "control/safebrowsing/status", fileName: "adguard-safebrowsing-status.json"),
+        .init(.adGuard, method: "control/parental/status", fileName: "adguard-parental-status.json"),
+        .init(.adGuard, method: "control/safesearch/status", fileName: "adguard-safesearch-status.json"),
         // Chunk 15: the SSH reads. Recorded only when SSH is set up for the
         // profile; otherwise they are skipped.
         .init(.ssh, method: "system-board", fileName: "ssh-ubus-system-board.json"),
