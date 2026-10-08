@@ -12,31 +12,6 @@ private func eventually(_ predicate: () async -> Bool) async {
     Issue.record("Condition did not settle")
 }
 
-// MARK: - Outcome → banner text mapping
-
-@Test func protectionOutcomeTextMatchesPlan() {
-    #expect(ProtectionScreen.bannerText(for: .verifiedSuccess(.enabled)) == "Protection is now enabled.")
-    #expect(ProtectionScreen.bannerText(for: .verifiedMismatch(expected: .enabled, actual: .disabled))
-            == "The router did not apply the change. Protection is still disabled.")
-    #expect(ProtectionScreen.bannerText(for: .verifiedRecovery(restored: .enabled))
-            == "The change did not apply. Routewell restored the previous setting.")
-    #expect(ProtectionScreen.bannerText(for: .recoveryFailed(expected: .enabled, actual: nil))
-            == "The change did not apply and the previous setting could not be restored. Check AdGuard Home.")
-    #expect(ProtectionScreen.bannerText(for: .conflictingExternalEdit(actual: .disabled))
-            == "Protection changed from somewhere else. Routewell made no further change.")
-    #expect(ProtectionScreen.bannerText(for: .unknownAfterDispatch)
-            == "The router did not answer in time. The change may have applied. Refresh to check.")
-    #expect(ProtectionScreen.bannerText(for: .rejected(.gateBusy)) == "Another change is still running.")
-    #expect(ProtectionScreen.bannerText(for: .rejected(.capabilityUnavailable))
-            == "AdGuard Home is not configured for this router.")
-    #expect(ProtectionScreen.bannerText(for: .rejected(.staleSession))
-            == "The router changed during the operation. Refresh to check.")
-    #expect(ProtectionScreen.bannerText(for: .rejected(.preconditionFailed("status unavailable")))
-            == "status unavailable")
-    #expect(ProtectionScreen.bannerText(for: .rejected(.invalidIntent("Pause duration must be between 1 minute and 24 hours")))
-            == "Pause duration must be between 1 minute and 24 hours")
-}
-
 // MARK: - MutationController
 
 @MainActor @Test func secondSubmitWhileInFlightIsIgnored() async {

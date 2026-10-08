@@ -5,7 +5,7 @@ struct DetailRouter: View {
     var body: some View {
         switch destination {
         case .overview: OverviewScreen()
-        case .protection: ProtectionScreen()
+        case .adGuard: AdGuardScreen()
         case .analytics: AnalyticsScreen()
         case .network: NetworkScreen()
         case .router: RouterScreen()
@@ -13,7 +13,6 @@ struct DetailRouter: View {
         case .applications: ApplicationsScreen()
         case .maintenance: MaintenanceScreen()
         case .clients: ClientsScreen()
-        case .dnsActivity: DNSActivityScreen()
         case .notifications: NotificationsScreen()
         case .logs: LogsScreen()
         }

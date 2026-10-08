@@ -321,7 +321,7 @@ final class PersistenceController {
                 switch file {
                 case .settings: try await store.save(settings, to: file, revision: current)
                 case .profiles: try await store.save(profiles, to: file, revision: current)
-                case .trust, .devices, .presence, .snapshots: break
+                case .trust, .devices, .presence, .snapshots, .archive: break
                 }
                 if current == revision { errors[file] = nil }
             } catch { if current == revision { report(error, file: file) } }

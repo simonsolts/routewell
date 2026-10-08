@@ -274,9 +274,10 @@ struct AllClientsView: View {
             .disabled(entry.client?.ip == nil)
         Button("Copy MAC Address") { ClientsPasteboard.copy(entry.mac.colonSeparated) }
         Divider()
-        // The DNS Activity screen arrives in chunk 16.
-        Button("Show DNS Log") {}
-            .disabled(true)
+        Button("Show DNS Log") {
+            if let ip = entry.client?.ip { model.showDNSLog(client: ip) }
+        }
+        .disabled(entry.client?.ip == nil)
     }
 
     private func review(_ mac: MACAddress) {

@@ -25,6 +25,9 @@ final class RefreshController {
     private var sshPending: SSHWork?
     /// The lease whose SSH probe has started. One probe per lease.
     private var sshProbedToken: SessionToken?
+    /// Each overview's AdGuard Home reading, for the AdGuard Home screen and
+    /// its saved copy (chunk 16).
+    var onAdGuardReading: ((AdGuardServiceReading, SessionToken) async -> Void)?
 
     var isAvailable: Bool { model.session.isReady && !sleeping }
 
@@ -178,6 +181,10 @@ final class RefreshController {
                         }
                         model.accept(.result(result, wallClock.now()), token: lease.token)
                         self?.overviewElapsed = .zero
+                        if let reading = result.adGuardService, let observe = self?.onAdGuardReading {
+                            await observe(reading, lease.token)
+                            guard !Task.isCancelled, model.session.expectedToken == lease.token else { return }
+                        }
                         // One presence sample per refresh, from the overview's own client list.
                         if let presence, case .success(let clients, let observedAt, _) = result.clients, let listed = clients.listed {
                             let samples = PresenceLog.samples(listed: listed, known: model.deviceRegistry.records.keys)

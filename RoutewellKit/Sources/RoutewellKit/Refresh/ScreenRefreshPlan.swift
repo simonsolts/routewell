@@ -20,7 +20,6 @@ public enum ScreenRefreshPlan {
         var intervals = Dictionary(uniqueKeysWithValues: overviewAreas.map { ($0, defaultInterval) })
         let area: DataArea? = switch destination {
         case "clients": .clients
-        case "dnsActivity": .queryLog
         case "network": .network
         case "maintenance": .maintenance
         case "vpn": .vpn
@@ -32,7 +31,6 @@ public enum ScreenRefreshPlan {
         if let area { intervals[area] = defaultInterval }
         if destination == "analytics", segment == "Overview" { intervals[.telemetry] = .seconds(2) }
         if destination == "network", segment == "Overview" { intervals[.publicIP] = .seconds(600) }
-        if destination == "protection", segment == "Schedules" { intervals[.schedules] = .seconds(60) }
         // Chunk 15: SSH reads for the segments that need them. Logs reads
         // only on demand; the refresh loop skips it on timed ticks.
         if destination == "router", let segment, ["Overview", "Ports", "Storage", "Logs"].contains(segment) {

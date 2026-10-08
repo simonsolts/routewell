@@ -179,6 +179,12 @@ struct MockSettingsSections: View {
                 Text("Update available").tag(MockRouterService.FirmwareBehavior.updateAvailable)
                 Text("Up to date").tag(MockRouterService.FirmwareBehavior.upToDate)
             }
+            Picker("AdGuard Home", selection: Binding(
+                get: { environment.mockAdGuardScenario },
+                set: { environment.setMockAdGuardScenario($0) }
+            )) {
+                ForEach(MockAdGuardScenario.allCases, id: \.self) { Text($0.title).tag($0) }
+            }
             Picker("SSH", selection: Binding(
                 get: { environment.mockSSHScenario },
                 set: { environment.setMockSSHScenario($0) }
@@ -197,7 +203,7 @@ struct MockSettingsSections: View {
         } header: {
             Text("Mock router")
         } footer: {
-            Text("Wi-Fi always shows three populated bands. Multi-WAN reports no interface state. The SSH picker drives Ports, Storage, Logs, and the AdGuard Home process ID; each change runs the SSH probe once. The host-key previews scan and store nothing. The firmware check runs when you press Check for Updates.")
+            Text("Wi-Fi always shows three populated bands. Multi-WAN reports no interface state. The SSH picker drives Ports, Storage, Logs, and the AdGuard Home process ID; each change runs the SSH probe once. The host-key previews scan and store nothing. The firmware check runs when you press Check for Updates. The AdGuard Home picker sets the router's AdGuard Home setting and the saved copy; Turn On, Stop, Handle DNS, and Restart change the mock router.")
         }
     }
 

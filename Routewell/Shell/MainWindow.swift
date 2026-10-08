@@ -1,4 +1,5 @@
 import SwiftUI
+import RoutewellKit
 
 struct MainWindow: View {
     let environment: AppEnvironment
@@ -15,7 +16,7 @@ struct MainWindow: View {
                 ForEach(SidebarGroup.allCases, id: \.self) { group in
                     Section(group.rawValue) {
                         ForEach(SidebarDestination.allCases.filter { $0.group == group }) { destination in
-                            Label(destination.title, systemImage: destination.symbol)
+                            sidebarRow(destination)
                                 .tag(destination)
                                 .badge(badge(for: destination))
                         }
@@ -104,6 +105,32 @@ struct MainWindow: View {
         .accessibilityElement(children: .combine)
     }
 
+    /// AdGuard Home carries a status dot (green running, orange paused, grey
+    /// saved copy, red not answering); no dot when off.
+    @ViewBuilder private func sidebarRow(_ destination: SidebarDestination) -> some View {
+        if destination == .adGuard,
+           let tone = AdGuardPresentation.sidebarTone(environment.adGuard.availability, protection: model.snapshot?.adGuard.protection) {
+            HStack {
+                Label(destination.title, systemImage: destination.symbol)
+                Spacer()
+                StatusDot(tone: tone)
+            }
+            .accessibilityElement(children: .combine)
+            .accessibilityValue(Self.adGuardDotDescription(tone))
+        } else {
+            Label(destination.title, systemImage: destination.symbol)
+        }
+    }
+
+    static func adGuardDotDescription(_ tone: StatusTone) -> String {
+        switch tone {
+        case .healthy: "Running"
+        case .degraded: "Paused"
+        case .error: "Not answering"
+        default: "Off, saved copy"
+        }
+    }
+
     /// Clients counts devices awaiting review. Notifications keeps its mock
     /// count until the event centre exists (chunk 24).
     private func badge(for destination: SidebarDestination) -> Int {
@@ -118,6 +145,8 @@ struct MainWindow: View {
     /// has ten segments, design/router-screen.md).
     private var subtitle: String {
         if !model.selection.showsSubtitle { return "" }
+        // AdGuard Home's subtitle is the router model (design).
+        if model.selection == .adGuard { return model.snapshot?.router.model ?? "" }
         return model.mode == .mock ? (model.session.expectedToken?.profileID ?? "Sample router") : "Not connected"
     }
 
@@ -127,8 +156,13 @@ struct MainWindow: View {
         return (router.lanAddress ?? "Unknown address") + uptime
     }
 
+    /// AdGuard Home hides its tabs in the empty state.
+    private var showsSegments: Bool {
+        !model.selection.segments.isEmpty && (model.selection != .adGuard || environment.adGuard.showsTabs)
+    }
+
     @ToolbarContentBuilder private var toolbar: some ToolbarContent {
-        if !model.selection.segments.isEmpty {
+        if showsSegments {
             ToolbarItem(placement: .principal) {
                 Picker("Section", selection: Binding(
                     get: { model.subpages[model.selection] ?? model.selection.segments.first ?? "" },
@@ -147,6 +181,14 @@ struct MainWindow: View {
                 }.disabled(true).help("Router actions are not available yet")
                 Button("Back Up…") {}.disabled(true)
                 Button("Router UI", systemImage: "arrow.up.right.square") {}.disabled(true)
+            }
+        }
+        if model.selection == .adGuard {
+            ToolbarItem(placement: .primaryAction) {
+                Text(AdGuardPresentation.freshness(environment.adGuard.availability, archive: environment.adGuard.archive,
+                                                   observedAt: environment.adGuard.reading?.observedAt, now: model.evaluatedAt))
+                    .font(.caption).foregroundStyle(.secondary)
+                    .fixedSize()
             }
         }
         ToolbarItem(placement: .primaryAction) {

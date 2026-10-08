@@ -130,6 +130,16 @@ final class AppModel {
         }
     }
 
+    /// Clients' Show DNS Log: AdGuard Home › Query Log for that device. The
+    /// tab is a placeholder until chunk 18, which reads this filter.
+    var adGuardQueryLogClient: String?
+
+    func showDNSLog(client: String) {
+        adGuardQueryLogClient = client
+        subpages[.adGuard] = AdGuardTab.queryLog.rawValue
+        selection = .adGuard
+    }
+
     /// Opens one device in the All Clients details pane.
     func revealClient(_ mac: MACAddress, section: ClientDetailsSection) {
         selection = .clients
