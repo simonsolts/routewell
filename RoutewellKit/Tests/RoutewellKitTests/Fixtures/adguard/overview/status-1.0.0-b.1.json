@@ -1,0 +1,17 @@
+{
+ "dhcp_available": true,
+ "dns_addresses": [
+  "198.51.100.57",
+  "198.51.100.58",
+  "198.51.100.59",
+  "198.51.100.60"
+ ],
+ "dns_port": 3053,
+ "http_port": 3000,
+ "language": "",
+ "protection_disabled_duration": 0,
+ "protection_enabled": true,
+ "running": true,
+ "start_time": 1791389630549.838,
+ "version": "v1.0.0-b.1"
+}

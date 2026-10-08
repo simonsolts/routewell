@@ -52,13 +52,13 @@ extension MockAdGuardTransport: AdGuardSettingTransport, AdGuardOverviewService 
     }
 
     /// The Overview a running mock shows at `now`. A range longer than the
-    /// retention answers 400, as AdGuard Home does.
+    /// retention is not read, as in the live service.
     static func overview(range: AdGuardStatsRange, now: Date, options: ProtectionOptions,
                          filteringEnabled: Bool = true) -> AdGuardOverviewReading {
         let available = range.isAvailable(retentionMilliseconds: retentionMilliseconds)
         return AdGuardOverviewReading(
             range: range,
-            stats: available ? .success(stats(range: range)) : .failure(.malformedResponse),
+            stats: available ? .success(stats(range: range)) : .failure(.unavailable),
             statsConfig: .success(AdGuardStatsConfig(enabled: true, intervalMilliseconds: retentionMilliseconds)),
             protection: .success(options),
             filtering: .success(filtering(enabled: filteringEnabled)),

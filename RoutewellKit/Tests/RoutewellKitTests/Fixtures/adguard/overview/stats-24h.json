@@ -1,0 +1,798 @@
+{
+ "avg_processing_time": 0.000946,
+ "blocked_filtering": [
+  181,
+  320,
+  445,
+  231,
+  76,
+  454,
+  694,
+  418,
+  361,
+  233,
+  201,
+  180,
+  210,
+  252,
+  310,
+  167,
+  233,
+  264,
+  133,
+  141,
+  166,
+  108,
+  168,
+  57
+ ],
+ "dns_queries": [
+  1021,
+  1626,
+  2372,
+  1671,
+  2006,
+  2654,
+  3505,
+  2572,
+  2242,
+  1616,
+  1373,
+  1255,
+  1443,
+  1431,
+  1773,
+  1262,
+  1812,
+  1871,
+  875,
+  979,
+  1011,
+  745,
+  1083,
+  489
+ ],
+ "num_blocked_filtering": 6003,
+ "num_dns_queries": 38687,
+ "num_replaced_parental": 0,
+ "num_replaced_safebrowsing": 0,
+ "num_replaced_safesearch": 0,
+ "replaced_parental": [
+  0,
+  0,
+  0,
+  0,
+  0,
+  0,
+  0,
+  0,
+  0,
+  0,
+  0,
+  0,
+  0,
+  0,
+  0,
+  0,
+  0,
+  0,
+  0,
+  0,
+  0,
+  0,
+  0,
+  0
+ ],
+ "replaced_safebrowsing": [
+  0,
+  0,
+  0,
+  0,
+  0,
+  0,
+  0,
+  0,
+  0,
+  0,
+  0,
+  0,
+  0,
+  0,
+  0,
+  0,
+  0,
+  0,
+  0,
+  0,
+  0,
+  0,
+  0,
+  0
+ ],
+ "time_units": "hours",
+ "top_blocked_domains": [
+  {
+   "site-101.example": 2723
+  },
+  {
+   "site-102.example": 689
+  },
+  {
+   "site-103.example": 557
+  },
+  {
+   "site-104.example": 241
+  },
+  {
+   "site-105.example": 207
+  },
+  {
+   "site-106.example": 178
+  },
+  {
+   "site-107.example": 162
+  },
+  {
+   "site-108.example": 115
+  },
+  {
+   "site-109.example": 91
+  },
+  {
+   "site-110.example": 51
+  },
+  {
+   "site-111.example": 51
+  },
+  {
+   "site-112.example": 42
+  },
+  {
+   "site-113.example": 35
+  },
+  {
+   "site-114.example": 31
+  },
+  {
+   "site-115.example": 28
+  },
+  {
+   "site-116.example": 27
+  },
+  {
+   "site-117.example": 26
+  },
+  {
+   "site-118.example": 25
+  },
+  {
+   "site-119.example": 24
+  },
+  {
+   "site-120.example": 23
+  },
+  {
+   "site-121.example": 23
+  },
+  {
+   "site-122.example": 20
+  },
+  {
+   "site-123.example": 19
+  },
+  {
+   "site-124.example": 19
+  },
+  {
+   "site-125.example": 15
+  },
+  {
+   "site-126.example": 15
+  },
+  {
+   "site-127.example": 14
+  },
+  {
+   "site-128.example": 12
+  },
+  {
+   "site-129.example": 12
+  },
+  {
+   "site-130.example": 11
+  },
+  {
+   "site-131.example": 11
+  },
+  {
+   "site-132.example": 11
+  },
+  {
+   "site-133.example": 10
+  },
+  {
+   "site-134.example": 10
+  },
+  {
+   "site-135.example": 10
+  },
+  {
+   "site-136.example": 9
+  },
+  {
+   "site-137.example": 9
+  },
+  {
+   "site-138.example": 9
+  },
+  {
+   "site-139.example": 8
+  },
+  {
+   "site-140.example": 8
+  },
+  {
+   "site-141.example": 8
+  },
+  {
+   "site-142.example": 8
+  },
+  {
+   "site-143.example": 8
+  },
+  {
+   "site-144.example": 7
+  },
+  {
+   "site-145.example": 7
+  },
+  {
+   "site-146.example": 7
+  },
+  {
+   "site-147.example": 7
+  },
+  {
+   "site-148.example": 6
+  },
+  {
+   "site-149.example": 6
+  },
+  {
+   "site-150.example": 6
+  },
+  {
+   "site-151.example": 6
+  },
+  {
+   "site-152.example": 6
+  },
+  {
+   "site-153.example": 6
+  },
+  {
+   "site-154.example": 6
+  },
+  {
+   "site-155.example": 5
+  },
+  {
+   "site-156.example": 5
+  },
+  {
+   "site-157.example": 5
+  },
+  {
+   "site-158.example": 5
+  },
+  {
+   "site-159.example": 4
+  },
+  {
+   "site-160.example": 4
+  },
+  {
+   "site-161.example": 4
+  },
+  {
+   "site-162.example": 4
+  },
+  {
+   "site-163.example": 4
+  },
+  {
+   "site-164.example": 4
+  },
+  {
+   "site-165.example": 4
+  },
+  {
+   "site-166.example": 4
+  },
+  {
+   "site-167.example": 4
+  },
+  {
+   "site-168.example": 4
+  },
+  {
+   "site-169.example": 4
+  },
+  {
+   "site-170.example": 4
+  },
+  {
+   "site-171.example": 4
+  },
+  {
+   "site-172.example": 4
+  },
+  {
+   "site-173.example": 4
+  },
+  {
+   "site-174.example": 4
+  },
+  {
+   "site-175.example": 4
+  },
+  {
+   "site-176.example": 4
+  },
+  {
+   "site-177.example": 4
+  },
+  {
+   "site-178.example": 4
+  },
+  {
+   "site-179.example": 3
+  },
+  {
+   "site-180.example": 3
+  },
+  {
+   "site-181.example": 3
+  },
+  {
+   "site-182.example": 3
+  },
+  {
+   "site-183.example": 3
+  },
+  {
+   "site-184.example": 3
+  },
+  {
+   "site-185.example": 3
+  },
+  {
+   "site-186.example": 3
+  },
+  {
+   "site-187.example": 3
+  },
+  {
+   "site-188.example": 3
+  },
+  {
+   "site-189.example": 3
+  },
+  {
+   "site-190.example": 3
+  },
+  {
+   "site-191.example": 3
+  },
+  {
+   "site-192.example": 3
+  },
+  {
+   "site-193.example": 3
+  },
+  {
+   "site-194.example": 3
+  },
+  {
+   "site-195.example": 3
+  },
+  {
+   "site-196.example": 3
+  },
+  {
+   "site-197.example": 3
+  },
+  {
+   "site-198.example": 3
+  },
+  {
+   "site-199.example": 3
+  },
+  {
+   "site-200.example": 3
+  }
+ ],
+ "top_clients": [
+  {
+   "198.51.100.24": 9423
+  },
+  {
+   "198.51.100.52": 7484
+  },
+  {
+   "198.51.100.48": 6853
+  },
+  {
+   "198.51.100.51": 5761
+  },
+  {
+   "198.51.100.54": 3251
+  },
+  {
+   "198.51.100.18": 2172
+  },
+  {
+   "198.51.100.39": 1309
+  },
+  {
+   "198.51.100.15": 1030
+  },
+  {
+   "198.51.100.13": 662
+  },
+  {
+   "198.51.100.17": 455
+  },
+  {
+   "198.51.100.29": 149
+  },
+  {
+   "198.51.100.12": 94
+  },
+  {
+   "198.51.100.27": 31
+  },
+  {
+   "198.51.100.34": 7
+  },
+  {
+   "198.51.100.23": 6
+  }
+ ],
+ "top_queried_domains": [
+  {
+   "site-1.example": 1828
+  },
+  {
+   "site-2.example": 1647
+  },
+  {
+   "site-3.example": 1581
+  },
+  {
+   "site-4.example": 1358
+  },
+  {
+   "site-5.example": 651
+  },
+  {
+   "site-6.example": 550
+  },
+  {
+   "site-7.example": 522
+  },
+  {
+   "site-8.example": 473
+  },
+  {
+   "site-9.example": 425
+  },
+  {
+   "site-10.example": 382
+  },
+  {
+   "site-11.example": 378
+  },
+  {
+   "site-12.example": 325
+  },
+  {
+   "site-13.example": 308
+  },
+  {
+   "site-14.example": 283
+  },
+  {
+   "site-15.example": 279
+  },
+  {
+   "site-16.example": 267
+  },
+  {
+   "site-17.example": 262
+  },
+  {
+   "site-18.example": 256
+  },
+  {
+   "site-19.example": 255
+  },
+  {
+   "site-20.example": 234
+  },
+  {
+   "site-21.example": 210
+  },
+  {
+   "site-22.example": 209
+  },
+  {
+   "site-23.example": 205
+  },
+  {
+   "site-24.example": 196
+  },
+  {
+   "site-25.example": 189
+  },
+  {
+   "site-26.example": 187
+  },
+  {
+   "site-27.example": 185
+  },
+  {
+   "site-28.example": 182
+  },
+  {
+   "site-29.example": 179
+  },
+  {
+   "site-30.example": 173
+  },
+  {
+   "site-31.example": 172
+  },
+  {
+   "site-32.example": 158
+  },
+  {
+   "site-33.example": 156
+  },
+  {
+   "site-34.example": 155
+  },
+  {
+   "site-35.example": 153
+  },
+  {
+   "site-36.example": 139
+  },
+  {
+   "site-37.example": 138
+  },
+  {
+   "site-38.example": 134
+  },
+  {
+   "site-39.example": 134
+  },
+  {
+   "site-40.example": 132
+  },
+  {
+   "site-41.example": 130
+  },
+  {
+   "site-42.example": 122
+  },
+  {
+   "site-43.example": 120
+  },
+  {
+   "site-44.example": 120
+  },
+  {
+   "site-45.example": 120
+  },
+  {
+   "site-46.example": 116
+  },
+  {
+   "site-47.example": 110
+  },
+  {
+   "site-48.example": 101
+  },
+  {
+   "site-49.example": 96
+  },
+  {
+   "site-50.example": 96
+  },
+  {
+   "site-51.example": 91
+  },
+  {
+   "site-52.example": 90
+  },
+  {
+   "site-53.example": 90
+  },
+  {
+   "site-54.example": 90
+  },
+  {
+   "site-55.example": 89
+  },
+  {
+   "site-56.example": 88
+  },
+  {
+   "site-57.example": 88
+  },
+  {
+   "site-58.example": 87
+  },
+  {
+   "site-59.example": 84
+  },
+  {
+   "site-60.example": 78
+  },
+  {
+   "site-61.example": 77
+  },
+  {
+   "site-62.example": 77
+  },
+  {
+   "site-63.example": 76
+  },
+  {
+   "site-64.example": 75
+  },
+  {
+   "site-65.example": 75
+  },
+  {
+   "site-66.example": 73
+  },
+  {
+   "site-67.example": 73
+  },
+  {
+   "site-68.example": 72
+  },
+  {
+   "site-69.example": 70
+  },
+  {
+   "site-70.example": 70
+  },
+  {
+   "site-71.example": 70
+  },
+  {
+   "site-72.example": 70
+  },
+  {
+   "site-73.example": 70
+  },
+  {
+   "site-74.example": 68
+  },
+  {
+   "site-75.example": 68
+  },
+  {
+   "site-76.example": 68
+  },
+  {
+   "site-77.example": 66
+  },
+  {
+   "site-78.example": 66
+  },
+  {
+   "site-79.example": 66
+  },
+  {
+   "site-80.example": 64
+  },
+  {
+   "site-81.example": 63
+  },
+  {
+   "site-82.example": 61
+  },
+  {
+   "site-83.example": 56
+  },
+  {
+   "site-84.example": 52
+  },
+  {
+   "site-85.example": 52
+  },
+  {
+   "site-86.example": 50
+  },
+  {
+   "site-87.example": 49
+  },
+  {
+   "site-88.example": 49
+  },
+  {
+   "site-89.example": 48
+  },
+  {
+   "site-90.example": 48
+  },
+  {
+   "site-91.example": 48
+  },
+  {
+   "site-92.example": 46
+  },
+  {
+   "site-93.example": 46
+  },
+  {
+   "site-94.example": 43
+  },
+  {
+   "site-95.example": 43
+  },
+  {
+   "site-96.example": 43
+  },
+  {
+   "site-97.example": 42
+  },
+  {
+   "site-98.example": 42
+  },
+  {
+   "site-99.example": "[REDACTED]"
+  },
+  {
+   "site-100.example": 41
+  }
+ ],
+ "top_upstreams_avg_time": [
+  {
+   "https://dns-1.example/dns-query": 1.5279144999999998
+  },
+  {
+   "https://dns-2.example/dns-query": 0.019501188118811883
+  },
+  {
+   "https://dns-3.example/dns-query": 0.014074156249999999
+  },
+  {
+   "https://dns-4.example/dns-query": 0.005237320905459387
+  },
+  {
+   "https://dns-5.example/dns-query": 0.004496583458646616
+  }
+ ],
+ "top_upstreams_responses": [
+  {
+   "https://dns-1.example/dns-query": 1995
+  },
+  {
+   "https://dns-2.example/dns-query": 751
+  },
+  {
+   "https://dns-3.example/dns-query": 303
+  },
+  {
+   "https://dns-4.example/dns-query": 32
+  },
+  {
+   "https://dns-5.example/dns-query": 6
+  }
+ ]
+}

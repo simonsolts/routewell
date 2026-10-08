@@ -258,6 +258,87 @@ import Testing
         #expect(!archive.isEmpty)
     }
 
+    // MARK: Recorded on the router (chunk 17, AdGuard Home v1.0.0-b.1)
+
+    private static func fixture(_ name: String) throws -> JSONValue {
+        let url = try #require(Bundle.module.url(forResource: name, withExtension: "json", subdirectory: "Fixtures/adguard/overview"))
+        return try JSONDecoder().decode(JSONValue.self, from: Data(contentsOf: url))
+    }
+
+    /// `[verified live]`: 24 hourly buckets, totals, and the top lists.
+    @Test func recordedStatsParse() throws {
+        let stats = AdGuardStats.parse(try Self.fixture("stats-24h"))
+        #expect(stats.timeUnits == .hours)
+        #expect(stats.matches(.day))
+        #expect(stats.queriesSeries.count == 24)
+        #expect(stats.blockedSeries.count == 24)
+        #expect(stats.queries == 38_687)
+        #expect(stats.blockedFiltering == 6_003)
+        #expect(stats.threatsBlocked == 0)
+        #expect(stats.averageProcessingSeconds == 0.000946)
+        #expect(stats.queriesSeries.reduce(0, +) == stats.queries)
+        // Domain lists stop at 100. One row's count was replaced by the
+        // recorder (its name looked like a secret), so it is dropped.
+        #expect(stats.topBlocked.count == 100)
+        #expect(stats.topQueried.count == 99)
+        #expect(stats.topClients.count == 15)
+        #expect(stats.deviceCount == (15, false))
+        #expect(stats.topClients.allSatisfy { $0.name.hasPrefix("198.51.10") })
+        #expect(stats.topUpstreams.count == 5)
+    }
+
+    /// The router keeps 1 day of stats, so only 24 hours is offered.
+    @Test func recordedRetentionOffersOneRange() throws {
+        let config = AdGuardStatsConfig.parse(try Self.fixture("stats-config"))
+        #expect(config.enabled == true)
+        #expect(config.intervalMilliseconds == 86_400_000)
+        #expect(AdGuardStatsRange.allCases.filter { $0.isAvailable(retentionMilliseconds: config.intervalMilliseconds) } == [.day])
+        #expect(AdGuardStatsRange.day.recentMilliseconds(retentionMilliseconds: config.intervalMilliseconds) == 86_400_000)
+    }
+
+    @Test func recordedSwitchesAndBlocklists() throws {
+        #expect(try Self.fixture("safebrowsing-status")["enabled"] == .bool(false))
+        #expect(try Self.fixture("parental-status") == .object(["enabled": .bool(false)]))
+        let safeSearch = try Self.fixture("safesearch-status")
+        #expect(safeSearch["enabled"] == .bool(false))
+        #expect(safeSearch.object?.count == 8)
+        let filtering = AdGuardFilteringStatus.parse(try Self.fixture("filtering-status"))
+        #expect(filtering.enabled == true)
+        #expect(filtering.intervalHours == 24)
+        #expect(filtering.blocklists.count == 6)
+        #expect(filtering.allowlists.isEmpty)
+        #expect(filtering.enabledBlocklists.count == 3)
+        #expect(filtering.activeRuleCount == 179_479 + 158_505 + 240_364)
+    }
+
+    /// The whole Overview read against the recorded router: `recent` for
+    /// 24 hours is honoured; 7 days is not read with a 1-day retention.
+    @Test func recordedRouterOverview() async throws {
+        let bodies: [String: JSONValue] = [
+            "/control/stats": try Self.fixture("stats-24h"),
+            "/control/stats/config": try Self.fixture("stats-config"),
+            "/control/safebrowsing/status": try Self.fixture("safebrowsing-status"),
+            "/control/parental/status": try Self.fixture("parental-status"),
+            "/control/safesearch/status": try Self.fixture("safesearch-status"),
+            "/control/filtering/status": try Self.fixture("filtering-status"),
+        ]
+        let (service, transport) = Self.service { request in
+            let url = request.url!
+            return (try JSONEncoder().encode(bodies[url.path] ?? .object([:])), StubHTTPTransport.response(200, url: url))
+        }
+        let day = try await service.overview(range: .day)
+        #expect(day.rangeHonoured)
+        #expect(try day.stats.get().queries == 38_687)
+        #expect(try day.protection.get() == ProtectionOptions(safeBrowsing: false, parental: false, safeSearch: false))
+        let week = try await service.overview(range: .week)
+        #expect(week.stats == .failure(.unavailable))
+        let statsQueries = await transport.recorded().compactMap(\.request.url).filter { $0.path == "/control/stats" }.map(\.query)
+        #expect(statsQueries == ["recent=86400000"])
+        let status = try JSONDecoder().decode(JSONValue.self, from: Data(contentsOf: try #require(
+            Bundle.module.url(forResource: "status-1.0.0-b.1", withExtension: "json", subdirectory: "Fixtures/adguard/overview"))))
+        #expect(status["version"]?.string == "v1.0.0-b.1")
+    }
+
     // MARK: Live reads
 
     private static func service(_ handler: @escaping StubHTTPTransport.Handler) -> (LiveAdGuardOverviewService, StubHTTPTransport) {
@@ -336,7 +417,7 @@ import Testing
             if url.path == "/control/stats" || url.path == "/control/stats/config" { return (Data(), StubHTTPTransport.response(400, url: url)) }
             return (try JSONEncoder().encode(Self.body(url.path, query: nil) ?? .object([:])), StubHTTPTransport.response(200, url: url))
         }
-        let reading = try await service.overview(range: .week)
+        let reading = try await service.overview(range: .day)
         #expect(reading.rangeHonoured)
         #expect(reading.stats == .failure(.malformedResponse))
         let statsReads = await transport.recorded().filter { $0.request.url?.path == "/control/stats" }

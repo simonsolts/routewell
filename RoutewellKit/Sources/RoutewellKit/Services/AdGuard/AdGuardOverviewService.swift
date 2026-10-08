@@ -31,27 +31,7 @@ public struct LiveAdGuardOverviewService: AdGuardOverviewService {
 
         let statsConfig = try await config
         let retention = try? statsConfig.get().intervalMilliseconds
-        let recent = range.recentMilliseconds(retentionMilliseconds: retention)
-        var honoured = true
-        var stats: Result<AdGuardStats, RefreshFailureCategory>
-        do {
-            let value = AdGuardStats.parse(try await adGuard.stats(recentMilliseconds: recent))
-            stats = .success(value)
-            if let recent { honoured = value.matches(recentMilliseconds: recent) }
-        } catch AdGuardClientError.httpStatus(400) where recent != nil && retention != nil {
-            // `recent` was within the retention, so a 400 means this version
-            // does not know it: read the plain stats. Any other failure (or a
-            // 400 with an unknown retention) stays a failure of this read.
-            honoured = false
-            stats = try await Self.part { AdGuardStats.parse(try await adGuard.stats(recentMilliseconds: nil)) }
-        } catch let error as AdGuardClientError {
-            try LiveRouterBackend.rethrowIfCancelled(error)
-            stats = .failure(LiveRouterBackend.category(for: error))
-        } catch is CancellationError {
-            throw CancellationError()
-        } catch {
-            stats = .failure(.unavailable)
-        }
+        let (stats, honoured) = try await Self.readStats(adGuard, range: range, retention: retention)
 
         let switches = try await [safeBrowsing, parental, safeSearch]
         let protection: Result<ProtectionOptions, RefreshFailureCategory>
@@ -63,6 +43,31 @@ public struct LiveAdGuardOverviewService: AdGuardOverviewService {
         }
         return AdGuardOverviewReading(range: range, stats: stats, rangeHonoured: honoured, statsConfig: statsConfig,
                                       protection: protection, filtering: try await filtering, observedAt: observedAt)
+    }
+
+    /// The stats for `range`, and whether the reply honoured `recent`.
+    private static func readStats(_ adGuard: AdGuardClient, range: AdGuardStatsRange, retention: Int?) async throws
+        -> (Result<AdGuardStats, RefreshFailureCategory>, Bool) {
+        // Longer than the stats keep (or the retention is unknown): a
+        // shorter read would be shown and saved as this range.
+        guard range.isAvailable(retentionMilliseconds: retention) else { return (.failure(.unavailable), true) }
+        let recent = range.recentMilliseconds(retentionMilliseconds: retention)
+        do {
+            let value = AdGuardStats.parse(try await adGuard.stats(recentMilliseconds: recent))
+            return (.success(value), recent.map { value.matches(recentMilliseconds: $0) } ?? true)
+        } catch AdGuardClientError.httpStatus(400) where recent != nil && retention != nil {
+            // `recent` was within the retention, so a 400 means this version
+            // does not know it: read the plain stats. Any other failure (or a
+            // 400 with an unknown retention) stays a failure of this read.
+            return (try await part { AdGuardStats.parse(try await adGuard.stats(recentMilliseconds: nil)) }, false)
+        } catch let error as AdGuardClientError {
+            try LiveRouterBackend.rethrowIfCancelled(error)
+            return (.failure(LiveRouterBackend.category(for: error)), true)
+        } catch is CancellationError {
+            throw CancellationError()
+        } catch {
+            return (.failure(.unavailable), true)
+        }
     }
 
     /// One read as a result. Cancellation propagates.

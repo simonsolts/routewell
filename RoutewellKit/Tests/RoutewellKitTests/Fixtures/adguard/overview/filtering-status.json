@@ -1,0 +1,53 @@
+{
+ "enabled": true,
+ "filters": [
+  {
+   "enabled": true,
+   "id": 1,
+   "last_updated": "2026-10-08T09:00:00Z",
+   "name": "Example list 1",
+   "rules_count": 179479,
+   "url": "https://lists.example.com/1.txt"
+  },
+  {
+   "enabled": false,
+   "id": 2,
+   "name": "Example list 2",
+   "rules_count": 0,
+   "url": "https://lists.example.com/2.txt"
+  },
+  {
+   "enabled": false,
+   "id": 1788256522,
+   "name": "Example list 3",
+   "rules_count": 0,
+   "url": "https://lists.example.com/3.txt"
+  },
+  {
+   "enabled": true,
+   "id": 1788256523,
+   "last_updated": "2026-10-08T09:00:00Z",
+   "name": "Example list 4",
+   "rules_count": 158505,
+   "url": "https://lists.example.com/4.txt"
+  },
+  {
+   "enabled": true,
+   "id": 1788256524,
+   "last_updated": "2026-10-08T09:00:00Z",
+   "name": "Example list 5",
+   "rules_count": 240364,
+   "url": "https://lists.example.com/5.txt"
+  },
+  {
+   "enabled": false,
+   "id": 1791328054,
+   "name": "Example list 6",
+   "rules_count": 0,
+   "url": "https://lists.example.com/6.txt"
+  }
+ ],
+ "interval": 24,
+ "user_rules": [],
+ "whitelist_filters": null
+}
