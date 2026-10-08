@@ -166,3 +166,16 @@ private struct BlockingSettingControl: AdGuardSettingControl {
         await backend.run()
     }
 }
+
+// MARK: - Fixture recording (chunk 17: the alert names the real reason)
+
+@Test func recordingFailureNamesTheRealReason() {
+    #expect(AppEnvironment.recordingFailure(SessionError.stale).hasPrefix("The router session changed during the recording"))
+    #expect(AppEnvironment.recordingFailure(SessionError.switching).hasPrefix("The router session was still connecting"))
+    #expect(AppEnvironment.recordingFailure(RecorderError.unsafePlan).contains("not a read"))
+    let write = CocoaError(.fileWriteNoPermission, userInfo: [NSFilePathErrorKey: "/tmp/example/a.json"])
+    let text = AppEnvironment.recordingFailure(write)
+    #expect(text.hasPrefix("A file could not be written:"))
+    #expect(text.contains("/tmp/example/a.json"))
+    #expect(AppEnvironment.recordingFailure(URLError(.timedOut)).hasPrefix("Unexpected error: NSURLErrorDomain"))
+}

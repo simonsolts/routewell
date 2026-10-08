@@ -316,11 +316,35 @@ final class AppEnvironment {
                 alert.informativeText = "Recorded \(count) read-only calls from the connected live router. Example addresses and names are privacy aliases, not mock responses.\(sshNote) Check _recording-manifest.json and review the files before committing."
                 alert.runModal()
             } catch {
+                let reason = Self.recordingFailure(error)
+                self.logging.record(level: .warning, kind: .session, message: "Fixture recording stopped", fields: ["reason": reason])
                 let alert = NSAlert()
                 alert.messageText = "Fixture recording stopped"
-                alert.informativeText = "The session changed or a file could not be written."
+                alert.informativeText = reason
                 alert.runModal()
             }
+        }
+    }
+
+    /// The real reason a recording stopped, in plain words.
+    nonisolated static func recordingFailure(_ error: any Error) -> String {
+        switch error {
+        case SessionError.stale:
+            return "The router session changed during the recording, for example after a reconnect or a settings change. Record again."
+        case SessionError.switching:
+            return "The router session was still connecting. Wait for the sidebar to show the router, then record again."
+        case RecorderError.unsafePlan:
+            return "The recording plan holds a call that is not a read, so nothing was sent."
+        case RecorderError.unavailable:
+            return "This router session cannot record fixtures."
+        case is CancellationError:
+            return "The recording was cancelled."
+        case let error as CocoaError:
+            let path = error.filePath ?? (error.userInfo[NSURLErrorKey] as? URL)?.path ?? "unknown path"
+            return "A file could not be written: \(error.localizedDescription) (\(path), code \(error.code.rawValue))."
+        default:
+            let error = error as NSError
+            return "Unexpected error: \(error.domain) \(error.code): \(error.localizedDescription)"
         }
     }
     #endif
