@@ -318,6 +318,19 @@ private func loadOverview(_ environment: AppEnvironment) async {
     #expect(AdGuardPresentation.blocklistSummary(nil) == "Unknown")
 }
 
+/// One range only (AdGuard Home ignored `recent`): the label names what
+/// the stats cover.
+@Test func spanNamesThePeriodTheStatsCover() {
+    var stats = AdGuardStats()
+    #expect(AdGuardPresentation.span(stats) == nil)
+    stats.timeUnits = .days
+    stats.queriesSeries = Array(repeating: 0, count: 90)
+    #expect(AdGuardPresentation.span(stats) == "Last 90 days")
+    stats.timeUnits = .hours
+    stats.queriesSeries = Array(repeating: 0, count: 24)
+    #expect(AdGuardPresentation.span(stats) == "Last 24 hours")
+}
+
 /// Brief item 6: the Pause menu, Resume, and the banner states end to end
 /// in the mock, through the real executor.
 @MainActor @Test func pauseResumeAndTurnOffRunEndToEndInTheMock() async {

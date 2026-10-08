@@ -164,14 +164,20 @@ struct AdGuardActivity: View {
             HStack {
                 Text("Activity").font(.headline)
                 Spacer()
-                Picker("Range", selection: Binding(get: { adGuard.range }, set: { adGuard.setRange($0) })) {
-                    ForEach(AdGuardStatsRange.allCases, id: \.self) { range in
-                        Text(range.title).tag(range).selectionDisabled(!adGuard.availableRanges.contains(range))
+                if adGuard.rangesUnsupported {
+                    // One range only: name the period the stats cover.
+                    Text(adGuard.stats.flatMap { AdGuardPresentation.span($0.value) } ?? AdGuardStatsRange.day.title)
+                        .foregroundStyle(.secondary)
+                } else {
+                    Picker("Range", selection: Binding(get: { adGuard.range }, set: { adGuard.setRange($0) })) {
+                        ForEach(AdGuardStatsRange.allCases, id: \.self) { range in
+                            Text(range.title).tag(range).selectionDisabled(!adGuard.availableRanges.contains(range))
+                        }
                     }
+                    .labelsHidden()
+                    .pickerStyle(.menu)
+                    .fixedSize()
                 }
-                .labelsHidden()
-                .pickerStyle(.menu)
-                .fixedSize()
             }
             .padding(.horizontal, 2)
             VStack(spacing: 0) {

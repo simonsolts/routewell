@@ -221,11 +221,32 @@ import Testing
         #expect(saved == ProtectionOptions(safeBrowsing: false, parental: true, safeSearch: true))
     }
 
-    @Test func statsThatIgnoredTheRangeAreNotSavedAsThatRange() async {
+    /// Review: a plain read may cover the whole retention, so it is never
+    /// saved, not even as 24 hours.
+    @Test func statsThatIgnoredTheRangeAreNotSaved() async {
         let store = AdGuardArchiveStore(root: nil)
         let profile = UUID()
         await store.save(Self.reading(.week, at: Date(), honoured: false), for: profile)
-        #expect(await store.archive(for: profile)?.stats(for: .week) == nil)
+        await store.save(Self.reading(.day, at: Date(), honoured: false), for: profile, force: true)
+        let archive = await store.archive(for: profile)
+        #expect(archive?.stats == nil)
+        // The other sections of the same read are still saved.
+        #expect(archive?.statsConfig != nil)
+    }
+
+    /// Day buckets may come one more or one less; a whole retention does not.
+    @Test func shapeAllowsOneBucketMoreOrLess() {
+        var stats = AdGuardStats()
+        stats.timeUnits = .days
+        for (count, week, month) in [(6, true, false), (7, true, false), (8, true, false), (29, false, true), (31, false, true), (90, false, false)] {
+            stats.queriesSeries = Array(repeating: 1, count: count)
+            #expect(stats.matches(.week) == week)
+            #expect(stats.matches(.month) == month)
+        }
+        stats.timeUnits = .hours
+        stats.queriesSeries = Array(repeating: 1, count: 24)
+        #expect(stats.matches(.day))
+        #expect(!stats.matches(.week))
     }
 
     /// A chunk 16 file has no Overview sections and still loads.
@@ -290,6 +311,36 @@ import Testing
         #expect(try reading.stats.get().matches(.day))
         let statsQueries = await transport.recorded().compactMap(\.request.url).filter { $0.path == "/control/stats" }.map(\.query)
         #expect(statsQueries == ["recent=604800000", nil])
+    }
+
+    /// Review: a `recent` read that fails for another reason is a failed
+    /// read; it does not mark the ranges as unsupported.
+    @Test func overviewKeepsTheRangesWhenTheRecentReadTimesOut() async throws {
+        let (service, transport) = Self.service { request in
+            let url = request.url!
+            if url.path == "/control/stats" { throw TransportError.timedOut }
+            return (try JSONEncoder().encode(Self.body(url.path, query: nil) ?? .object([:])), StubHTTPTransport.response(200, url: url))
+        }
+        let reading = try await service.overview(range: .week)
+        #expect(reading.rangeHonoured)
+        #expect(reading.stats == .failure(.timeout))
+        let statsReads = await transport.recorded().filter { $0.request.url?.path == "/control/stats" }
+        #expect(statsReads.count == 1)
+    }
+
+    /// Without a known retention a 400 may mean "longer than the retention";
+    /// it stays a failed read.
+    @Test func a400WithAnUnknownRetentionIsAFailedRead() async throws {
+        let (service, transport) = Self.service { request in
+            let url = request.url!
+            if url.path == "/control/stats" || url.path == "/control/stats/config" { return (Data(), StubHTTPTransport.response(400, url: url)) }
+            return (try JSONEncoder().encode(Self.body(url.path, query: nil) ?? .object([:])), StubHTTPTransport.response(200, url: url))
+        }
+        let reading = try await service.overview(range: .week)
+        #expect(reading.rangeHonoured)
+        #expect(reading.stats == .failure(.malformedResponse))
+        let statsReads = await transport.recorded().filter { $0.request.url?.path == "/control/stats" }
+        #expect(statsReads.count == 1)
     }
 
     @Test func overviewWithAnIgnoredRecentIsNotHonoured() async throws {

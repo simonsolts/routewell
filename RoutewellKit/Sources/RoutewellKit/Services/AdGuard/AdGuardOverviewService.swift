@@ -33,16 +33,24 @@ public struct LiveAdGuardOverviewService: AdGuardOverviewService {
         let retention = try? statsConfig.get().intervalMilliseconds
         let recent = range.recentMilliseconds(retentionMilliseconds: retention)
         var honoured = true
-        var stats = try await Self.part { AdGuardStats.parse(try await adGuard.stats(recentMilliseconds: recent)) }
-        if let recent {
-            switch stats {
-            case .failure:
-                // A version without `recent` may answer 400: read the plain stats.
-                let plain = try await Self.part { AdGuardStats.parse(try await adGuard.stats(recentMilliseconds: nil)) }
-                if case .success = plain { stats = plain; honoured = false }
-            case .success(let value):
-                honoured = value.matches(recentMilliseconds: recent)
-            }
+        var stats: Result<AdGuardStats, RefreshFailureCategory>
+        do {
+            let value = AdGuardStats.parse(try await adGuard.stats(recentMilliseconds: recent))
+            stats = .success(value)
+            if let recent { honoured = value.matches(recentMilliseconds: recent) }
+        } catch AdGuardClientError.httpStatus(400) where recent != nil && retention != nil {
+            // `recent` was within the retention, so a 400 means this version
+            // does not know it: read the plain stats. Any other failure (or a
+            // 400 with an unknown retention) stays a failure of this read.
+            honoured = false
+            stats = try await Self.part { AdGuardStats.parse(try await adGuard.stats(recentMilliseconds: nil)) }
+        } catch let error as AdGuardClientError {
+            try LiveRouterBackend.rethrowIfCancelled(error)
+            stats = .failure(LiveRouterBackend.category(for: error))
+        } catch is CancellationError {
+            throw CancellationError()
+        } catch {
+            stats = .failure(.unavailable)
         }
 
         let switches = try await [safeBrowsing, parental, safeSearch]

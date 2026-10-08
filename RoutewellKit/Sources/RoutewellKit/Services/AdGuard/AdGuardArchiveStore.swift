@@ -127,14 +127,15 @@ public actor AdGuardArchiveStore {
 
     /// Saves the parts of an Overview read that succeeded. The caller reads
     /// only while AdGuard Home runs. Stats are saved per range; a reply that
-    /// did not honour `recent` is not saved as that range.
+    /// did not honour `recent` (it may cover the whole retention) is not
+    /// saved at all, so the copy never labels it with the wrong range.
     @discardableResult
     public func save(_ overview: AdGuardOverviewReading, for profile: UUID, force: Bool = false) async -> StoreError? {
         let generation = generations[profile, default: 0]
         var next = await archive(for: profile) ?? AdGuardArchive()
         let at = overview.observedAt
         var changed = false
-        if case .success(let stats) = overview.stats, overview.rangeHonoured || overview.range == .day {
+        if case .success(let stats) = overview.stats, overview.rangeHonoured {
             let key = overview.range.rawValue
             if force || Self.isDue(next.stats?[key]?.savedAt, at: at) {
                 next.stats = (next.stats ?? [:]).merging([key: .init(savedAt: at, value: stats)]) { $1 }

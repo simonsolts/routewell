@@ -108,6 +108,17 @@ extension AdGuardPresentation {
         ]
     }
 
+    /// The period stats cover, from their own shape: "Last 24 hours",
+    /// "Last 7 days". `nil` when the units are unknown.
+    static func span(_ stats: AdGuardStats) -> String? {
+        guard let units = stats.timeUnits else { return nil }
+        let count = stats.queriesSeries.count
+        switch units {
+        case .hours: return count == 1 ? "Last hour" : "Last \(count) hours"
+        case .days: return count == 1 ? "Last day" : "Last \(count) days"
+        }
+    }
+
     /// "14.3%", "4%".
     static func percent(_ value: Double) -> String {
         "\(value.formatted(.number.precision(.fractionLength(0...1))))%"

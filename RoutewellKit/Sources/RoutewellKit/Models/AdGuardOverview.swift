@@ -148,9 +148,12 @@ public struct AdGuardStats: Sendable, Equatable, Codable {
         matches(recentMilliseconds: range.milliseconds)
     }
 
+    /// One bucket more or less still matches: AdGuard Home builds days from
+    /// aligned hours `[assumed]`. A version that ignores `recent` answers with
+    /// its whole retention, which differs by more (or in units).
     public func matches(recentMilliseconds: Int) -> Bool {
         let shape = Self.expectedShape(recentMilliseconds: recentMilliseconds)
-        return timeUnits == shape.units && queriesSeries.count == shape.count
+        return timeUnits == shape.units && abs(queriesSeries.count - shape.count) <= 1
     }
 
     /// The start of each bar's hour or day, oldest first, counted back from

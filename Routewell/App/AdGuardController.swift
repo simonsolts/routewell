@@ -43,8 +43,10 @@ final class AdGuardController {
     private(set) var settingInFlight: AdGuardSettingIntent?
     private(set) var lastSettingReport: MutationReport<AdGuardSettingState>?
     private(set) var lastSettingIntent: AdGuardSettingIntent?
-    /// A verified protection write, shown until the next reading.
-    private var verifiedProtection: ProtectionState?
+    /// Verified setting writes and when they finished. A read that started
+    /// before that time shows the verified value, not its older one.
+    private var verifiedProtection: (state: ProtectionState, at: Date)?
+    private var verifiedFeatures: [AdGuardFeature: (value: Bool, at: Date)] = [:]
     @ObservationIgnored private var pauseEndTask: Task<Void, Never>?
 
     init(model: AppModel, refresh: RefreshController, store: AdGuardArchiveStore) {
@@ -94,8 +96,9 @@ final class AdGuardController {
     /// reading implies.
     var protection: ProtectionState? {
         if availability == .running {
-            if let verifiedProtection { return verifiedProtection }
-            guard let reading, let status = reading.status else { return nil }
+            guard let reading else { return nil }
+            if let verified = verifiedProtection, reading.observedAt < verified.at { return verified.state }
+            guard let status = reading.status else { return nil }
             return AdGuardClient.adGuardStatus(status: status, stats: nil, now: reading.observedAt).protection
         }
         guard let saved = archive?.status else { return nil }
@@ -123,8 +126,12 @@ final class AdGuardController {
     }
 
     var protectionOptions: ProtectionOptions? {
-        if availability == .running { return try? liveOverview?.protection.get() }
-        return archive?.protection?.value
+        guard availability == .running else { return archive?.protection?.value }
+        guard let live = liveOverview, var options = try? live.protection.get() else { return nil }
+        for (feature, verified) in verifiedFeatures where live.observedAt < verified.at {
+            options[feature] = verified.value
+        }
+        return options
     }
 
     var filtering: AdGuardFilteringStatus? {
@@ -154,7 +161,6 @@ final class AdGuardController {
         archive = saved
         self.reading = reading
         readingToken = token
-        verifiedProtection = nil
         schedulePauseEnd()
     }
 
@@ -175,8 +181,9 @@ final class AdGuardController {
         if overviewToken != lease.token { rangesUnsupported = false }
         overview = reading
         overviewToken = lease.token
-        if !reading.rangeHonoured, range != .day {
-            // This AdGuard Home ignores `recent`: offer one range.
+        if !reading.rangeHonoured {
+            // This AdGuard Home ignores `recent`: one range, labelled with
+            // the period the stats really cover.
             rangesUnsupported = true
             setRange(.day)
         } else if !range.isAvailable(retentionMilliseconds: try? reading.statsConfig.get().intervalMilliseconds),
@@ -249,7 +256,10 @@ final class AdGuardController {
                     // Stop: one final sync, so the copy is as new as possible.
                     guard let profile else { return }
                     await store.save(reading, for: profile, force: true)
-                    if let overview = try? await lease.backend.adGuardOverview?.overview(range: range) {
+                    // At most 5 s: the gate is held, and nothing is sent until
+                    // this sync ends.
+                    if let service = lease.backend.adGuardOverview,
+                       let overview = await Self.within(.seconds(5), { try? await service.overview(range: range) }) {
                         await store.save(overview, for: profile, force: true)
                     }
                 }
@@ -298,13 +308,10 @@ final class AdGuardController {
                 // Show the verified value until the refresh lands.
                 switch (intent, state) {
                 case (.protection, .protection(let protection)):
-                    self.verifiedProtection = protection
+                    self.verifiedProtection = (protection, report.finishedAt)
                     self.schedulePauseEnd()
-                case (.feature(let feature, _), .feature(let value)):
-                    if case .success(var options)? = self.overview?.protection {
-                        options[feature] = value
-                        self.overview?.protection = .success(options)
-                    }
+                case (.feature(let feature, _), .feature(let value?)):
+                    self.verifiedFeatures[feature] = (value, report.finishedAt)
                 default: break
                 }
             }
@@ -314,6 +321,20 @@ final class AdGuardController {
             } else {
                 self.refresh.refreshNow()
             }
+        }
+    }
+
+    /// The value, or `nil` when it takes longer than `limit` (the read is
+    /// cancelled).
+    nonisolated private static func within<Value: Sendable>(
+        _ limit: Duration, _ body: @escaping @Sendable () async -> Value?
+    ) async -> Value? {
+        await withTaskGroup(of: Value?.self) { group in
+            group.addTask { await body() }
+            group.addTask { try? await Task.sleep(for: limit); return nil }
+            let first = await group.next() ?? nil
+            group.cancelAll()
+            return first
         }
     }
 
