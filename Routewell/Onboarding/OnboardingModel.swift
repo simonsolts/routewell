@@ -22,6 +22,8 @@ final class OnboardingModel {
     private(set) var certificateNotice: String?
     /// Red text under the password field for a failure with no state of its own.
     private(set) var passwordMessage: String?
+    /// Red text on Finish when the router could not be saved.
+    private(set) var finishMessage: String?
     private(set) var probe: RouterProbe?
     private(set) var key: ChosenSSHKey?
     private(set) var hostKey: SSHHostKeyCandidate?
@@ -144,9 +146,14 @@ final class OnboardingModel {
 
     /// The window closed before Finish.
     func abandon() {
-        work?.cancel()
+        let pending = work
+        pending?.cancel()
         guard !finished else { return }
-        Task { await services.abandon() }
+        Task { [services] in
+            // A cancelled step must end before its changes are undone.
+            await pending?.value
+            await services.abandon()
+        }
     }
 
     /// Waits for the work the last button started. For tests.
@@ -350,8 +357,11 @@ final class OnboardingModel {
     }
 
     private func skipSSH() {
+        let pending = work
         busy = true
         run { model in
+            // A cancelled Trust and Continue must end before SSH is put back.
+            await pending?.value
             await model.services.disableSSH()
             guard !Task.isCancelled else { return }
             model.key = nil
@@ -383,11 +393,15 @@ final class OnboardingModel {
 
     private func finish() {
         let chosenName = name
+        finishMessage = nil
         busy = true
         run { model in
             let saved = await model.services.finish(name: chosenName)
             model.busy = false
-            guard saved else { return }
+            guard saved else {
+                model.finishMessage = "Routewell couldn’t save the router. Try again."
+                return
+            }
             model.finished = true
             model.onFinish?()
         }

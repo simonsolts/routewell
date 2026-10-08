@@ -267,6 +267,25 @@ private func walk(_ model: OnboardingModel, to target: OnboardingState) async {
     await reach(unreachable, .done)
 }
 
+@MainActor @Test func aFailedFinishSaysSoAndCanBeRetried() async {
+    let services = MockOnboardingServices(scenario: .found, delay: .zero)
+    services.finishSaves = false
+    let model = OnboardingModel(services: services)
+    var opened = false
+    model.onFinish = { opened = true }
+    model.preview(.done)
+    model.primary()
+    await model.settle()
+    #expect(model.finishMessage != nil)
+    #expect(!opened)
+
+    services.finishSaves = true
+    model.primary()
+    await model.settle()
+    #expect(model.finishMessage == nil)
+    #expect(opened)
+}
+
 @MainActor @Test func adGuardOffShowsItsFinish() async {
     let (model, _) = makeRun(.adGuardOff)
     await walk(model, to: .done)
@@ -325,14 +344,22 @@ private actor ScriptedRouter: HTTPTransport {
 
 @MainActor
 private func liveEnvironment(_ router: ScriptedRouter, store: AtomicJSONStore? = nil,
-                             credentials: any CredentialStore = InMemoryCredentialStore()) -> AppEnvironment {
+                             credentials: any CredentialStore = InMemoryCredentialStore(),
+                             sshDirectory: URL? = nil, processRunner: any ProcessRunning = NoProcesses()) -> AppEnvironment {
     AppEnvironment(model: AppModel(mode: .live), backend: nil, store: store, credentials: credentials,
-                   processRunner: NoProcesses(), transportFactory: { _ in router })
+                   sshDirectory: sshDirectory, processRunner: processRunner, transportFactory: { _ in router })
 }
 
 private struct NoProcesses: ProcessRunning {
     func run(executable: URL, arguments: [String], environment: [String: String], limits: ProcessLimits) async throws -> ProcessResult {
         Issue.record("onboarding tests must not start a process")
+        throw ProcessRunnerError.cancelled
+    }
+}
+
+/// For tests where SSH is switched on: every `ssh` run fails at once.
+private struct FailingProcesses: ProcessRunning {
+    func run(executable: URL, arguments: [String], environment: [String: String], limits: ProcessLimits) async throws -> ProcessResult {
         throw ProcessRunnerError.cancelled
     }
 }
@@ -411,6 +438,35 @@ private let discovered = DiscoveredRouter(endpoint: try! RouterEndpoint.parse("1
     #expect(await second.trust.store.trusted(host: "192.0.2.1", port: 443) == nil)
 }
 
+@MainActor @Test func aPinFromARunThatQuitBeforeSignInIsRemovedAtTheNextLaunch() async throws {
+    let directory = FileManager.default.temporaryDirectory.appendingPathComponent("onboarding-\(UUID().uuidString)", isDirectory: true)
+    defer { try? FileManager.default.removeItem(at: directory) }
+    let credentials = InMemoryCredentialStore()
+    let router = ScriptedRouter(loginError: nil)
+
+    let first = liveEnvironment(router, store: AtomicJSONStore(directory: directory), credentials: credentials)
+    await first.waitUntilReady()
+    let finished = LiveOnboardingServices(environment: first)
+    _ = await finished.trust(discovered)
+    _ = await finished.signIn(to: discovered, name: "router", password: "example-password")
+    #expect(await finished.finish(name: "router"))
+    // A second run trusts another address, then the app quits.
+    var other = discovered
+    other.endpoint = try RouterEndpoint.parse("192.0.2.9")
+    #expect(await LiveOnboardingServices(environment: first).trust(other))
+
+    let second = liveEnvironment(router, store: AtomicJSONStore(directory: directory), credentials: credentials)
+    await second.waitUntilReady()
+    #expect(await second.trust.store.trusted(host: "192.0.2.9", port: 443) == nil)
+    #expect(await second.trust.store.trusted(host: "192.0.2.1", port: 443) != nil)
+
+    // Profiles from a newer app cannot be read here, but their pins stay.
+    try Data(#"{"version":2,"value":{}}"#.utf8).write(to: directory.appendingPathComponent("profiles.json"))
+    let third = liveEnvironment(router, store: AtomicJSONStore(directory: directory), credentials: credentials)
+    await third.waitUntilReady()
+    #expect(await third.trust.store.trusted(host: "192.0.2.1", port: 443) != nil)
+}
+
 @MainActor @Test func aFinishedRouterOpensTheMainWindowAtLaunch() async throws {
     let directory = FileManager.default.temporaryDirectory.appendingPathComponent("onboarding-\(UUID().uuidString)", isDirectory: true)
     defer { try? FileManager.default.removeItem(at: directory) }
@@ -478,4 +534,38 @@ private let discovered = DiscoveredRouter(endpoint: try! RouterEndpoint.parse("1
     other.tertiary()
     await other.settle()
     #expect(skipped == false)
+}
+
+@MainActor @Test func closingTheSSHStepsPutsTheOldSSHSettingsBack() async throws {
+    let directory = FileManager.default.temporaryDirectory.appendingPathComponent("onboarding-ssh-\(UUID().uuidString)", isDirectory: true)
+    defer { try? FileManager.default.removeItem(at: directory) }
+    let environment = liveEnvironment(ScriptedRouter(loginError: nil), sshDirectory: directory, processRunner: FailingProcesses())
+    await environment.waitUntilReady()
+    let setup = LiveOnboardingServices(environment: environment)
+    _ = await setup.trust(discovered)
+    _ = await setup.signIn(to: discovered, name: "router", password: "example-password")
+    #expect(await setup.finish(name: "router"))
+
+    // A finished router with SSH off on port 2222 and an older host key.
+    let old = SSHSettings(enabled: false, port: 2222, keyFilePath: "/Users/example/.ssh/old")
+    environment.updateSSHSettings(old)
+    await environment.waitUntilReady()
+    let oldLine = "[192.0.2.1]:2222 ssh-ed25519 \(Data(repeating: 0x22, count: 32).base64EncodedString())"
+    try await environment.sshSetup.hostKeys.approve(host: "192.0.2.1", port: 2222, keyLine: oldLine)
+
+    // The Settings sheet switches SSH on with a new key, then closes early.
+    let sheet = LiveOnboardingServices(environment: environment)
+    sheet.probeTimeout = .milliseconds(200)
+    #expect(sheet.sshPort == 2222)
+    let key = ChosenSSHKey(url: URL(fileURLWithPath: "/Users/example/.ssh/new"), bookmark: nil, inspection: .usable(kind: "ED25519"))
+    let hostKey = try #require(SSHHostKeyCandidate(keyLine: "192.0.2.1 ssh-ed25519 \(Data(repeating: 0x11, count: 32).base64EncodedString())"))
+    _ = await sheet.enableSSH(key: key, hostKey: hostKey, host: "192.0.2.1")
+    #expect(environment.persistence.selectedProfile?.ssh?.enabled == true)
+    #expect(environment.persistence.selectedProfile?.ssh?.port == 2222)
+    #expect(try await environment.sshSetup.hostKeys.storedKeyLine(host: "192.0.2.1", port: 2222) != oldLine)
+
+    await sheet.abandon()
+    #expect(environment.persistence.selectedProfile?.ssh == old)
+    #expect(try await environment.sshSetup.hostKeys.storedKeyLine(host: "192.0.2.1", port: 2222) == oldLine)
+    #expect(environment.persistence.selectedProfile?.setupComplete == true)
 }

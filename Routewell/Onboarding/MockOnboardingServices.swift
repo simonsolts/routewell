@@ -98,6 +98,8 @@ final class MockOnboardingServices: OnboardingServices {
         return ChosenSSHKey(url: Self.keyURL, bookmark: nil, inspection: .usable(kind: "ED25519"))
     }
 
+    var sshPort: Int { 22 }
+
     func scanHostKey(host: String) async -> Result<SSHHostKeyCandidate, SSHFailure> {
         calls.append("scanHostKey")
         await pause()
@@ -126,9 +128,12 @@ final class MockOnboardingServices: OnboardingServices {
         denials = 1
     }
 
+    /// False makes Finish fail, as when the profile file cannot be written.
+    var finishSaves = true
+
     func finish(name: String) async -> Bool {
         calls.append("finish")
-        return true
+        return finishSaves
     }
 
     func abandon() async { calls.append("abandon") }

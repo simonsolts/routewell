@@ -36,12 +36,14 @@ protocol OnboardingServices: AnyObject {
     /// password) is saved, still marked unfinished, and its session starts.
     func signIn(to router: DiscoveredRouter, name: String, password: String) async -> OnboardingSignIn
     func chooseKeyFile() -> ChosenSSHKey?
+    /// The port the SSH steps scan and use.
+    var sshPort: Int { get }
     func scanHostKey(host: String) async -> Result<SSHHostKeyCandidate, SSHFailure>
     /// Trusts the host key, switches SSH on for the profile, and returns the
     /// session's first SSH probe.
     func enableSSH(key: ChosenSSHKey, hostKey: SSHHostKeyCandidate, host: String) async -> SSHProbeResult
     func recheckSSH() async -> SSHProbeResult
-    /// Leaves SSH off and removes anything this run set up for it.
+    /// Puts SSH back as it was before this run: settings and host key.
     func disableSSH() async
     func adGuardHomeEnabled() async -> Observed<Bool>
     func openLocalNetworkSettings()

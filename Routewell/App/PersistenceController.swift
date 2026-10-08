@@ -96,11 +96,15 @@ final class PersistenceController {
             credentialMessage = credentialError(error)
             return false
         }
+        let before = profiles
         profiles.profiles.append(profile)
         profiles.selectedID = profile.id
         await flush()
         guard errors[.profiles] == nil else {
-            credentialMessage = "Router password saved, but the router could not be saved. Try again."
+            // Undo the add, so a retry does not leave a second profile.
+            profiles = before
+            try? await credentials.delete(profile.credential)
+            credentialMessage = "The router could not be saved. Try again."
             return false
         }
         credentialMessage = "Router password saved in Keychain."

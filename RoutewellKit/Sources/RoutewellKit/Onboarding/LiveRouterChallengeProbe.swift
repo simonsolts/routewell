@@ -8,24 +8,7 @@ import Security
 /// certificate, because nothing secret is sent, and reports the leaf
 /// fingerprint so the person can check it before anything secret is sent.
 public final class LiveRouterChallengeProbe: RouterChallengeProbing, Sendable {
-    private let session: URLSession
-    private let delegate: ProbeDelegate
-
-    /// - Parameter protocolClasses: for tests only.
-    public init(protocolClasses: [AnyClass]? = nil) {
-        let configuration = URLSessionConfiguration.ephemeral
-        configuration.urlCache = nil
-        configuration.httpCookieStorage = nil
-        configuration.httpShouldSetCookies = false
-        configuration.urlCredentialStorage = nil
-        configuration.waitsForConnectivity = false
-        if let protocolClasses { configuration.protocolClasses = protocolClasses }
-        let delegate = ProbeDelegate()
-        self.delegate = delegate
-        session = URLSession(configuration: configuration, delegate: delegate, delegateQueue: nil)
-    }
-
-    deinit { session.invalidateAndCancel() }
+    public init() {}
 
     /// The only request discovery ever sends.
     public static func challengeRequest(for endpoint: RouterEndpoint) -> URLRequest {
@@ -56,26 +39,40 @@ public final class LiveRouterChallengeProbe: RouterChallengeProbing, Sendable {
 
     static let maxResponseBytes = 64 * 1024
 
+    /// Each probe has its own session, so no connection or TLS session is
+    /// reused. A reused connection gets no trust challenge, and the
+    /// fingerprint would be lost.
     public func probe(_ endpoint: RouterEndpoint) async -> ChallengeProbeOutcome {
-        let request = Self.challengeRequest(for: endpoint)
-        let task = session.dataTask(with: request)
+        let delegate = ProbeDelegate()
+        let session = URLSession(configuration: Self.configuration(), delegate: delegate, delegateQueue: nil)
+        defer { session.invalidateAndCancel() }
+        let task = session.dataTask(with: Self.challengeRequest(for: endpoint))
         let outcome: (Data, URLResponse?, Error?) = await withTaskCancellationHandler {
             await withCheckedContinuation { continuation in
-                delegate.register(task.taskIdentifier, continuation)
+                delegate.register(continuation)
                 task.resume()
             }
         } onCancel: {
             task.cancel()
         }
-        let fingerprint = delegate.takeFingerprint(task.taskIdentifier)
         if outcome.2 != nil { return .noAnswer }
         guard let response = outcome.1 as? HTTPURLResponse else { return .noAnswer }
         return Self.isGLiNetChallenge(outcome.0, statusCode: response.statusCode)
-            ? .glinet(fingerprint: endpoint.scheme == .https ? fingerprint : nil) : .notGLiNet
+            ? .glinet(fingerprint: endpoint.scheme == .https ? delegate.fingerprint : nil) : .notGLiNet
+    }
+
+    private static func configuration() -> URLSessionConfiguration {
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.urlCache = nil
+        configuration.httpCookieStorage = nil
+        configuration.httpShouldSetCookies = false
+        configuration.urlCredentialStorage = nil
+        configuration.waitsForConnectivity = false
+        return configuration
     }
 }
 
-/// Collects each task's body and leaf fingerprint. Refuses redirects.
+/// Collects one task's body and leaf fingerprint. Refuses redirects.
 private final class ProbeDelegate: NSObject, URLSessionDataDelegate, Sendable {
     private struct State: Sendable {
         var data = Data()
@@ -83,14 +80,12 @@ private final class ProbeDelegate: NSObject, URLSessionDataDelegate, Sendable {
         var continuation: CheckedContinuation<(Data, URLResponse?, Error?), Never>?
     }
 
-    private let states = OSAllocatedUnfairLock<[Int: State]>(initialState: [:])
+    private let state = OSAllocatedUnfairLock(initialState: State())
 
-    func register(_ id: Int, _ continuation: CheckedContinuation<(Data, URLResponse?, Error?), Never>) {
-        states.withLock { $0[id, default: State()].continuation = continuation }
-    }
+    var fingerprint: CertificateFingerprint? { state.withLock { $0.fingerprint } }
 
-    func takeFingerprint(_ id: Int) -> CertificateFingerprint? {
-        states.withLock { $0.removeValue(forKey: id)?.fingerprint }
+    func register(_ continuation: CheckedContinuation<(Data, URLResponse?, Error?), Never>) {
+        state.withLock { $0.continuation = continuation }
     }
 
     func urlSession(_ session: URLSession, task: URLSessionTask,
@@ -101,7 +96,7 @@ private final class ProbeDelegate: NSObject, URLSessionDataDelegate, Sendable {
             return (.performDefaultHandling, nil)
         }
         let fingerprint = CertificateFingerprint(derEncodedCertificate: SecCertificateCopyData(leaf) as Data)
-        states.withLock { $0[task.taskIdentifier, default: State()].fingerprint = fingerprint }
+        state.withLock { $0.fingerprint = fingerprint }
         // Discovery only: the request carries no secret.
         return (.useCredential, URLCredential(trust: trust))
     }
@@ -110,20 +105,18 @@ private final class ProbeDelegate: NSObject, URLSessionDataDelegate, Sendable {
                     newRequest request: URLRequest) async -> URLRequest? { nil }
 
     func urlSession(_ session: URLSession, dataTask: URLSessionDataTask, didReceive data: Data) {
-        let tooLarge = states.withLock { states -> Bool in
-            states[dataTask.taskIdentifier, default: State()].data.append(data)
-            return (states[dataTask.taskIdentifier]?.data.count ?? 0) > LiveRouterChallengeProbe.maxResponseBytes
+        let tooLarge = state.withLock { state -> Bool in
+            state.data.append(data)
+            return state.data.count > LiveRouterChallengeProbe.maxResponseBytes
         }
         if tooLarge { dataTask.cancel() }
     }
 
     func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) {
-        let continuation = states.withLock { states -> CheckedContinuation<(Data, URLResponse?, Error?), Never>? in
-            let state = states[task.taskIdentifier]
-            states[task.taskIdentifier]?.continuation = nil
-            return state?.continuation
+        let (continuation, data) = state.withLock { state in
+            defer { state.continuation = nil }
+            return (state.continuation, state.data)
         }
-        let data = states.withLock { $0[task.taskIdentifier]?.data ?? Data() }
         continuation?.resume(returning: (data, task.response, error))
     }
 }

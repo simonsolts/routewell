@@ -128,7 +128,7 @@ struct OnboardingView: View {
                 LinkButton("Enter Address Manually…") { model.enterAddress() }
             }
         case .check:
-            RowsBox(rows: zip(["Reaching SSH on \(model.host):22", "Signing in as root with \(model.key?.name ?? "your key")"],
+            RowsBox(rows: zip(["Reaching SSH on \(model.host):\(model.services.sshPort)", "Signing in as root with \(model.key?.name ?? "your key")"],
                               model.state.rows).map { $0 })
         case .found:
             VStack(spacing: 12) {
@@ -149,7 +149,12 @@ struct OnboardingView: View {
         case .key: keyChooser
         case .hostkey: hostKeyBox
         case .done:
-            if let summary = model.summary { SummaryRows(summary: summary) }
+            VStack(spacing: 8) {
+                if let summary = model.summary { SummaryRows(summary: summary) }
+                if let message = model.finishMessage {
+                    Text(message).font(.system(size: 11)).foregroundStyle(.red).fixedSize(horizontal: false, vertical: true)
+                }
+            }
         }
     }
 
@@ -183,7 +188,7 @@ struct OnboardingView: View {
             if let hostKey = model.hostKey {
                 let text = hostKey.fingerprintSHA256
                 let split = text.index(text.startIndex, offsetBy: min(28, text.count))
-                FingerprintBox(label: "Host key fingerprint (\(Self.algorithmName(hostKey.algorithm)))", place: "\(model.host):22",
+                FingerprintBox(label: "Host key fingerprint (\(Self.algorithmName(hostKey.algorithm)))", place: "\(model.host):\(model.services.sshPort)",
                                lines: [String(text[..<split]), String(text[split...])])
             } else {
                 HStack(spacing: 8) {

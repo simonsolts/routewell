@@ -101,6 +101,16 @@ final class AppEnvironment {
                 for profile in persistence.profiles.profiles where profile.liveEndpoint != nil && !profile.setupComplete {
                     await forgetRouter(profile.id)
                 }
+                // A run that quit after Trust Certificate but before sign-in
+                // left a pin for a host no profile uses. Skipped when the
+                // profiles could not be read (a newer app's file): their
+                // pins are still needed.
+                if persistence.errors[.profiles] == nil {
+                    let hosts = Set(persistence.profiles.profiles.compactMap { $0.liveEndpoint?.host })
+                    for pin in trust.trusted where !hosts.contains(pin.host) {
+                        await trust.revoke(host: pin.host, port: pin.port)
+                    }
+                }
             }
             // A live profile always has a password: `PersistenceController
             // .addLiveProfile` saves the Keychain secret before the profile.
@@ -312,25 +322,6 @@ final class AppEnvironment {
         }
     }
     #endif
-
-    /// Saves a finished live router profile, stores its password in the
-    /// credential store, and selects it. Returns false if either step fails.
-    /// On success, also installs the live backend and starts its first
-    /// refresh through the normal session-lease path.
-    func saveLiveRouterProfile(endpoint: RouterEndpoint, username: String, password: Data, plainHTTPAcknowledged: Bool) async -> Bool {
-        let profile = RouterProfile(
-            name: endpoint.displayString,
-            liveEndpoint: endpoint,
-            username: username,
-            plainHTTPAcknowledged: plainHTTPAcknowledged,
-            adGuard: AdGuardSettings()
-        )
-        let saved = await persistence.addLiveProfile(profile, password: password)
-        guard saved else { return false }
-        model.setHasLiveEndpoint(true)
-        reconnectLiveSession()
-        return true
-    }
 
     /// `needsSetup` follows the selected profile: live and finished, or not.
     func updateNeedsSetup() {

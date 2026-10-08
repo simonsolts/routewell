@@ -13,7 +13,9 @@ final class LiveOnboardingServices: OnboardingServices {
     /// What this run saved, so closing the window can remove it.
     private var trusted: (host: String, port: Int)?
     private var profileID: UUID?
-    private var storedHostKey: String?
+    /// SSH as it was before this run first changed it. Skip SSH and closing
+    /// the window put it back, so the Settings sheet leaves no trace either.
+    private var sshBefore: (host: String, port: Int, settings: SSHSettings?, hostKeyLine: String?)?
     /// Longest wait for the session's first SSH probe.
     var probeTimeout: Duration = .seconds(45)
 
@@ -62,7 +64,12 @@ final class LiveOnboardingServices: OnboardingServices {
         } catch {
             return .failed("The router’s reply wasn’t understood. Try again.")
         }
-        if let profileID { await environment.forgetRouter(profileID) }
+        // A second sign-in replaces the profile. The certificate pin stays:
+        // this sign-in just used it.
+        if let profileID {
+            await environment.persistence.removeProfile(profileID)
+            self.profileID = nil
+        }
         guard let id = await environment.saveOnboardedProfile(name: name, endpoint: router.endpoint, password: Data(password.utf8)) else {
             return .failed(environment.persistence.credentialMessage ?? "The router could not be saved. Try again.")
         }
@@ -83,9 +90,12 @@ final class LiveOnboardingServices: OnboardingServices {
         return ChosenSSHKey(url: url, bookmark: SSHKeyFileAccess.bookmark(for: url), inspection: SSHKeyInspector.inspect(fileAt: url))
     }
 
+    /// The profile's SSH port: 22 in onboarding, the saved one in Settings.
+    var sshPort: Int { environment.persistence.selectedProfile?.ssh?.port ?? SSHSettings().port }
+
     func scanHostKey(host: String) async -> Result<SSHHostKeyCandidate, SSHFailure> {
         do {
-            let candidates = try await scanner.scan(host: host, port: SSHSettings().port)
+            let candidates = try await scanner.scan(host: host, port: sshPort)
             guard let preferred = SSHHostKeyTrust.preferred(candidates) else { return .failure(.connectionFailed) }
             return .success(preferred)
         } catch {
@@ -93,17 +103,27 @@ final class LiveOnboardingServices: OnboardingServices {
         }
     }
 
-    /// Onboarding starts empty, so the key the person checked replaces any
-    /// key left from an earlier setup of the same address.
+    /// The host key the person checked replaces any key stored for this
+    /// address. The other SSH settings (port, user) are kept.
     func enableSSH(key: ChosenSSHKey, hostKey: SSHHostKeyCandidate, host: String) async -> SSHProbeResult {
-        let port = SSHSettings().port
+        let port = sshPort
+        let current = environment.persistence.selectedProfile?.ssh
         do {
+            if sshBefore == nil {
+                let line = try await environment.sshSetup.hostKeys.storedKeyLine(host: host, port: port)
+                sshBefore = (host, port, current, line)
+            }
             try await SSHHostKeyTrust.store(hostKey, host: host, port: port, in: environment.sshSetup.hostKeys)
         } catch {
             return SSHProbeResult(capability: Capability(), failure: .configurationFailed)
         }
-        storedHostKey = host
-        let settings = SSHSettings(enabled: true, port: port, keyFilePath: key.url.path, keyFileBookmark: key.bookmark)
+        // Skip SSH or closing cancelled this: do not switch SSH on.
+        guard !Task.isCancelled else { return SSHProbeResult(capability: Capability(), failure: .timedOut) }
+        var settings = current ?? SSHSettings()
+        settings.enabled = true
+        settings.useAgent = false
+        settings.keyFilePath = key.url.path
+        settings.keyFileBookmark = key.bookmark
         if environment.persistence.selectedProfile?.ssh == settings {
             environment.refresh.reprobeSSH()
         } else {
@@ -119,13 +139,15 @@ final class LiveOnboardingServices: OnboardingServices {
     }
 
     func disableSSH() async {
-        if let host = storedHostKey {
-            try? await environment.sshSetup.hostKeys.revoke(host: host, port: SSHSettings().port)
-            storedHostKey = nil
-        }
-        if let ssh = environment.persistence.selectedProfile?.ssh, ssh != SSHSettings() {
-            environment.updateSSHSettings(SSHSettings())
-            await environment.waitUntilReady()
+        guard let before = sshBefore else { return }
+        sshBefore = nil
+        environment.updateSSHSettings(before.settings ?? SSHSettings())
+        await environment.waitUntilReady()
+        let hostKeys = environment.sshSetup.hostKeys
+        if let line = before.hostKeyLine {
+            try? await hostKeys.approve(host: before.host, port: before.port, keyLine: line)
+        } else {
+            try? await hostKeys.revoke(host: before.host, port: before.port)
         }
     }
 
@@ -150,11 +172,12 @@ final class LiveOnboardingServices: OnboardingServices {
         if let profileID {
             await environment.forgetRouter(profileID)
             self.profileID = nil
-        } else if let trusted {
-            await environment.trust.revoke(host: trusted.host, port: trusted.port)
+        } else {
+            await disableSSH()
+            if let trusted { await environment.trust.revoke(host: trusted.host, port: trusted.port) }
         }
         trusted = nil
-        storedHostKey = nil
+        sshBefore = nil
     }
 
     /// The refresh controller probes SSH once per new session lease. This
