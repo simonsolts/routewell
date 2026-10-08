@@ -2,6 +2,8 @@ import Foundation
 
 public enum StoreFile: String, Sendable, CaseIterable {
     case settings, profiles, trust, devices, presence, snapshots
+    /// `adguard/<profile UUID>/archive.json`, in its own per-profile store (chunk 16).
+    case archive
 }
 
 public enum StoreError: Error, Equatable, Sendable {

@@ -87,7 +87,7 @@ struct OverviewScreen: View {
                 healthRow("LAN", value: "Not observed", tone: .unknown, destination: .clients)
                 Divider()
                 healthRow("DNS", value: snapshot.adGuard.reachability.label,
-                          tone: snapshot.adGuard.reachability.tone, destination: .protection)
+                          tone: snapshot.adGuard.reachability.tone, destination: .adGuard)
                 Divider()
                 healthRow("Storage", value: "Not observed", tone: .unknown, destination: .maintenance)
                 Divider()
@@ -102,7 +102,7 @@ struct OverviewScreen: View {
                 Divider()
                 LabelValueRow(label: "Blocked today", value: number(snapshot.adGuard.blockedToday))
                 Divider()
-                Button("Open Protection") { model.selection = .protection }
+                Button("Open AdGuard Home") { model.selection = .adGuard }
                     .buttonStyle(.link).padding(12).frame(maxWidth: .infinity, alignment: .trailing)
             }
         }.frame(maxWidth: .infinity)

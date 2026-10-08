@@ -3,8 +3,8 @@ import SwiftUI
 enum SidebarGroup: String, CaseIterable { case monitoring = "Monitoring", operations = "Operations" }
 
 enum SidebarDestination: String, CaseIterable, Identifiable {
-    case overview, router, network, clients, protection, analytics
-    case maintenance, notifications, applications, dnsActivity, vpn, logs
+    case overview, router, network, clients, adGuard, analytics
+    case maintenance, notifications, applications, vpn, logs
 
     var id: Self { self }
     var title: String {
@@ -13,12 +13,11 @@ enum SidebarDestination: String, CaseIterable, Identifiable {
         case .router: "Router"
         case .network: "Network"
         case .clients: "Clients"
-        case .protection: "Protection"
+        case .adGuard: "AdGuard Home"
         case .analytics: "Analytics"
         case .maintenance: "Maintenance"
         case .notifications: "Notifications"
         case .applications: "Applications"
-        case .dnsActivity: "DNS Activity"
         case .vpn: "VPN"
         case .logs: "Logs"
         }
@@ -29,19 +28,18 @@ enum SidebarDestination: String, CaseIterable, Identifiable {
         case .router: "wifi.router"
         case .network: "globe"
         case .clients: "person.2"
-        case .protection: "shield"
+        case .adGuard: "shield"
         case .analytics: "chart.bar"
         case .maintenance: "wrench.and.screwdriver"
         case .notifications: "bell"
         case .applications: "square.grid.2x2"
-        case .dnsActivity: "list.bullet"
         case .vpn: "key"
         case .logs: "doc.text"
         }
     }
     var group: SidebarGroup {
         switch self {
-        case .overview, .router, .network, .clients, .protection, .analytics: .monitoring
+        case .overview, .router, .network, .clients, .adGuard, .analytics: .monitoring
         default: .operations
         }
     }
@@ -51,7 +49,7 @@ enum SidebarDestination: String, CaseIterable, Identifiable {
     }
     var segments: [String] {
         switch self {
-        case .protection: ["Protection", "Insights", "Filters", "Blocklists", "Services", "Schedules"]
+        case .adGuard: AdGuardTab.allCases.map(\.rawValue)
         case .analytics: ["Overview", "Data", "DNS"]
         case .network: ["Overview", "Map", "Wi-Fi", "DHCP", "Ports", "Health", "Quality"]
         case .router: RouterSegment.allCases.map(\.rawValue)
@@ -61,6 +59,15 @@ enum SidebarDestination: String, CaseIterable, Identifiable {
         }
     }
     /// Clients shows its count above the table; Router has ten segments and
-    /// no subtitle in any mockup.
+    /// no subtitle in any mockup. AdGuard Home shows the router model.
     var showsSubtitle: Bool { self != .clients && self != .router }
+}
+
+/// The AdGuard Home screen's tabs (design/adguard-home.md).
+enum AdGuardTab: String, CaseIterable {
+    case overview = "Overview"
+    case queryLog = "Query Log"
+    case filters = "Filters"
+    case dns = "DNS"
+    case instance = "Instance"
 }

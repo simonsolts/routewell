@@ -14,6 +14,7 @@ final class AppEnvironment {
     let logging: LoggingController
     let trust: TrustController
     let mutation: MutationController
+    let adGuard: AdGuardController
     let clients: ClientsController
     let clientDNS: ClientDNSController
     let clientActions: ClientActionsController
@@ -47,6 +48,7 @@ final class AppEnvironment {
     private(set) var mockSQMBehavior: MockRouterService.SQMBehavior = .unavailable
     private(set) var mockFirmwareBehavior: MockRouterService.FirmwareBehavior = .unableToCheck
     private(set) var mockSSHScenario: MockSSHService.Scenario = .populated
+    private(set) var mockAdGuardScenario: MockAdGuardScenario = .running
     #endif
     /// Set when `transportFactory` was actually called. Tests use this to
     /// prove mock mode never constructs a live transport.
@@ -62,6 +64,7 @@ final class AppEnvironment {
          sshDirectory: URL? = nil,
          hostKeyScanner: any SSHHostKeyScanning = LiveSSHHostKeyScanner(),
          processRunner: any ProcessRunning = ProcessRunner(),
+         dataDirectory: URL? = nil,
          launchShowsOnboarding: Bool? = nil,
          transportFactory: @escaping (any EndpointTrustStore) -> any HTTPTransport = { URLSessionTransport(trustStore: $0) }) {
         self.model = model
@@ -86,10 +89,15 @@ final class AppEnvironment {
         self.persistence = PersistenceController(model: model, store: store, credentials: credentials)
         self.trust = TrustController(atomicStore: store, mode: model.mode)
         self.mutation = MutationController(model: model, refresh: refresh)
+        // Mock copies stay in memory; live ones use `adguard/<profile>/archive.json`.
+        self.adGuard = AdGuardController(model: model, refresh: refresh,
+                                         store: AdGuardArchiveStore(root: model.mode == .live ? dataDirectory : nil))
         #if DEBUG
         mockBackend = backend as? MockRouterBackend
         #endif
         sshSetup.save = { [weak self] settings in self?.updateSSHSettings(settings) }
+        adGuard.profileID = { [weak self] in self?.persistence.selectedProfile?.id }
+        refresh.onAdGuardReading = { [weak self] reading, token in await self?.adGuard.observe(reading, token: token) }
         onboarding.environment = self
         router.routerURL = { [weak self] in
             guard let self, self.model.mode == .live else { return nil }
@@ -269,6 +277,17 @@ final class AppEnvironment {
         refresh.refreshNow()
     }
 
+    /// Chunk 16: the router's AdGuard Home setting and the saved copy.
+    func setMockAdGuardScenario(_ scenario: MockAdGuardScenario) {
+        guard model.mode == .mock, let mockBackend else { return }
+        mockAdGuardScenario = scenario
+        Task {
+            await mockBackend.mockAdGuard.setScenario(scenario)
+            await adGuard.replaceArchive(scenario.seedArchive(now: .now))
+            refresh.refreshNow()
+        }
+    }
+
     func setMockClientsScenario(_ scenario: MockClientsService.Scenario) {
         guard model.mode == .mock, let mockBackend else { return }
         mockClientsScenario = scenario
@@ -321,7 +340,9 @@ final class AppEnvironment {
         let clientsScenario = mockClientsScenario
         let sqm = mockSQMBehavior
         let firmware = mockFirmwareBehavior
+        let adGuardScenario = mockAdGuardScenario
         setup = model.session.switchProfile(profile.name, model: model, refresh: refresh) {
+            await backend.mockAdGuard.setScenario(adGuardScenario)
             await backend.setClientsScenario(clientsScenario)
             await backend.mockRouter.setSQMBehavior(sqm)
             await backend.mockRouter.setFirmwareBehavior(firmware)
@@ -370,7 +391,8 @@ final class AppEnvironment {
 
     /// Removes a router and everything Routewell keeps for it on this Mac:
     /// the profile, its Keychain items, its certificate pin, its SSH host key,
-    /// and its key bookmark (part of the profile). Nothing is sent to the router.
+    /// its key bookmark (part of the profile), and its saved AdGuard Home
+    /// copy. Nothing is sent to the router.
     func forgetRouter(_ id: UUID) async {
         guard let profile = persistence.profiles.profiles.first(where: { $0.id == id }) else { return }
         if persistence.selectedProfile?.id == id {
@@ -381,6 +403,7 @@ final class AppEnvironment {
             await trust.revoke(host: endpoint.host, port: endpoint.port)
             try? await sshSetup.hostKeys.revoke(host: endpoint.host, port: profile.ssh?.port ?? SSHSettings().port)
         }
+        await adGuard.removeArchive(profile: id)
         await persistence.removeProfile(id)
         updateNeedsSetup()
     }
@@ -395,8 +418,8 @@ final class AppEnvironment {
     /// over at construction time, which a changed address or a deleted/
     /// replaced Keychain item can leave dangling.
     func reconnectLiveSession() {
-        guard mutation.inFlight == nil else {
-            logging.record(kind: .session, message: "Reconnect refused: a Protection change is running")
+        guard mutation.inFlight == nil, adGuard.inFlight == nil else {
+            logging.record(kind: .session, message: "Reconnect refused: an AdGuard Home change is running")
             return
         }
         guard model.mode == .live, let profile = persistence.selectedProfile, profile.liveEndpoint != nil else { return }
@@ -756,7 +779,8 @@ final class AppEnvironment {
         let directory = URL.applicationSupportDirectory.appendingPathComponent("Routewell", isDirectory: true)
         let launchShowsOnboarding = !persist || Self.peekNeedsSetup(in: directory)
         return AppEnvironment(model: AppModel(mode: mode), backend: nil, store: store, credentials: credentials,
-                              sshDirectory: sshDirectory, launchShowsOnboarding: launchShowsOnboarding, transportFactory: transportFactory)
+                              sshDirectory: sshDirectory, dataDirectory: persist ? directory : nil,
+                              launchShowsOnboarding: launchShowsOnboarding, transportFactory: transportFactory)
     }
 }
 

@@ -75,6 +75,10 @@ public actor LiveRouterBackend: RouterBackend, FixtureRecordableBackend, AdGuard
     public nonisolated let ssh: (any SSHService)?
     /// Wi-Fi, SQM, and the firmware check for the Router screen.
     public nonisolated let router: (any RouterService)?
+    /// Turn On, Stop, Handle DNS, Restart (chunk 16), under the same gate as
+    /// Protection and Wake. Without an AdGuard Home connection, writes are
+    /// verified with the router's setting only.
+    public nonisolated let adGuardService: (any AdGuardServiceControl)?
 
     public init(
         configuration: LiveBackendConfiguration,
@@ -108,6 +112,9 @@ public actor LiveRouterBackend: RouterBackend, FixtureRecordableBackend, AdGuard
         } else {
             self.protection = nil
         }
+        self.adGuardService = AdGuardServiceExecutor(
+            transport: LiveAdGuardServiceTransport(rpc: rpc, adGuard: adGuard), gate: gate, clock: clock, log: log
+        )
     }
 
     // MARK: RouterBackend
@@ -259,7 +266,8 @@ public actor LiveRouterBackend: RouterBackend, FixtureRecordableBackend, AdGuard
             router: router.result,
             internet: internet.result,
             adGuard: adGuard.result,
-            clients: clients.result
+            clients: clients.result,
+            adGuardService: adGuard.reading
         )
         return (result, signal)
     }
@@ -303,11 +311,10 @@ public actor LiveRouterBackend: RouterBackend, FixtureRecordableBackend, AdGuard
         }
     }
 
-    private func fetchAdGuardArea(attemptedAt: Date) async throws -> (result: AreaRefreshResult<AdGuardStatus>, untrusted: UntrustedSignal?) {
-        guard configuration.adGuard != nil, let adGuardClient else {
-            return (.failure(.unavailable, attemptedAt: attemptedAt), nil)
-        }
-
+    /// The AdGuard area, and the service reading the AdGuard Home screen
+    /// decides its state from. `get_config` is read even without an AdGuard
+    /// Home connection, so the screen can say AdGuard Home is on.
+    private func fetchAdGuardArea(attemptedAt: Date) async throws -> (result: AreaRefreshResult<AdGuardStatus>, untrusted: UntrustedSignal?, reading: AdGuardServiceReading) {
         let configResult: Result<JSONValue, GLiNetRPCError>
         do {
             configResult = .success(try await rpc.call(.init(object: "adguardhome", method: "get_config", params: .object([:]))))
@@ -318,16 +325,24 @@ public actor LiveRouterBackend: RouterBackend, FixtureRecordableBackend, AdGuard
 
         switch configResult {
         case .failure(let error):
-            return (.failure(Self.category(for: error), attemptedAt: attemptedAt), Self.untrustedSignal(for: error, host: adGuardHostPort.host, port: adGuardHostPort.port))
+            let reading = AdGuardServiceReading(config: .failure(Self.category(for: error)), observedAt: attemptedAt)
+            return (.failure(Self.category(for: error), attemptedAt: attemptedAt), Self.untrustedSignal(for: error, host: adGuardHostPort.host, port: adGuardHostPort.port), reading)
         case .success(let configJSON):
+            let config = AdGuardRouterConfig.parse(configJSON)
+            var reading = AdGuardServiceReading(config: .success(config), observedAt: attemptedAt)
             // "enabled" false (or missing/unreadable) means AdGuard Home is not
             // running on the router right now, not that Routewell failed to
             // reach it: the area stays `.unavailable`, never a network failure.
-            guard Self.adGuardHomeEnabled(config: configJSON) == .value(true) else {
-                return (.failure(.unavailable, attemptedAt: attemptedAt), nil)
+            guard config.enabled == true else {
+                return (.failure(.unavailable, attemptedAt: attemptedAt), nil, reading)
+            }
+            guard configuration.adGuard != nil, let adGuardClient else {
+                reading.answer = .notConfigured
+                return (.failure(.unavailable, attemptedAt: attemptedAt), nil, reading)
             }
             do {
                 let status = try await adGuardClient.status()
+                reading.answer = .answered(status)
                 var stats: AdGuardStatsResponse?
                 do {
                     stats = try await adGuardClient.stats()
@@ -338,17 +353,19 @@ public actor LiveRouterBackend: RouterBackend, FixtureRecordableBackend, AdGuard
                         // Unlike a missing stats window, a stats auth failure means
                         // the whole AdGuard session is bad: fail the area instead of
                         // reporting a misleadingly successful, counter-less status.
-                        return (.failure(Self.category(for: error), attemptedAt: attemptedAt), Self.untrustedSignal(for: error, host: adGuardHostPort.host, port: adGuardHostPort.port))
+                        reading.answer = .failed(Self.category(for: error))
+                        return (.failure(Self.category(for: error), attemptedAt: attemptedAt), Self.untrustedSignal(for: error, host: adGuardHostPort.host, port: adGuardHostPort.port), reading)
                     case .transport, .httpStatus, .malformedResponse:
                         stats = nil // best-effort: a missing stats window never fails the area
                     }
                 }
                 var mapped = AdGuardClient.adGuardStatus(status: status, stats: stats, now: clock())
-                mapped.handlesClientRequests = configJSON["dns_enabled"]?.bool.map(Observed.value) ?? .unknown
-                return (.success(mapped, observedAt: attemptedAt, source: .adGuardAPI), nil)
+                mapped.handlesClientRequests = config.handlesDNS.map(Observed.value) ?? .unknown
+                return (.success(mapped, observedAt: attemptedAt, source: .adGuardAPI), nil, reading)
             } catch let error as AdGuardClientError {
                 try Self.rethrowIfCancelled(error)
-                return (.failure(Self.category(for: error), attemptedAt: attemptedAt), Self.untrustedSignal(for: error, host: adGuardHostPort.host, port: adGuardHostPort.port))
+                reading.answer = .failed(Self.category(for: error))
+                return (.failure(Self.category(for: error), attemptedAt: attemptedAt), Self.untrustedSignal(for: error, host: adGuardHostPort.host, port: adGuardHostPort.port), reading)
             }
         }
     }

@@ -24,6 +24,9 @@ public protocol RouterBackend: Sendable {
     /// SSH reads (chunk 15). `nil` means SSH is not set up for this profile:
     /// SSH-only segments show `SSHRequiredView` and nothing attempts SSH.
     var ssh: (any SSHService)? { get }
+    /// Turn On, Stop, Handle DNS, and Restart for AdGuard Home (chunk 16).
+    /// `nil` when the profile has no AdGuard Home connection.
+    var adGuardService: (any AdGuardServiceControl)? { get }
 }
 
 public extension RouterBackend {
@@ -37,6 +40,7 @@ public extension RouterBackend {
     var clientActions: (any ClientActionsService)? { nil }
     var router: (any RouterService)? { nil }
     var ssh: (any SSHService)? { nil }
+    var adGuardService: (any AdGuardServiceControl)? { nil }
 
     func service(for area: DataArea) -> (any FeatureService)? {
         switch area {
