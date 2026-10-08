@@ -61,7 +61,9 @@ final class LiveRouterSettingsServices: RouterSettingsServices {
         await environment.sshSetup.forgetHostKey(ssh, host: endpoint.host)
     }
 
-    func sshSteps() -> any OnboardingServices { LiveOnboardingServices(environment: environment) }
+    func sshSteps() -> any OnboardingServices {
+        LiveOnboardingServices(environment: environment, scanner: environment.sshSetup.scanner)
+    }
 
     /// The steps saved SSH on, or put it back as it was.
     func sshStepsEnded(connected: Bool) {}

@@ -26,7 +26,8 @@ final class SSHSetupController {
     let hostKeys: SSHHostKeyStore
     /// False in the App Sandbox, which blocks the agent's socket.
     let agentAllowed: Bool
-    private let scanner: any SSHHostKeyScanning
+    /// Also used by onboarding's SSH steps in the Settings sheet.
+    let scanner: any SSHHostKeyScanning
     private let agentSocket: @MainActor () -> URL?
     private var continuation: CheckedContinuation<Bool, Never>?
     /// Persists the settings and rebuilds the live session.
