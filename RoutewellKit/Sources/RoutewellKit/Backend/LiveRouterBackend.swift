@@ -47,7 +47,7 @@ private struct UntrustedSignal: Sendable {
 /// exactly once and shares it across the router, internet, and clients
 /// areas; each area otherwise catches its own errors so one area's failure
 /// never discards another's data.
-public actor LiveRouterBackend: RouterBackend, FixtureRecordableBackend {
+public actor LiveRouterBackend: RouterBackend, FixtureRecordableBackend, AdGuardHomeStateReading {
     private let configuration: LiveBackendConfiguration
     private let rpc: GLiNetRPCClient
     private let adGuardClient: AdGuardClient?
@@ -217,6 +217,21 @@ public actor LiveRouterBackend: RouterBackend, FixtureRecordableBackend {
         )
     }
 
+    /// Onboarding's Finish row: one `adguardhome.get_config` read.
+    public func adGuardHomeEnabled() async -> Observed<Bool> {
+        do {
+            let config = try await rpc.call(.init(object: "adguardhome", method: "get_config", params: .object([:])))
+            return Self.adGuardHomeEnabled(config: config)
+        } catch {
+            return .unknown
+        }
+    }
+
+    /// `enabled` from `adguardhome.get_config` `[verified live]`; Unknown when absent.
+    public static func adGuardHomeEnabled(config: JSONValue) -> Observed<Bool> {
+        config["enabled"]?.bool.map(Observed.value) ?? .unknown
+    }
+
     // MARK: One overview attempt
 
     private func runAreas() async throws -> (result: OverviewRefreshResult, untrusted: UntrustedSignal?) {
@@ -308,7 +323,7 @@ public actor LiveRouterBackend: RouterBackend, FixtureRecordableBackend {
             // "enabled" false (or missing/unreadable) means AdGuard Home is not
             // running on the router right now, not that Routewell failed to
             // reach it: the area stays `.unavailable`, never a network failure.
-            guard configJSON["enabled"]?.bool == true else {
+            guard Self.adGuardHomeEnabled(config: configJSON) == .value(true) else {
                 return (.failure(.unavailable, attemptedAt: attemptedAt), nil)
             }
             do {
@@ -427,7 +442,7 @@ public actor LiveRouterBackend: RouterBackend, FixtureRecordableBackend {
             return category(for: transportError)
         case .httpStatus, .malformedResponse, .invalidParameters, .rpcError, .unsupportedAlgorithm, .unsupportedHashMethod:
             return .malformedResponse
-        case .accessDenied, .credentialUnavailable:
+        case .accessDenied, .loginPaused, .credentialUnavailable:
             return .authentication
         case .methodNotFound:
             return .unavailable

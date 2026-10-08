@@ -114,3 +114,9 @@ public protocol MaintenanceService: FeatureService {}
 public protocol VPNService: FeatureService {}
 public protocol PluginsService: FeatureService {}
 public protocol TelemetryService: FeatureService {}
+
+/// Whether AdGuard Home is switched on in the router's own settings
+/// (`adguardhome.get_config` `enabled`). Onboarding's Finish row reads it.
+public protocol AdGuardHomeStateReading: Sendable {
+    func adGuardHomeEnabled() async -> Observed<Bool>
+}

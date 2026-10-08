@@ -48,6 +48,16 @@ public actor AtomicJSONStore {
         }
     }
 
+    /// A synchronous read with no side effects, for decisions that must be
+    /// made before the store loads (which window opens at launch). A missing,
+    /// damaged, or newer file reads as `nil`; `load` still handles it later.
+    public nonisolated static func peek<Value: Codable & Sendable>(_ type: Value.Type, from file: StoreFile, in directory: URL) -> Value? {
+        let url = directory.appendingPathComponent(file.rawValue).appendingPathExtension("json")
+        guard let data = try? Data(contentsOf: url),
+              let header = try? JSONDecoder().decode(Header.self, from: data), header.version == 1 else { return nil }
+        return try? JSONDecoder().decode(Envelope<Value>.self, from: data).value
+    }
+
     /// Explicit revisions prevent an older, late-arriving save replacing newer data.
     @discardableResult
     public func save<Value: Codable & Sendable>(_ value: Value, to file: StoreFile, revision: UInt64) throws -> Bool {

@@ -100,15 +100,20 @@ public struct RouterProfile: Codable, Identifiable, Equatable, Sendable {
     public var name: String
     public let endpoint: String
     public let credential: CredentialReference
-    /// nil for mock profiles. Set for live profiles created from `SetupScreen`.
+    /// nil for mock profiles. Set for live profiles created by onboarding.
     public var liveEndpoint: RouterEndpoint?
     public var username: String = "root"
     public var plainHTTPAcknowledged: Bool = false
     public var adGuard: AdGuardSettings?
     public var ssh: SSHSettings?
+    /// False from sign-in until onboarding's Finish. A profile left false
+    /// (onboarding closed or the app quit) is removed at the next launch,
+    /// so onboarding always starts empty. Profiles saved before chunk 15A
+    /// read as complete.
+    public var setupComplete: Bool = true
 
     private enum CodingKeys: String, CodingKey {
-        case id, name, endpoint, credential, liveEndpoint, username, plainHTTPAcknowledged, adGuard, ssh
+        case id, name, endpoint, credential, liveEndpoint, username, plainHTTPAcknowledged, adGuard, ssh, setupComplete
     }
 
     public init(from decoder: any Decoder) throws {
@@ -122,6 +127,7 @@ public struct RouterProfile: Codable, Identifiable, Equatable, Sendable {
         plainHTTPAcknowledged = try values.decodeIfPresent(Bool.self, forKey: .plainHTTPAcknowledged) ?? false
         adGuard = try values.decodeIfPresent(AdGuardSettings.self, forKey: .adGuard)
         ssh = try values.decodeIfPresent(SSHSettings.self, forKey: .ssh)
+        setupComplete = try values.decodeIfPresent(Bool.self, forKey: .setupComplete) ?? true
         guard credential.profileID == id, credential.endpoint == endpoint else {
             throw DecodingError.dataCorruptedError(forKey: .credential, in: values, debugDescription: "Credential reference does not match profile")
         }
@@ -144,10 +150,12 @@ public struct RouterProfile: Codable, Identifiable, Equatable, Sendable {
         username: String = "root",
         plainHTTPAcknowledged: Bool = false,
         adGuard: AdGuardSettings? = nil,
-        ssh: SSHSettings? = nil
+        ssh: SSHSettings? = nil,
+        setupComplete: Bool = true
     ) {
         self.id = id
         self.name = name
+        self.setupComplete = setupComplete
         endpoint = liveEndpoint.displayString
         self.liveEndpoint = liveEndpoint
         self.username = username
