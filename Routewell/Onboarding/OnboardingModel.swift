@@ -55,13 +55,20 @@ final class OnboardingModel {
         self.services = services
     }
 
-    /// The SSH steps alone, for a router that is already set up.
-    convenience init(sshStepsWith services: any OnboardingServices, host: String, onDone: @escaping (Bool) -> Void) {
+    /// The SSH steps alone, for a router that is already set up. A usable
+    /// `key` (Settings after a port change) starts at Key Chosen.
+    convenience init(sshStepsWith services: any OnboardingServices, host: String, key: ChosenSSHKey? = nil,
+                     onDone: @escaping (Bool) -> Void) {
         self.init(services: services)
         address = host
         onSSHDone = onDone
-        state = .sshKey
-        history = [.sshKey]
+        if let key, key.inspection.isUsable {
+            self.key = key
+            state = .sshChosen
+        } else {
+            state = .sshKey
+        }
+        history = [state]
     }
 
     var spec: OnboardingSpec { state.spec }

@@ -93,7 +93,8 @@ struct MainWindow: View {
         HStack(spacing: 9) {
             StatusDot(tone: model.snapshot?.router.reachability.tone ?? .unknown)
             VStack(alignment: .leading, spacing: 3) {
-                Text(model.snapshot?.router.hostname ?? "No router connected").font(.callout)
+                // The name from Settings › Router, so a rename shows here at once.
+                Text(environment.persistence.selectedProfile?.name ?? model.snapshot?.router.hostname ?? "No router connected").font(.callout)
                 Text(footerDetail)
                     .font(.caption).foregroundStyle(.secondary)
             }

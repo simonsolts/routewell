@@ -21,6 +21,12 @@ final class AppEnvironment {
     let sshSetup: SSHSetupController
     let trustPrompt = TrustPromptController()
     let onboarding = OnboardingController()
+    /// Settings › Router (chunk 15B).
+    @ObservationIgnored private(set) lazy var liveRouterSettings = LiveRouterSettingsServices(environment: self)
+    #if DEBUG
+    /// Keeps the mock scenarios while the Settings window opens and closes.
+    @ObservationIgnored private(set) lazy var mockRouterSettings = MockRouterSettingsServices(environment: self)
+    #endif
     /// Decided before bootstrap from the files on disk, so the right window
     /// opens at launch and the main window never flashes before onboarding.
     /// `MainWindow` and `OnboardingWindow` correct a wrong guess after bootstrap.
@@ -171,7 +177,7 @@ final class AppEnvironment {
         guard model.mode == .mock,
               let saved = persistence.profiles.profiles.first(where: { $0.name == profile }) else { return }
         persistence.select(saved.id)
-        installMock(profile: profile, scenarioID: model.mockScenarioID)
+        installMock(profile: saved, scenarioID: model.mockScenarioID)
         #endif
     }
 
@@ -194,7 +200,7 @@ final class AppEnvironment {
         #if DEBUG
         guard model.mode == .mock else { return }
         if let profile = persistence.selectedProfile {
-            installMock(profile: profile.name, scenarioID: model.mockScenarioID)
+            installMock(profile: profile, scenarioID: model.mockScenarioID)
         } else {
             model.session.disconnect(model: model, refresh: refresh)
         }
@@ -304,8 +310,9 @@ final class AppEnvironment {
     #endif
 
     #if DEBUG
-    private func installMock(profile: String, scenarioID: String) {
-        let hostname = profile == Self.mockProfiles[0] ? "flint-demo" : "travel-demo"
+    /// The first mock profile keeps its hostname when it is renamed.
+    private func installMock(profile: RouterProfile, scenarioID: String) {
+        let hostname = profile.endpoint == "mock://home" ? "flint-demo" : "travel-demo"
         let scenario = MockRouterBackend.Scenario(rawValue: scenarioID) ?? .healthy
         let backend = MockRouterBackend(scenario: scenario, hostname: hostname)
         backend.mockClientActions.setMechanism(mockClientActionsMechanism)
@@ -314,7 +321,7 @@ final class AppEnvironment {
         let clientsScenario = mockClientsScenario
         let sqm = mockSQMBehavior
         let firmware = mockFirmwareBehavior
-        setup = model.session.switchProfile(profile, model: model, refresh: refresh) {
+        setup = model.session.switchProfile(profile.name, model: model, refresh: refresh) {
             await backend.setClientsScenario(clientsScenario)
             await backend.mockRouter.setSQMBehavior(sqm)
             await backend.mockRouter.setFirmwareBehavior(firmware)
@@ -408,9 +415,35 @@ final class AppEnvironment {
         return saved
     }
 
-    func updateLiveUsername(_ username: String) {
-        persistence.updateLiveUsername(username)
+    /// Settings › Router › Name: a label only, in live and mock mode. The
+    /// session is not rebuilt.
+    func renameRouter(_ name: String) {
+        persistence.renameSelectedProfile(name)
+    }
+
+    /// Settings › Router › HTTPS certificate › Forget…: removes the pin for
+    /// this address, then rebuilds the session so the next connection asks
+    /// again. Nothing is sent to the router before the person confirms.
+    func forgetCertificate() async {
+        guard model.mode == .live, let endpoint = persistence.selectedProfile?.liveEndpoint else { return }
+        await trust.revoke(host: endpoint.host, port: endpoint.port)
         reconnectLiveSession()
+    }
+
+    /// Settings › Router › Start Setup Again…: removes the router from this
+    /// Mac only, then opens onboarding. In mock mode nothing is removed and
+    /// the mock assistant opens.
+    func startSetupAgain() async {
+        #if DEBUG
+        if model.mode == .mock {
+            onboarding.startMock(.found)
+            return
+        }
+        #endif
+        if let profile = persistence.selectedProfile, profile.liveEndpoint != nil {
+            await forgetRouter(profile.id)
+        }
+        onboarding.start()
     }
 
     @discardableResult
@@ -520,110 +553,126 @@ final class AppEnvironment {
         return URL(string: "\(scheme)://\(hostToken):\(settings.port)/")!
     }
 
-    /// Where "Test connection" reads its password from: the Setup screen has
-    /// a form field with nothing saved yet; Settings tests the address/username
-    /// currently typed but reads the already-saved password from Keychain.
-    enum ConnectionTestPassword {
-        case literal(String)
-        case keychain(CredentialReference)
-    }
+    // MARK: Test Connection (chunk 15B)
 
-    /// "Test connection": builds a throwaway `LiveRouterBackend` from the
-    /// given values (never the saved profile) and probes it. Never installs
-    /// anything into the session. `trustPromptController` is the caller's own
-    /// local controller (each Test Connection button owns one and shows its
-    /// sheet on its own window) — never the shared `trustPrompt` that
-    /// `MainWindow` uses for refresh-time prompts, so a probe run from the
-    /// Settings or Setup window never pops a sheet on the wrong window. The
-    /// certificate itself is still checked against, and an approval still
-    /// stored in, the one real `trust.store`: only which window asks is local.
-    func testRouterConnection(
-        endpoint: RouterEndpoint, username: String, password: ConnectionTestPassword,
-        trustPromptController: TrustPromptController
-    ) async -> String {
-        let transport = transportFactory(trust.store)
+    /// Settings › Router › Test Connection for the saved live profile, or
+    /// `nil` without one. The router and AdGuard Home checks use throwaway
+    /// clients, so they test the saved address and Keychain passwords, not the
+    /// running session. A certificate prompt shows on `trustPromptController`,
+    /// the Settings window's own. `onProbe` gets what the router reported.
+    func connectionTest(trustPromptController: TrustPromptController,
+                        onProbe: @escaping @MainActor (RouterProbe) -> Void) -> ConnectionTest? {
+        guard model.mode == .live, let profile = persistence.selectedProfile, let endpoint = profile.liveEndpoint else { return nil }
         let credentials = self.credentials
-        let passwordProvider: @Sendable () async throws -> String
-        switch password {
-        case .literal(let value):
-            passwordProvider = { value }
-        case .keychain(let reference):
-            passwordProvider = { try await Self.readPassword(credentials, reference) }
-        }
-        let rpc = GLiNetRPCClient(endpoint: endpoint, username: username, password: passwordProvider, transport: transport, log: logging.eventLog)
-        let backend = LiveRouterBackend(
-            configuration: LiveBackendConfiguration(routerEndpoint: endpoint),
-            rpc: rpc,
-            adGuard: nil,
-            trustStore: trust.store,
-            trustPrompt: TrustPromptAdapter(controller: trustPromptController),
-            log: logging.eventLog
-        )
-        do {
-            let probe = try await backend.probe()
-            return "Connected: \(probe.model ?? "Unknown model"), firmware \(probe.firmware ?? "Unknown")"
-        } catch let error as GLiNetRPCError {
-            return Self.connectionTestMessage(for: error)
-        } catch {
-            return "Could not connect. Try again."
-        }
-    }
-
-    /// "Test connection" for the AdGuard Home tab: probes only `control/status`,
-    /// never the router RPC areas. When the profile uses the router's own
-    /// login, a throwaway `GLiNetRPCClient` supplies the session token — its
-    /// own untrusted-certificate prompt (on the router's host) is resolved
-    /// first, via `trustPromptController`, before it is handed to the AdGuard
-    /// client, since `AdGuardClient` itself only sees that login as an opaque
-    /// `credentialUnavailable` and cannot recover the certificate decision.
-    func testAdGuardConnection(
-        routerEndpoint: RouterEndpoint,
-        username: String,
-        routerPassword: ConnectionTestPassword,
-        adGuardSettings: AdGuardSettings,
-        adGuardPassword: ConnectionTestPassword,
-        trustPromptController: TrustPromptController
-    ) async -> String {
-        let transport = transportFactory(trust.store)
-        let baseURL = Self.adGuardBaseURL(host: routerEndpoint.host, settings: adGuardSettings)
-        let adGuardPort = baseURL.port ?? (adGuardSettings.useHTTPS ? 443 : 80)
-        let credentials = self.credentials
-
-        func passwordProvider(for source: ConnectionTestPassword) -> @Sendable () async throws -> String {
-            switch source {
-            case .literal(let value): return { value }
-            case .keychain(let reference): return { try await Self.readPassword(credentials, reference) }
+        let routerCredential = profile.credential
+        let adGuardCredential = CredentialReference(profileID: profile.id, endpoint: profile.endpoint, kind: .adGuardPassword)
+        let routerPassword: @Sendable () async throws -> String = { try await Self.readPassword(credentials, routerCredential) }
+        let adGuardPassword: @Sendable () async throws -> String = { try await Self.readPassword(credentials, adGuardCredential) }
+        let username = profile.username
+        let adGuardSettings = profile.adGuard
+        return ConnectionTest(
+            router: { [weak self] in
+                await self?.checkRouter(endpoint: endpoint, username: username, password: routerPassword,
+                                        trustPromptController: trustPromptController, onProbe: onProbe) ?? .failed(.noResponse)
+            },
+            sshEnabled: profile.ssh?.enabled == true,
+            ssh: { [weak self] in await self?.reprobeSSH() ?? SSHProbeResult(capability: Capability()) },
+            adGuardConfigured: adGuardSettings != nil,
+            adGuardEnabled: { [weak self] in await self?.adGuardHomeEnabled() ?? .unknown },
+            adGuardStatus: { [weak self] in
+                guard let self, let adGuardSettings else { return .noResponse }
+                return await self.checkAdGuardStatus(endpoint: endpoint, username: username, settings: adGuardSettings,
+                                                      routerPassword: routerPassword, adGuardPassword: adGuardPassword,
+                                                      trustPromptController: trustPromptController)
             }
-        }
+        )
+    }
 
+    /// `adguardhome get_config` `enabled` through the running session.
+    func adGuardHomeEnabled() async -> Observed<Bool> {
+        guard let lease = model.session.lease, let reader = lease.backend as? AdGuardHomeStateReading else { return .unknown }
+        let value = await reader.adGuardHomeEnabled()
+        return model.session.expectedToken == lease.token ? value : .unknown
+    }
+
+    /// Probes SSH once more through the session and waits for the result.
+    func reprobeSSH(timeout: Duration = .seconds(45)) async -> SSHProbeResult {
+        guard model.sshConfigured else { return SSHProbeResult(capability: Capability(), failure: .configurationFailed) }
+        refresh.reprobeSSH()
+        return await waitForSSHProbe(timeout: timeout)
+    }
+
+    /// The refresh controller probes SSH once per new session lease. This
+    /// waits for that result instead of starting a second connection.
+    func waitForSSHProbe(timeout: Duration) async -> SSHProbeResult {
+        let clock = ContinuousClock()
+        let deadline = clock.now.advanced(by: timeout)
+        while clock.now < deadline, !Task.isCancelled {
+            if model.session.isReady, let probe = model.sshProbe { return probe }
+            try? await Task.sleep(for: .milliseconds(100))
+        }
+        return SSHProbeResult(capability: Capability(), failure: .timedOut)
+    }
+
+    /// Signs in, then times one more `system get_info`: the round trip.
+    private func checkRouter(endpoint: RouterEndpoint, username: String, password: @escaping @Sendable () async throws -> String,
+                             trustPromptController: TrustPromptController,
+                             onProbe: @MainActor (RouterProbe) -> Void) async -> RouterCheck {
+        let transport = transportFactory(trust.store)
+        let rpc = GLiNetRPCClient(endpoint: endpoint, username: username, password: password, transport: transport, log: logging.eventLog)
+        let backend = LiveRouterBackend(configuration: LiveBackendConfiguration(routerEndpoint: endpoint), rpc: rpc, adGuard: nil,
+                                        trustStore: trust.store, trustPrompt: TrustPromptAdapter(controller: trustPromptController),
+                                        log: logging.eventLog)
+        do {
+            _ = try await backend.probe()
+            let clock = ContinuousClock()
+            let start = clock.now
+            let probe = try await backend.probe()
+            let check = RouterCheck.responded(after: clock.now - start)
+            onProbe(probe)
+            return check
+        } catch let error as GLiNetRPCError {
+            return .failed(ConnectionCheckFailure(error))
+        } catch {
+            return .failed(.noResponse)
+        }
+    }
+
+    /// `control/status` with the saved AdGuard Home settings. With the
+    /// router's own login, a throwaway `GLiNetRPCClient` signs in first, so an
+    /// untrusted router certificate is asked about here; `AdGuardClient`
+    /// would only see that login fail as `credentialUnavailable`.
+    private func checkAdGuardStatus(endpoint: RouterEndpoint, username: String, settings: AdGuardSettings,
+                                    routerPassword: @escaping @Sendable () async throws -> String,
+                                    adGuardPassword: @escaping @Sendable () async throws -> String,
+                                    trustPromptController: TrustPromptController) async -> ConnectionCheckFailure? {
+        let transport = transportFactory(trust.store)
+        let baseURL = Self.adGuardBaseURL(host: endpoint.host, settings: settings)
+        let adGuardPort = baseURL.port ?? (settings.useHTTPS ? 443 : 80)
         let provider: any AdGuardCredentialProvider
-        if adGuardSettings.useRouterCredentials {
-            let rpc = GLiNetRPCClient(
-                endpoint: routerEndpoint, username: username,
-                password: passwordProvider(for: routerPassword), transport: transport, log: logging.eventLog
-            )
+        if settings.useRouterCredentials {
+            let rpc = GLiNetRPCClient(endpoint: endpoint, username: username, password: routerPassword, transport: transport, log: logging.eventLog)
             do {
-                try await establishTrustedSession(rpc, host: routerEndpoint.host, port: routerEndpoint.port, trustPromptController: trustPromptController)
+                try await establishTrustedSession(rpc, host: endpoint.host, port: endpoint.port, trustPromptController: trustPromptController)
             } catch let error as GLiNetRPCError {
-                return Self.connectionTestMessage(for: error)
+                return ConnectionCheckFailure(error)
             } catch {
-                return "Could not connect. Try again."
+                return .noResponse
             }
             provider = RouterTokenAdGuardCredentials(session: rpc)
         } else {
-            provider = BasicAdGuardCredentials(username: adGuardSettings.username, password: passwordProvider(for: adGuardPassword))
+            provider = BasicAdGuardCredentials(username: settings.username, password: adGuardPassword)
         }
-
         let client = AdGuardClient(baseURL: baseURL, credentials: provider, transport: transport, log: logging.eventLog)
         do {
-            let status = try await requestAdGuardStatus(client, host: baseURL.host ?? routerEndpoint.host, port: adGuardPort, trustPromptController: trustPromptController)
-            return "Connected: AdGuard Home \(status.version ?? "Unknown version")."
+            _ = try await requestAdGuardStatus(client, host: baseURL.host ?? endpoint.host, port: adGuardPort, trustPromptController: trustPromptController)
+            return nil
         } catch let error as AdGuardClientError {
-            return Self.connectionTestMessage(for: error)
+            return ConnectionCheckFailure(error)
         } catch let error as GLiNetRPCError {
-            return Self.connectionTestMessage(for: error)
+            return ConnectionCheckFailure(error)
         } catch {
-            return "Could not connect. Try again."
+            return .noResponse
         }
     }
 
@@ -639,7 +688,7 @@ final class AppEnvironment {
         } catch GLiNetRPCError.transport(.untrustedServer(let decision)) {
             let approved = await trustPromptController.present(TrustPromptRequest(host: host, port: port, decision: decision))
             guard approved else { throw GLiNetRPCError.transport(.untrustedServer(decision)) }
-            try? await trust.store.approve(TrustedEndpoint(host: host, port: port, fingerprint: Self.leafFingerprint(decision), approvedAt: Date()))
+            await trust.approve(TrustedEndpoint(host: host, port: port, fingerprint: Self.leafFingerprint(decision), approvedAt: Date()))
             _ = try await rpc.sessionID()
         }
     }
@@ -655,7 +704,7 @@ final class AppEnvironment {
         } catch AdGuardClientError.transport(.untrustedServer(let decision)) {
             let approved = await trustPromptController.present(TrustPromptRequest(host: host, port: port, decision: decision))
             guard approved else { throw AdGuardClientError.transport(.untrustedServer(decision)) }
-            try? await trust.store.approve(TrustedEndpoint(host: host, port: port, fingerprint: Self.leafFingerprint(decision), approvedAt: Date()))
+            await trust.approve(TrustedEndpoint(host: host, port: port, fingerprint: Self.leafFingerprint(decision), approvedAt: Date()))
             return try await client.status()
         }
     }
@@ -668,47 +717,6 @@ final class AppEnvironment {
             return fingerprint
         case .untrustedChanged(_, let actual):
             return actual
-        }
-    }
-
-    private static func connectionTestMessage(for error: AdGuardClientError) -> String {
-        switch error {
-        case .transport(.untrustedServer):
-            return "Connection cancelled. The certificate was not trusted."
-        case .unauthorized, .credentialUnavailable:
-            return "AdGuard Home refused the login. Check the username and password."
-        case .transport(let transportError):
-            return connectionTestCategory(for: transportError).failureCategory.message
-        case .httpStatus, .malformedResponse:
-            return RefreshFailureCategory.malformedResponse.failureCategory.message
-        }
-    }
-
-    private static func connectionTestMessage(for error: GLiNetRPCError) -> String {
-        switch error {
-        case .transport(.untrustedServer):
-            // Only reached when the prompt was declined: an approved one
-            // retries `performProbe()` and either succeeds or throws a
-            // different error.
-            return "Connection cancelled. The certificate was not trusted."
-        case .accessDenied, .credentialUnavailable:
-            return "The router refused the login. Check the username and password."
-        case .loginPaused:
-            return "The router paused sign-in after too many incorrect passwords. Try again in a few minutes."
-        case .transport(let transportError):
-            return connectionTestCategory(for: transportError).failureCategory.message
-        case .httpStatus, .malformedResponse, .invalidParameters, .rpcError, .unsupportedAlgorithm, .unsupportedHashMethod:
-            return RefreshFailureCategory.malformedResponse.failureCategory.message
-        case .methodNotFound:
-            return RefreshFailureCategory.unavailable.failureCategory.message
-        }
-    }
-
-    private static func connectionTestCategory(for error: TransportError) -> RefreshFailureCategory {
-        switch error {
-        case .timedOut: .timeout
-        case .unreachable, .redirectRefused, .tlsFailure, .cancelled, .localNetworkDenied, .untrustedServer: .network
-        case .responseTooLarge, .invalidResponse: .malformedResponse
         }
     }
 

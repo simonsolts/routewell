@@ -152,9 +152,7 @@ final class LiveOnboardingServices: OnboardingServices {
     }
 
     func adGuardHomeEnabled() async -> Observed<Bool> {
-        guard let lease = environment.model.session.lease, let reader = lease.backend as? AdGuardHomeStateReading else { return .unknown }
-        let value = await reader.adGuardHomeEnabled()
-        return environment.model.session.expectedToken == lease.token ? value : .unknown
+        await environment.adGuardHomeEnabled()
     }
 
     func openLocalNetworkSettings() {
@@ -180,16 +178,7 @@ final class LiveOnboardingServices: OnboardingServices {
         sshBefore = nil
     }
 
-    /// The refresh controller probes SSH once per new session lease. This
-    /// waits for that result instead of starting a second connection.
     private func waitForProbe() async -> SSHProbeResult {
-        let model = environment.model
-        let clock = ContinuousClock()
-        let deadline = clock.now.advanced(by: probeTimeout)
-        while clock.now < deadline, !Task.isCancelled {
-            if model.session.isReady, let probe = model.sshProbe { return probe }
-            try? await Task.sleep(for: .milliseconds(100))
-        }
-        return SSHProbeResult(capability: Capability(), failure: .timedOut)
+        await environment.waitForSSHProbe(timeout: probeTimeout)
     }
 }

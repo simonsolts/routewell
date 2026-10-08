@@ -34,7 +34,7 @@ struct SSHRequiredView: View {
 
     /// Selects the Router tab first, so Settings opens on it.
     static func openRouterSettings(_ model: AppModel, open: () -> Void) {
-        model.settingsTab = "Router"
+        model.settingsTab = .router
         open()
     }
 

@@ -5,7 +5,7 @@ import RoutewellKit
 @MainActor @Observable
 final class AppModel {
     var selection: SidebarDestination = .overview { didSet { screenChanged?() } }
-    var settingsTab = "General"
+    var settingsTab = SettingsTab.general
     var subpages: [SidebarDestination: String] = [:] { didSet { screenChanged?() } }
     private(set) var capabilities: [DataArea: Capability] = [:]
     private(set) var snapshot: OverviewSnapshot?
