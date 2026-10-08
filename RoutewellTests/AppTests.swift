@@ -59,7 +59,6 @@ import RoutewellKit
 }
 
 private actor TelemetryBackendForTest: RouterBackend {
-    nonisolated let protection: (any ProtectionService)? = nil
     private var count = 0
     func overview() async throws -> OverviewRefreshResult {
         count += 1
@@ -77,7 +76,6 @@ private actor TelemetryBackendForTest: RouterBackend {
 }
 
 private struct VisibleFeatureBackendForTest: RouterBackend {
-    var protection: (any ProtectionService)? { nil }
     var vpn: (any VPNService)? { VisibleVPNProbeForTest() }
     func overview() async throws -> OverviewRefreshResult {
         let now = Date()
@@ -415,11 +413,9 @@ private actor HeldConstruction {
 private struct FailingBackend: RouterBackend {
     struct Failure: Error {}
     func overview() async throws -> OverviewRefreshResult { throw Failure() }
-    var protection: (any ProtectionService)? { nil }
 }
 
 private actor SuspendedBackend: RouterBackend {
-    nonisolated var protection: (any ProtectionService)? { nil }
     var calls = 0
     private var continuation: CheckedContinuation<OverviewRefreshResult, any Error>?
     private var started: CheckedContinuation<Void, Never>?

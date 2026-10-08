@@ -13,7 +13,6 @@ final class AppEnvironment {
     let persistence: PersistenceController
     let logging: LoggingController
     let trust: TrustController
-    let mutation: MutationController
     let adGuard: AdGuardController
     let clients: ClientsController
     let clientDNS: ClientDNSController
@@ -88,7 +87,6 @@ final class AppEnvironment {
         self.router = RouterController(model: model, baselines: UpgradeBaselineStore(store: model.mode == .live ? store : nil))
         self.persistence = PersistenceController(model: model, store: store, credentials: credentials)
         self.trust = TrustController(atomicStore: store, mode: model.mode)
-        self.mutation = MutationController(model: model, refresh: refresh)
         // Mock copies stay in memory; live ones use `adguard/<profile>/archive.json`.
         self.adGuard = AdGuardController(model: model, refresh: refresh,
                                          store: AdGuardArchiveStore(root: model.mode == .live ? dataDirectory : nil))
@@ -98,6 +96,7 @@ final class AppEnvironment {
         sshSetup.save = { [weak self] settings in self?.updateSSHSettings(settings) }
         adGuard.profileID = { [weak self] in self?.persistence.selectedProfile?.id }
         refresh.onAdGuardReading = { [weak self] reading, token in await self?.adGuard.observe(reading, token: token) }
+        refresh.onAdGuardOverview = { [weak self] lease in try await self?.adGuard.refreshOverview(using: lease) }
         onboarding.environment = self
         router.routerURL = { [weak self] in
             guard let self, self.model.mode == .live else { return nil }
@@ -229,13 +228,6 @@ final class AppEnvironment {
     }
 
     #if DEBUG
-    /// DEBUG-only dev tool: selects which outcome the mock Protection
-    /// service produces on its next `setProtection` call.
-    func setMockProtectionBehavior(_ behavior: MockRouterBackend.ProtectionBehavior) {
-        guard model.mode == .mock, let mockBackend else { return }
-        Task { await mockBackend.setProtectionBehavior(behavior) }
-    }
-
     func setMockFeatureBehavior(_ behavior: MockRouterBackend.FeatureBehavior, for area: DataArea) {
         guard model.mode == .mock, let mockBackend else { return }
         Task {
@@ -275,6 +267,11 @@ final class AppEnvironment {
         mockBackend.mockSSH.setScenario(scenario)
         refresh.reprobeSSH()
         refresh.refreshNow()
+    }
+
+    /// Chunk 17: the writes the mock AdGuard Home received, for tests.
+    func mockAdGuardWrites() async -> [AdGuardWrite] {
+        await mockBackend?.mockAdGuard.writes ?? []
     }
 
     /// Chunk 16: the router's AdGuard Home setting and the saved copy.
@@ -418,7 +415,7 @@ final class AppEnvironment {
     /// over at construction time, which a changed address or a deleted/
     /// replaced Keychain item can leave dangling.
     func reconnectLiveSession() {
-        guard mutation.inFlight == nil, adGuard.inFlight == nil else {
+        guard !adGuard.isWriting else {
             logging.record(kind: .session, message: "Reconnect refused: an AdGuard Home change is running")
             return
         }

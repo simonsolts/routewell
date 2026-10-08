@@ -60,7 +60,6 @@ private final class TestWallClock: WallClock, @unchecked Sendable {
 }
 
 private actor CountingRefreshBackend: RouterBackend {
-    nonisolated var protection: (any ProtectionService)? { nil }
     private(set) var calls = 0
     func overview() async throws -> OverviewRefreshResult {
         calls += 1
@@ -143,7 +142,6 @@ private actor CountingRefreshBackend: RouterBackend {
 }
 
 private actor HeldRefreshBackend: RouterBackend {
-    nonisolated var protection: (any ProtectionService)? { nil }
     private(set) var calls = 0
     private let resultDate: Date
     private var completion: CheckedContinuation<OverviewRefreshResult, any Error>?

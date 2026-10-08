@@ -14,7 +14,7 @@ struct MockSettingsSections: View {
     @State private var mockFeatureBehaviors: [DataArea: MockRouterBackend.FeatureBehavior] = [:]
     @State private var confirmingDelete = false
 
-    private var mutationInFlight: Bool { environment.mutation.inFlight != nil }
+    private var mutationInFlight: Bool { environment.adGuard.isWriting }
 
     var body: some View {
         Section {

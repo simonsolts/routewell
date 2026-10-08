@@ -15,7 +15,6 @@ final class AppModel {
     private(set) var isRefreshing = false
     private(set) var refreshFailed = false
     private(set) var logEvents: [LogEvent] = []
-    private(set) var lastProtectionReport: MutationReport<ProtectionState>?
     let session = SessionController()
     var mockScenarioID = "healthy"
     private(set) var hasLiveEndpoint = false
@@ -130,12 +129,17 @@ final class AppModel {
         }
     }
 
-    /// Clients' Show DNS Log: AdGuard Home › Query Log for that device. The
-    /// tab is a placeholder until chunk 18, which reads this filter.
-    var adGuardQueryLogClient: String?
+    /// The filter AdGuard Home › Query Log opens with: Clients' Show DNS
+    /// Log and the Overview's top rows set it. The tab is a placeholder
+    /// until chunk 18, which reads it.
+    var adGuardQueryLogFilter: AdGuardQueryLogFilter?
 
     func showDNSLog(client: String) {
-        adGuardQueryLogClient = client
+        showQueryLog(AdGuardQueryLogFilter(client: client))
+    }
+
+    func showQueryLog(_ filter: AdGuardQueryLogFilter) {
+        adGuardQueryLogFilter = filter
         subpages[.adGuard] = AdGuardTab.queryLog.rawValue
         selection = .adGuard
     }
@@ -314,7 +318,6 @@ final class AppModel {
         case result(OverviewRefreshResult, Date)
         case failure(RefreshFailureCategory, Date)
         case busy(Bool, Date)
-        case mutation(MutationReport<ProtectionState>)
     }
 
     func accept(_ completion: Completion, token: SessionToken) {
@@ -342,8 +345,6 @@ final class AppModel {
                 if value { state.lastAttempt = date }
                 freshness[area] = state
             }
-        case .mutation(let report):
-            lastProtectionReport = report
         }
         refreshFailed = freshness.values.contains { $0.failure != nil }
         evaluateFreshness(at: completion.date)
@@ -393,7 +394,6 @@ private extension AppModel.Completion {
         case .snapshot(let snapshot): snapshot.observedAt
         case .result(_, let date): date
         case .failure(_, let date), .busy(_, let date): date
-        case .mutation(let report): report.finishedAt
         }
     }
 }

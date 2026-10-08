@@ -34,10 +34,19 @@ struct AdGuardScreen: View {
 
     @ViewBuilder private var tabBody: some View {
         switch AdGuardTab(rawValue: model.subpages[.adGuard] ?? "") ?? .overview {
+        case .overview: AdGuardOverviewView()
         case .instance: AdGuardInstanceView()
-        case .queryLog: AdGuardPlaceholderTab(tab: .queryLog, detail: model.adGuardQueryLogClient.map { "Show DNS Log asked for \($0)." })
+        case .queryLog: AdGuardPlaceholderTab(tab: .queryLog, detail: Self.filterText(model.adGuardQueryLogFilter))
         case let tab: AdGuardPlaceholderTab(tab: tab, detail: nil)
         }
+    }
+
+    /// Until chunk 18 builds the Query Log, the placeholder names the filter.
+    static func filterText(_ filter: AdGuardQueryLogFilter?) -> String? {
+        guard let filter else { return nil }
+        if let client = filter.client { return "Opened for \(client)." }
+        if let search = filter.search { return "Opened for \(search)." }
+        return nil
     }
 }
 

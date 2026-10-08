@@ -2,10 +2,20 @@ import Foundation
 import Observation
 import RoutewellKit
 
-/// The AdGuard Home screen's state (chunk 16): the last service reading,
-/// the saved copy for the selected router, and the service writes. The
-/// reading and the copy change together, so a cached router never shows the
-/// empty state while its copy loads.
+/// What AdGuard Home › Query Log opens filtered by. Clients' Show DNS Log
+/// and the Overview's top rows set it; chunk 18 reads it.
+struct AdGuardQueryLogFilter: Equatable, Sendable {
+    /// A domain, from Top blocked or Top queried.
+    var search: String?
+    /// A client IP, from Top devices or Show DNS Log.
+    var client: String?
+}
+
+/// The AdGuard Home screen's state: the last service reading, the saved
+/// copy for the selected router, and the writes (chunk 16), plus the
+/// Overview's reads, range, and setting writes (chunk 17). The reading and
+/// the copy change together, so a cached router never shows the empty
+/// state while its copy loads.
 @MainActor @Observable
 final class AdGuardController {
     private let model: AppModel
@@ -20,6 +30,22 @@ final class AdGuardController {
     private(set) var inFlight: AdGuardServiceIntent?
     private(set) var lastReport: MutationReport<AdGuardServiceState>?
     private(set) var lastIntent: AdGuardServiceIntent?
+
+    // Overview (chunk 17)
+    private(set) var overview: AdGuardOverviewReading?
+    private var overviewToken: SessionToken?
+    /// The Activity range. Changing it reads that range at once.
+    private(set) var range: AdGuardStatsRange = .day
+    /// AdGuard Home did not honour `recent`: only one range is offered.
+    private(set) var rangesUnsupported = false
+    private var overviewGeneration = 0
+    @ObservationIgnored private var rangeTask: Task<Void, Never>?
+    private(set) var settingInFlight: AdGuardSettingIntent?
+    private(set) var lastSettingReport: MutationReport<AdGuardSettingState>?
+    private(set) var lastSettingIntent: AdGuardSettingIntent?
+    /// A verified protection write, shown until the next reading.
+    private var verifiedProtection: ProtectionState?
+    @ObservationIgnored private var pauseEndTask: Task<Void, Never>?
 
     init(model: AppModel, refresh: RefreshController, store: AdGuardArchiveStore) {
         self.model = model
@@ -53,6 +79,69 @@ final class AdGuardController {
         }
     }
 
+    /// A service or setting write is running.
+    var isWriting: Bool { inFlight != nil || settingInFlight != nil }
+
+    // MARK: Overview values (live while running, else the saved copy)
+
+    /// The Overview read for this session, while running.
+    private var liveOverview: AdGuardOverviewReading? {
+        guard availability == .running, overviewToken == model.session.expectedToken else { return nil }
+        return overview
+    }
+
+    /// Protection on, off, or paused. A paused state ends at the time the
+    /// reading implies.
+    var protection: ProtectionState? {
+        if availability == .running {
+            if let verifiedProtection { return verifiedProtection }
+            guard let reading, let status = reading.status else { return nil }
+            return AdGuardClient.adGuardStatus(status: status, stats: nil, now: reading.observedAt).protection
+        }
+        guard let saved = archive?.status else { return nil }
+        return AdGuardClient.adGuardStatus(status: saved.value, stats: nil, now: saved.savedAt).protection
+    }
+
+    /// Stats for the selected range; `savedAt` is set for the saved copy.
+    var stats: (value: AdGuardStats, savedAt: Date?)? {
+        if availability == .running {
+            guard let live = liveOverview, live.range == range, case .success(let stats) = live.stats else { return nil }
+            return (stats, nil)
+        }
+        return archive?.stats(for: range).map { ($0.value, $0.savedAt) }
+    }
+
+    /// The live read of the selected range failed.
+    var statsFailure: RefreshFailureCategory? {
+        guard let live = liveOverview, live.range == range, case .failure(let category) = live.stats else { return nil }
+        return category
+    }
+
+    var statsConfig: AdGuardStatsConfig? {
+        if availability == .running { return try? liveOverview?.statsConfig.get() }
+        return archive?.statsConfig?.value
+    }
+
+    var protectionOptions: ProtectionOptions? {
+        if availability == .running { return try? liveOverview?.protection.get() }
+        return archive?.protection?.value
+    }
+
+    var filtering: AdGuardFilteringStatus? {
+        if availability == .running { return try? liveOverview?.filtering.get() }
+        return archive?.filtering?.value
+    }
+
+    /// The ranges the pop-up offers. Running: up to the stats retention.
+    /// Read-only: the ranges the saved copy holds.
+    var availableRanges: [AdGuardStatsRange] {
+        if availability == .running {
+            if rangesUnsupported { return [.day] }
+            return AdGuardStatsRange.allCases.filter { $0.isAvailable(retentionMilliseconds: statsConfig?.intervalMilliseconds) }
+        }
+        return AdGuardStatsRange.allCases.filter { archive?.stats(for: $0) != nil }
+    }
+
     // MARK: Readings
 
     /// Each overview refresh: save the sections a running read gives, then
@@ -65,6 +154,58 @@ final class AdGuardController {
         archive = saved
         self.reading = reading
         readingToken = token
+        verifiedProtection = nil
+        schedulePauseEnd()
+    }
+
+    /// The Overview tab's reads, from the refresh loop and a range change.
+    /// Only while AdGuard Home runs; the read-only tabs show the saved copy.
+    func refreshOverview(using lease: SessionLease) async throws {
+        guard availability == .running, let profile = profileID() else { return }
+        let range = range
+        let generation = overviewGeneration
+        guard let reading = try await model.session.routerSession.adGuardOverview(using: lease, range: range) else { return }
+        await store.save(reading, for: profile)
+        let saved = await store.archive(for: profile)
+        guard lease.token == model.session.expectedToken, profile == profileID() else { return }
+        archive = saved
+        // A newer range was picked while this one was read.
+        guard generation == overviewGeneration else { return }
+        // A new session starts by offering every range again.
+        if overviewToken != lease.token { rangesUnsupported = false }
+        overview = reading
+        overviewToken = lease.token
+        if !reading.rangeHonoured, range != .day {
+            // This AdGuard Home ignores `recent`: offer one range.
+            rangesUnsupported = true
+            setRange(.day)
+        } else if !range.isAvailable(retentionMilliseconds: try? reading.statsConfig.get().intervalMilliseconds),
+                  case .success = reading.statsConfig {
+            // The retention got shorter than the range.
+            setRange(.day)
+        }
+    }
+
+    func setRange(_ value: AdGuardStatsRange) {
+        guard value != range else { return }
+        range = value
+        overviewGeneration += 1
+        rangeTask?.cancel()
+        guard availability == .running, let lease = model.session.lease else { return }
+        rangeTask = Task { [weak self] in try? await self?.refreshOverview(using: lease) }
+    }
+
+    /// Asks for a refresh just after a timed pause ends, so the banner
+    /// shows protection back on without waiting for the next tick.
+    private func schedulePauseEnd() {
+        pauseEndTask?.cancel()
+        guard case .paused(let until)? = protection else { return }
+        let wait = max(0, until.timeIntervalSinceNow) + 1
+        pauseEndTask = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(wait))
+            guard !Task.isCancelled else { return }
+            self?.refresh.refreshNow()
+        }
     }
 
     /// Start Setup Again: the copy goes with the router.
@@ -86,16 +227,18 @@ final class AdGuardController {
 
     // MARK: Writes
 
-    /// Turn On, Stop, Handle DNS, Restart. One at a time; the executor also
-    /// checks the state and holds the router's gate.
+    /// Turn On, Stop, Handle DNS, Restart. One write at a time; the executor
+    /// also checks the state and holds the router's gate.
     func run(_ intent: AdGuardServiceIntent) {
-        guard inFlight == nil, let lease = model.session.lease else { return }
+        guard !isWriting, let lease = model.session.lease else { return }
         let availability = availability
         let store = store
         let profile = profileID()
+        let range = range
         inFlight = intent
         lastIntent = intent
         lastReport = nil
+        lastSettingReport = nil
         Task { [weak self] in
             guard let self else { return }
             let report: MutationReport<AdGuardServiceState>
@@ -106,6 +249,9 @@ final class AdGuardController {
                     // Stop: one final sync, so the copy is as new as possible.
                     guard let profile else { return }
                     await store.save(reading, for: profile, force: true)
+                    if let overview = try? await lease.backend.adGuardOverview?.overview(range: range) {
+                        await store.save(overview, for: profile, force: true)
+                    }
                 }
             } catch {
                 // The session changed during the write: its result belongs
@@ -124,6 +270,56 @@ final class AdGuardController {
         }
     }
 
+    /// Pause, Resume, Turn Off Protection, and the three switches. Rejected
+    /// by the executor unless AdGuard Home runs.
+    func runSetting(_ intent: AdGuardSettingIntent) {
+        guard !isWriting, let lease = model.session.lease else { return }
+        let availability = availability
+        settingInFlight = intent
+        lastSettingIntent = intent
+        lastSettingReport = nil
+        lastReport = nil
+        Task { [weak self] in
+            guard let self else { return }
+            let report: MutationReport<AdGuardSettingState>
+            do {
+                report = try await self.model.session.routerSession.runAdGuardSetting(
+                    using: lease, intent: intent, availability: availability
+                )
+            } catch {
+                // The session changed during the write: never re-sent; the
+                // new session reads AdGuard Home afresh.
+                self.settingInFlight = nil
+                return
+            }
+            guard lease.token == self.model.session.expectedToken else { self.settingInFlight = nil; return }
+            self.lastSettingReport = report
+            if case .verifiedSuccess(let state) = report.outcome {
+                // Show the verified value until the refresh lands.
+                switch (intent, state) {
+                case (.protection, .protection(let protection)):
+                    self.verifiedProtection = protection
+                    self.schedulePauseEnd()
+                case (.feature(let feature, _), .feature(let value)):
+                    if case .success(var options)? = self.overview?.protection {
+                        options[feature] = value
+                        self.overview?.protection = .success(options)
+                    }
+                default: break
+                }
+            }
+            self.settingInFlight = nil
+            if case .rejected = report.outcome {
+                // A rejected write changed nothing.
+            } else {
+                self.refresh.refreshNow()
+            }
+        }
+    }
+
     /// Clears the last result, for example when the screen changes.
-    func dismissReport() { lastReport = nil }
+    func dismissReport() {
+        lastReport = nil
+        lastSettingReport = nil
+    }
 }

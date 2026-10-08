@@ -33,11 +33,23 @@ private func settle(_ environment: AppEnvironment, _ scenario: MockAdGuardScenar
         await environment.refresh.waitForRefresh()
         switch scenario {
         case .off, .turnOnFails: return adGuard.availability == .off
-        case .running, .runningWithoutDNS: return adGuard.availability == .running && adGuard.handlesDNS == (scenario == .running)
+        case .running, .runningWithoutDNS, .switchFails:
+            return adGuard.availability == .running && adGuard.handlesDNS == (scenario != .runningWithoutDNS)
+        case .paused:
+            guard adGuard.availability == .running, case .paused? = adGuard.protection else { return false }
+            return true
         case .cached: return adGuard.availability == .cached
         case .unreachable: return adGuard.availability == .unreachable(.notAnswering(.authentication))
         }
     }
+}
+
+/// The Overview tab's reads, as the refresh loop runs them while the tab
+/// is visible (tests have no visible window).
+@MainActor
+private func loadOverview(_ environment: AppEnvironment) async {
+    guard let lease = environment.model.session.lease else { Issue.record("no lease"); return }
+    try? await environment.adGuard.refreshOverview(using: lease)
 }
 
 // MARK: - Sidebar and hand-off
@@ -56,7 +68,7 @@ private func settle(_ environment: AppEnvironment, _ scenario: MockAdGuardScenar
     model.showDNSLog(client: "192.0.2.20")
     #expect(model.selection == .adGuard)
     #expect(model.subpages[.adGuard] == "Query Log")
-    #expect(model.adGuardQueryLogClient == "192.0.2.20")
+    #expect(model.adGuardQueryLogFilter == AdGuardQueryLogFilter(client: "192.0.2.20"))
 }
 
 // MARK: - Presentation
@@ -211,6 +223,222 @@ private func settle(_ environment: AppEnvironment, _ scenario: MockAdGuardScenar
     #expect(environment.adGuard.archive == nil)
 }
 
+// MARK: - Overview (chunk 17)
+
+@Test func bannerHasTheFourDesignVariants() throws {
+    var calendar = Calendar(identifier: .gregorian)
+    calendar.timeZone = TimeZone(identifier: "Europe/London")!
+    let now = try #require(calendar.date(from: DateComponents(year: 2026, month: 10, day: 8, hour: 11, minute: 25)))
+    var stats = AdGuardStats()
+    stats.queries = 100
+    stats.topClients = (1...14).map { .init(name: "192.0.2.\($0)", count: 1) }
+    var filtering = AdGuardFilteringStatus()
+    filtering.blocklists = [AdGuardFilterList(enabled: true, rulesCount: 581_421), AdGuardFilterList(enabled: false, rulesCount: 0)]
+
+    let on = AdGuardPresentation.banner(.running, protection: .enabled, handlesDNS: true, stats: stats, filtering: filtering,
+                                        savedAt: nil, now: now, calendar: calendar)
+    #expect(on == .init(tone: .on, title: "Protection is on", message: "Filtering DNS for 14 devices · 581,421 rules active", actions: [.pause]))
+
+    let paused = AdGuardPresentation.banner(.running, protection: .paused(until: now.addingTimeInterval(60)), handlesDNS: true,
+                                            stats: stats, filtering: filtering, savedAt: nil, now: now, calendar: calendar)
+    #expect(paused.tone == .paused)
+    #expect(paused.title == "Protection paused until \(AdGuardPresentation.pauseEnd(now.addingTimeInterval(60), now: now, calendar: calendar))")
+    #expect(!paused.title.contains("tomorrow"))
+    #expect(paused.actions == [.resume])
+
+    let noDNS = AdGuardPresentation.banner(.running, protection: .enabled, handlesDNS: false, stats: stats, filtering: filtering,
+                                           savedAt: nil, now: now, calendar: calendar)
+    #expect(noDNS.title == "Running, but not filtering your network")
+    #expect(noDNS.actions == [.handleDNS, .pause])
+
+    let savedAt = now.addingTimeInterval(-3600)
+    let cached = AdGuardPresentation.banner(.cached, protection: .enabled, handlesDNS: true, stats: stats, filtering: filtering,
+                                            savedAt: savedAt, now: now, calendar: calendar)
+    #expect(cached == .init(tone: .readOnly, title: "AdGuard Home is off",
+                            message: "These numbers are from \(AdGuardPresentation.savedDate(savedAt)), when it was last running.", actions: []))
+
+    // Not in the design: protection turned off, and not answering.
+    let off = AdGuardPresentation.banner(.running, protection: .disabled, handlesDNS: true, stats: stats, filtering: filtering,
+                                         savedAt: nil, now: now, calendar: calendar)
+    #expect(off.title == "Protection is off")
+    #expect(off.actions == [.turnOnProtection])
+    let silent = AdGuardPresentation.banner(.unreachable(.notAnswering(.timeout)), protection: nil, handlesDNS: nil, stats: nil,
+                                            filtering: nil, savedAt: savedAt, now: now, calendar: calendar)
+    #expect(silent.title == "AdGuard Home is not answering")
+    #expect(silent.actions.isEmpty)
+}
+
+@Test func bannerDeviceCountAndPauseEndText() throws {
+    var calendar = Calendar(identifier: .gregorian)
+    calendar.timeZone = TimeZone(identifier: "Europe/London")!
+    let now = try #require(calendar.date(from: DateComponents(year: 2026, month: 10, day: 8, hour: 23, minute: 50)))
+    let tomorrow = try #require(calendar.date(from: DateComponents(year: 2026, month: 10, day: 9, hour: 8)))
+    #expect(AdGuardPresentation.pauseEnd(tomorrow, now: now, calendar: calendar).hasPrefix("tomorrow, "))
+    #expect(!AdGuardPresentation.pauseEnd(now.addingTimeInterval(300), now: now, calendar: calendar).contains("tomorrow"))
+    #expect(AdGuardPresentation.devices((100, true)) == "at least 100 devices")
+    #expect(AdGuardPresentation.devices((1, false)) == "1 device")
+    #expect(AdGuardPresentation.onMessage(stats: nil, filtering: nil) == "Filtering DNS requests.")
+}
+
+@Test func metricsAndTopRows() {
+    var stats = AdGuardStats()
+    stats.queries = 38_733
+    stats.blockedFiltering = 5_527
+    stats.replacedSafeBrowsing = 2
+    stats.replacedParental = 1
+    stats.averageProcessingSeconds = 0.00113
+    stats.topBlocked = [.init(name: "ads.example.com", count: 2_500), .init(name: "metrics.example.net", count: 683)]
+    stats.topClients = [.init(name: "192.0.2.10", count: 9_600), .init(name: "192.0.2.99", count: 7_500)]
+    let metrics = AdGuardPresentation.metrics(stats)
+    #expect(metrics.map(\.value) == ["38,733", "5,527", "3", "1.1 ms"])
+    #expect(metrics[1].detail == "14.3%")
+    #expect(AdGuardPresentation.metrics(nil).allSatisfy { $0.value == nil })
+
+    let blocked = AdGuardPresentation.domainList(title: "Top blocked", entries: stats.topBlocked, total: stats.blockedFiltering)
+    #expect(blocked.hint == "5,527 total")
+    #expect(blocked.rows.map(\.detail) == ["45.2%", "12.4%"])
+    #expect(blocked.rows.first?.fraction == 1)
+
+    let devices = AdGuardPresentation.deviceList(stats) { $0 == "192.0.2.10" ? "Example phone" : nil }
+    #expect(devices.hint == "2 active")
+    #expect(devices.rows.map(\.name) == ["Example phone", "192.0.2.99"])
+    #expect(devices.rows.map(\.detail) == ["192.0.2.10", "Unnamed"])
+    // Compact and in the person's locale: "9.6K" in en_US, "9.6k" in en_GB.
+    #expect(devices.rows.first?.count == 9_600.formatted(.number.notation(.compactName)))
+}
+
+@Test func settingOutcomeTextNamesWhatHappened() {
+    #expect(AdGuardPresentation.settingOutcomeText(.protection(.enable), .verifiedSuccess(.protection(.enabled))) == nil)
+    #expect(AdGuardPresentation.settingOutcomeText(.feature(.parental, enabled: true), .verifiedMismatch(expected: .feature(true), actual: .feature(false)))
+            == "AdGuard Home did not change “Block adult content”.")
+    #expect(AdGuardPresentation.settingOutcomeText(.protection(.pause(.seconds(60))), .verifiedMismatch(expected: .protection(.enabled), actual: .protection(.enabled)))
+            == "AdGuard Home did not pause protection.")
+    #expect(AdGuardPresentation.settingOutcomeText(.protection(.enable), .rejected(.preconditionFailed("AdGuard Home is not running.")))
+            == "AdGuard Home is not running.")
+    #expect(AdGuardPresentation.blocklistSummary(nil) == "Unknown")
+}
+
+/// Brief item 6: the Pause menu, Resume, and the banner states end to end
+/// in the mock, through the real executor.
+@MainActor @Test func pauseResumeAndTurnOffRunEndToEndInTheMock() async {
+    let environment = await mockEnvironment(.running)
+    let adGuard = environment.adGuard
+    #expect(adGuard.protection == .enabled)
+
+    adGuard.runSetting(.protection(ProtectionPauseChoice.oneMinute.intent(from: .now)))
+    await eventually { adGuard.settingInFlight == nil }
+    guard case .verifiedSuccess(.protection(.paused))? = adGuard.lastSettingReport?.outcome else {
+        Issue.record("expected a verified pause, got \(String(describing: adGuard.lastSettingReport))"); return
+    }
+    await settle(environment, .paused)
+    let banner = AdGuardPresentation.banner(adGuard.availability, protection: adGuard.protection, handlesDNS: adGuard.handlesDNS,
+                                            stats: nil, filtering: nil, savedAt: nil, now: .now)
+    #expect(banner.actions == [.resume])
+    // The sidebar dot turns orange.
+    await eventually {
+        await environment.refresh.waitForRefresh()
+        return AdGuardPresentation.sidebarTone(adGuard.availability, protection: environment.model.snapshot?.adGuard.protection) == .degraded
+    }
+
+    adGuard.runSetting(.protection(.enable))
+    await eventually { adGuard.settingInFlight == nil }
+    #expect(adGuard.lastSettingReport?.outcome == .verifiedSuccess(.protection(.enabled)))
+    await eventually { await environment.refresh.waitForRefresh(); return adGuard.protection == .enabled }
+
+    adGuard.runSetting(.protection(.disable))
+    await eventually { adGuard.settingInFlight == nil }
+    await eventually { await environment.refresh.waitForRefresh(); return adGuard.protection == .disabled }
+    #expect(AdGuardPresentation.banner(.running, protection: adGuard.protection, handlesDNS: true, stats: nil, filtering: nil,
+                                       savedAt: nil, now: .now).actions == [.turnOnProtection])
+}
+
+/// A timed pause ends on its own and the banner follows.
+@MainActor @Test func aShortPauseEndsOnItsOwn() async {
+    let environment = await mockEnvironment(.running)
+    let adGuard = environment.adGuard
+    adGuard.runSetting(.protection(.pause(.seconds(1))))
+    await eventually { adGuard.settingInFlight == nil }
+    await eventually { await environment.refresh.waitForRefresh(); return adGuard.protection == .enabled }
+}
+
+@MainActor @Test func handleDNSRequestsFromTheBanner() async {
+    let environment = await mockEnvironment(.runningWithoutDNS)
+    environment.adGuard.run(.setHandlesDNS(true))
+    await eventually { environment.adGuard.inFlight == nil }
+    await settle(environment, .running)
+}
+
+@MainActor @Test func overviewReadsRangesUpToTheRetention() async {
+    let environment = await mockEnvironment(.running)
+    let adGuard = environment.adGuard
+    await loadOverview(environment)
+    #expect(adGuard.stats?.value.matches(.day) == true)
+    #expect(adGuard.stats?.savedAt == nil)
+    #expect(adGuard.protectionOptions == ProtectionOptions(safeBrowsing: true, parental: false, safeSearch: false))
+    #expect(adGuard.filtering?.enabledBlocklists.count == 3)
+    // The mock keeps 7 days of stats.
+    #expect(adGuard.availableRanges == [.day, .week])
+
+    adGuard.setRange(.week)
+    await eventually { adGuard.stats?.value.matches(.week) == true }
+    #expect(adGuard.archive?.stats(for: .week) != nil)
+}
+
+@MainActor @Test func cachedOverviewShowsTheCopyAndRefusesWrites() async {
+    let environment = await mockEnvironment(.cached)
+    let adGuard = environment.adGuard
+    #expect(adGuard.stats?.savedAt != nil)
+    #expect(adGuard.protectionOptions?.safeBrowsing == true)
+    #expect(adGuard.availableRanges == [.day])
+    #expect(adGuard.protection == .enabled)
+
+    // Every Overview write is refused before any request reaches AdGuard Home.
+    for intent in [AdGuardSettingIntent.protection(.enable), .protection(.pause(.seconds(60))), .feature(.safeBrowsing, enabled: false)] {
+        #expect(intent.validate(adGuard.availability) != nil)
+        adGuard.runSetting(intent)
+        await eventually { adGuard.settingInFlight == nil }
+        #expect(adGuard.lastSettingReport?.outcome == .rejected(.preconditionFailed("AdGuard Home is not running.")))
+        #expect(adGuard.lastSettingReport?.dispatched == false)
+    }
+    #expect(await environment.mockAdGuardWrites().isEmpty)
+}
+
+@MainActor @Test func aFailingSwitchSaysSoAndKeepsItsValue() async {
+    let environment = await mockEnvironment(.switchFails)
+    let adGuard = environment.adGuard
+    await loadOverview(environment)
+    adGuard.runSetting(.feature(.parental, enabled: true))
+    #expect(adGuard.settingInFlight == .feature(.parental, enabled: true))
+    await eventually { adGuard.settingInFlight == nil }
+    let text = adGuard.lastSettingReport.flatMap { AdGuardPresentation.settingOutcomeText(.feature(.parental, enabled: true), $0.outcome) }
+    #expect(text == "AdGuard Home did not change “Block adult content”.")
+    await loadOverview(environment)
+    #expect(adGuard.protectionOptions?.parental == false)
+
+    adGuard.runSetting(.feature(.safeBrowsing, enabled: false))
+    await eventually { adGuard.settingInFlight == nil }
+    #expect(adGuard.lastSettingReport?.outcome == .verifiedSuccess(.feature(false)))
+    #expect(adGuard.protectionOptions?.safeBrowsing == false)
+}
+
+@MainActor @Test func topRowsOpenTheQueryLogFiltered() {
+    let model = AppModel(mode: .mock)
+    model.showQueryLog(AdGuardQueryLogFilter(search: "ads.example.com"))
+    #expect(model.selection == .adGuard)
+    #expect(model.subpages[.adGuard] == "Query Log")
+    #expect(model.adGuardQueryLogFilter == AdGuardQueryLogFilter(search: "ads.example.com"))
+    model.showQueryLog(AdGuardQueryLogFilter(client: "192.0.2.10"))
+    #expect(model.adGuardQueryLogFilter?.client == "192.0.2.10")
+    #expect(AdGuardScreen.filterText(model.adGuardQueryLogFilter) == "Opened for 192.0.2.10.")
+}
+
+@Test func refreshPlanReadsTheOverviewOnlyOnItsTab() {
+    let overview = ScreenRefreshPlan.resolve(destination: "adGuard", segment: "Overview").map(\.area)
+    #expect(overview.contains(.adGuardOverview))
+    let instance = ScreenRefreshPlan.resolve(destination: "adGuard", segment: "Instance").map(\.area)
+    #expect(!instance.contains(.adGuardOverview))
+}
+
 // MARK: - Snapshots
 
 /// Writes PNGs of each AdGuard Home state, light and dark, to the test
@@ -246,9 +474,20 @@ private func settle(_ environment: AppEnvironment, _ scenario: MockAdGuardScenar
         let environment = await mockEnvironment(scenario)
         environment.model.subpages[.adGuard] = AdGuardTab.instance.rawValue
         write("instance-\(name)", environment)
+    }
+    // Chunk 17: the Overview's banner variants.
+    for (name, scenario) in [("running", MockAdGuardScenario.running), ("paused", .paused), ("no-dns", .runningWithoutDNS),
+                             ("cached", .cached), ("unreachable", .unreachable)] {
+        let environment = await mockEnvironment(scenario)
+        await loadOverview(environment)
         environment.model.subpages[.adGuard] = AdGuardTab.overview.rawValue
         write("overview-\(name)", environment)
     }
+    let off2 = await mockEnvironment(.running)
+    await loadOverview(off2)
+    off2.adGuard.runSetting(.protection(.disable))
+    await eventually { off2.adGuard.settingInFlight == nil }
+    write("overview-protection-off", off2)
     let noCopy = await mockEnvironment(.unreachable)
     await noCopy.adGuard.replaceArchive(nil)
     write("unreachable-no-copy", noCopy)
