@@ -1,0 +1,39 @@
+Routewell
+Copyright (C) 2026 Simon Solts
+
+This program is free software: you can redistribute it and/or modify it
+under the terms of the GNU General Public License as published by the Free
+Software Foundation, version 3 of the License only. See the LICENSE file for
+the full text.
+
+This program is distributed in the hope that it will be useful, but
+WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General
+Public License for more details.
+
+Additional term under Section 7(b) of the GNU GPL v3: attribution
+-----------------------------------------------------------------
+
+This term applies to the material that Simon Solts holds the copyright for.
+It does not apply to third-party material. See THIRD_PARTY_NOTICES.md.
+
+Attribution is a condition of this license. If you convey this program, or
+a work based on it, in source or object form, you must:
+
+  1. Keep this NOTICE file with every copy. You may add your own notices to
+     it, but you must not remove or change the attribution to Simon Solts.
+
+  2. Include this attribution in the Appropriate Legal Notices of the work
+     (as defined in Section 0 of the license), for example in its About
+     window:
+
+         Based on Routewell by Simon Solts
+         https://github.com/simonsolts/routewell
+
+This term does not permit you to use the name of the author to endorse or
+promote a work based on this program.
+
+Request (not a condition of the license): please also put the attribution
+above in the documentation of your work.
+
+Routewell is not affiliated with or endorsed by GL.iNet.

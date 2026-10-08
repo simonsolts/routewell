@@ -13,6 +13,7 @@
 <key>LSMinimumSystemVersion</key><string>$(MACOSX_DEPLOYMENT_TARGET)</string>
 <key>NSPrincipalClass</key><string>NSApplication</string>
 <key>NSHighResolutionCapable</key><true/>
+<key>NSHumanReadableCopyright</key><string>Copyright © 2026 Simon Solts. https://github.com/simonsolts/routewell. Licensed under GPL v3 only, with an attribution term. See NOTICE.</string>
 <key>NSLocalNetworkUsageDescription</key><string>Routewell connects to your router and AdGuard Home on your local network to show status and settings.</string>
 <key>NSAppTransportSecurity</key><dict>
 <key>NSAllowsLocalNetworking</key><true/>
