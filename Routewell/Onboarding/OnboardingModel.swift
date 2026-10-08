@@ -36,6 +36,10 @@ final class OnboardingModel {
     let services: any OnboardingServices
     /// Opens the main window and closes this one.
     @ObservationIgnored var onFinish: (() -> Void)?
+    /// Set for the SSH steps alone (15B's sheet when Use SSH is switched on):
+    /// the run starts at Choose Key and reports here instead of showing
+    /// Finish. True means SSH connected; false means it was skipped.
+    @ObservationIgnored var onSSHDone: ((Bool) -> Void)?
     @ObservationIgnored private var work: Task<Void, Never>?
     /// From the found card or the Manual step: where Name's Back goes.
     @ObservationIgnored private var foundManually = false
@@ -47,6 +51,15 @@ final class OnboardingModel {
 
     init(services: any OnboardingServices) {
         self.services = services
+    }
+
+    /// The SSH steps alone, for a router that is already set up.
+    convenience init(sshStepsWith services: any OnboardingServices, host: String, onDone: @escaping (Bool) -> Void) {
+        self.init(services: services)
+        address = host
+        onSSHDone = onDone
+        state = .sshKey
+        history = [.sshKey]
     }
 
     var spec: OnboardingSpec { state.spec }
@@ -348,6 +361,12 @@ final class OnboardingModel {
     }
 
     private func showFinish(ssh: Bool) async {
+        if let onSSHDone {
+            busy = false
+            finished = true
+            onSSHDone(ssh)
+            return
+        }
         busy = true
         let adGuard = await services.adGuardHomeEnabled()
         guard !Task.isCancelled else { return }

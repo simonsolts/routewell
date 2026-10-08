@@ -453,3 +453,29 @@ private let discovered = DiscoveredRouter(endpoint: try! RouterEndpoint.parse("1
     await mock.waitUntilReady()
     #expect(mock.onboarding.runForLaunch() == nil)
 }
+
+// MARK: - SSH steps alone (for 15B)
+
+@MainActor @Test func theSSHStepsRunAloneAndReportTheResult() async {
+    var result: Bool?
+    let services = MockOnboardingServices(scenario: .found, delay: .milliseconds(5))
+    let model = OnboardingModel(sshStepsWith: services, host: "192.0.2.1") { result = $0 }
+    #expect(model.state == .sshKey)
+    model.chooseKey()
+    #expect(model.state == .sshChosen)
+    model.primary()
+    await reach(model, .hostkey)
+    model.primary()
+    let clock = ContinuousClock()
+    let deadline = clock.now.advanced(by: .seconds(2))
+    while result == nil, clock.now < deadline { try? await Task.sleep(for: .milliseconds(5)) }
+    #expect(result == true)
+    #expect(model.state == .sshCheck)
+    #expect(!services.calls.contains("signIn"))
+
+    var skipped: Bool?
+    let other = OnboardingModel(sshStepsWith: MockOnboardingServices(scenario: .found, delay: .zero), host: "192.0.2.1") { skipped = $0 }
+    other.tertiary()
+    await other.settle()
+    #expect(skipped == false)
+}
