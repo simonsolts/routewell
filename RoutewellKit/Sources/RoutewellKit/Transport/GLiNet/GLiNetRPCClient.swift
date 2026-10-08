@@ -222,6 +222,8 @@ public actor GLiNetRPCClient: RouterSessionTokenProvider {
         switch code {
         case -32000:
             return .accessDenied
+        case -32003:
+            return .loginPaused
         case -32601:
             return .methodNotFound(methodContext ?? "")
         case -32602:
@@ -255,6 +257,7 @@ public actor GLiNetRPCClient: RouterSessionTokenProvider {
         case .httpStatus(let code): return "httpStatus(\(code))"
         case .malformedResponse: return "malformedResponse"
         case .accessDenied: return "accessDenied"
+        case .loginPaused: return "loginPaused"
         case .methodNotFound: return "methodNotFound"
         case .invalidParameters: return "invalidParameters"
         case .rpcError(let code, _): return "rpcError(\(code))"

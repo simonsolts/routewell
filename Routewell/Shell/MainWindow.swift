@@ -5,6 +5,7 @@ struct MainWindow: View {
     var delegate: AppDelegate?
     @Environment(AppModel.self) private var model
     @Environment(\.openWindow) private var openWindow
+    @Environment(\.dismissWindow) private var dismissWindow
     @State private var columnVisibility: NavigationSplitViewVisibility = .all
 
     var body: some View {
@@ -27,8 +28,8 @@ struct MainWindow: View {
         } detail: {
             Group {
                 if model.needsSetup {
-                    SetupScreen(environment: environment)
-                        .navigationTitle("Set Up Routewell")
+                    // Onboarding has its own window; this one closes below.
+                    Color.clear
                 } else {
                     VStack(spacing: 0) {
                         if model.mode == .mock {
@@ -58,7 +59,17 @@ struct MainWindow: View {
         .frame(minWidth: 900, minHeight: 600)
         .background(MainWindowLifecycle(delegate: delegate, refresh: environment.refresh))
         .onAppear {
-            delegate?.reopenMainWindow = { openWindow(id: "main") }
+            delegate?.reopen = { [environment, openWindow] in
+                openWindow(id: environment.model.needsSetup ? "onboarding" : "main")
+            }
+        }
+        .task(id: model.needsSetup) {
+            // Restored at launch, or the router was removed: onboarding takes over.
+            await environment.waitUntilReady()
+            if model.needsSetup {
+                openWindow(id: "onboarding")
+                dismissWindow(id: "main")
+            }
         }
         .sheet(isPresented: trustPromptPresented) {
             if let request = environment.trustPrompt.pending {

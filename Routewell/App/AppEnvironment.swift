@@ -20,6 +20,11 @@ final class AppEnvironment {
     let router: RouterController
     let sshSetup: SSHSetupController
     let trustPrompt = TrustPromptController()
+    let onboarding = OnboardingController()
+    /// Decided before bootstrap from the files on disk, so the right window
+    /// opens at launch and the main window never flashes before onboarding.
+    /// `MainWindow` and `OnboardingWindow` correct a wrong guess after bootstrap.
+    let launchShowsOnboarding: Bool
     private let sshKeyAccess = SSHKeyFileAccess()
     /// Starts `/usr/bin/ssh` for the live SSH runner. Tests pass a fake.
     private let processRunner: any ProcessRunning
@@ -51,8 +56,10 @@ final class AppEnvironment {
          sshDirectory: URL? = nil,
          hostKeyScanner: any SSHHostKeyScanning = LiveSSHHostKeyScanner(),
          processRunner: any ProcessRunning = ProcessRunner(),
+         launchShowsOnboarding: Bool? = nil,
          transportFactory: @escaping (any EndpointTrustStore) -> any HTTPTransport = { URLSessionTransport(trustStore: $0) }) {
         self.model = model
+        self.launchShowsOnboarding = launchShowsOnboarding ?? (model.mode == .live)
         self.credentials = credentials
         self.transportFactory = transportFactory
         self.processRunner = processRunner
@@ -77,6 +84,7 @@ final class AppEnvironment {
         mockBackend = backend as? MockRouterBackend
         #endif
         sshSetup.save = { [weak self] settings in self?.updateSSHSettings(settings) }
+        onboarding.environment = self
         router.routerURL = { [weak self] in
             guard let self, self.model.mode == .live else { return nil }
             return self.persistence.selectedProfile?.liveEndpoint?.url
@@ -87,12 +95,26 @@ final class AppEnvironment {
             await trust.load()
             await clients.load()
             await router.load()
-            // `liveEndpoint != nil` alone is enough here: `PersistenceController
-            // .addLiveProfile` now saves the Keychain secret before it ever
-            // appends or persists the profile, so a saved live profile always
-            // has a password. A defensive `credentials.read(...)` on every
-            // launch was considered and skipped as unnecessary Keychain I/O.
-            model.setHasLiveEndpoint(persistence.selectedProfile?.liveEndpoint != nil)
+            // Onboarding saves the profile at sign-in. One that never reached
+            // Finish is removed, so onboarding starts empty again.
+            if model.mode == .live {
+                for profile in persistence.profiles.profiles where profile.liveEndpoint != nil && !profile.setupComplete {
+                    await forgetRouter(profile.id)
+                }
+                // A run that quit after Trust Certificate but before sign-in
+                // left a pin for a host no profile uses. Skipped when the
+                // profiles could not be read (a newer app's file): their
+                // pins are still needed.
+                if persistence.errors[.profiles] == nil {
+                    let hosts = Set(persistence.profiles.profiles.compactMap { $0.liveEndpoint?.host })
+                    for pin in trust.trusted where !hosts.contains(pin.host) {
+                        await trust.revoke(host: pin.host, port: pin.port)
+                    }
+                }
+            }
+            // A live profile always has a password: `PersistenceController
+            // .addLiveProfile` saves the Keychain secret before the profile.
+            updateNeedsSetup()
             logging.record(kind: .session, message: "Application session started")
             if let backend, let profile = persistence.selectedProfile {
                 #if DEBUG
@@ -301,23 +323,59 @@ final class AppEnvironment {
     }
     #endif
 
-    /// Saves a live router profile from `SetupScreen`, stores its password in
-    /// the credential store, and selects it. Returns false if either step fails.
-    /// On success, also installs the live backend and starts its first
-    /// refresh through the normal session-lease path.
-    func saveLiveRouterProfile(endpoint: RouterEndpoint, username: String, password: Data, plainHTTPAcknowledged: Bool) async -> Bool {
-        let profile = RouterProfile(
-            name: endpoint.displayString,
-            liveEndpoint: endpoint,
-            username: username,
-            plainHTTPAcknowledged: plainHTTPAcknowledged,
-            adGuard: AdGuardSettings()
-        )
-        let saved = await persistence.addLiveProfile(profile, password: password)
-        guard saved else { return false }
-        model.setHasLiveEndpoint(true)
+    /// `needsSetup` follows the selected profile: live and finished, or not.
+    func updateNeedsSetup() {
+        guard let profile = persistence.selectedProfile else { model.setHasLiveEndpoint(false); return }
+        model.setHasLiveEndpoint(profile.liveEndpoint != nil && profile.setupComplete)
+    }
+
+    // MARK: Onboarding (chunk 15A)
+
+    /// Sign-in for onboarding: a throwaway client checks the password with the
+    /// certificate the person just trusted. A changed certificate is never
+    /// prompted for here; it comes back as `untrustedServer`.
+    func onboardingSignIn(endpoint: RouterEndpoint, password: String) async throws -> RouterProbe {
+        let transport = transportFactory(trust.store)
+        let rpc = GLiNetRPCClient(endpoint: endpoint, username: SSHSettings().user, password: { password },
+                                  transport: transport, log: logging.eventLog)
+        let backend = LiveRouterBackend(configuration: LiveBackendConfiguration(routerEndpoint: endpoint), rpc: rpc, adGuard: nil,
+                                        trustStore: trust.store, trustPrompt: RefusingTrustPrompt(), log: logging.eventLog)
+        return try await backend.probe()
+    }
+
+    /// Saves the signed-in router, still unfinished, and starts its session,
+    /// so the SSH steps can probe through it. `needsSetup` stays true.
+    func saveOnboardedProfile(name: String, endpoint: RouterEndpoint, password: Data) async -> UUID? {
+        let profile = RouterProfile(name: name, liveEndpoint: endpoint, username: SSHSettings().user,
+                                    adGuard: AdGuardSettings(), setupComplete: false)
+        guard await persistence.addLiveProfile(profile, password: password) else { return nil }
         reconnectLiveSession()
+        await waitUntilReady()
+        return profile.id
+    }
+
+    /// Onboarding's Finish: the profile is complete, so the main window opens.
+    func completeSetup(_ id: UUID, name: String) async -> Bool {
+        guard await persistence.completeSetup(id, name: name) else { return false }
+        updateNeedsSetup()
         return true
+    }
+
+    /// Removes a router and everything Routewell keeps for it on this Mac:
+    /// the profile, its Keychain items, its certificate pin, its SSH host key,
+    /// and its key bookmark (part of the profile). Nothing is sent to the router.
+    func forgetRouter(_ id: UUID) async {
+        guard let profile = persistence.profiles.profiles.first(where: { $0.id == id }) else { return }
+        if persistence.selectedProfile?.id == id {
+            model.session.disconnect(model: model, refresh: refresh)
+            _ = sshKeyAccess.activate(nil)
+        }
+        if let endpoint = profile.liveEndpoint {
+            await trust.revoke(host: endpoint.host, port: endpoint.port)
+            try? await sshSetup.hostKeys.revoke(host: endpoint.host, port: profile.ssh?.port ?? SSHSettings().port)
+        }
+        await persistence.removeProfile(id)
+        updateNeedsSetup()
     }
 
     /// Rebuilds the live session from whatever is currently the saved
@@ -635,6 +693,8 @@ final class AppEnvironment {
             return "Connection cancelled. The certificate was not trusted."
         case .accessDenied, .credentialUnavailable:
             return "The router refused the login. Check the username and password."
+        case .loginPaused:
+            return "The router paused sign-in after too many incorrect passwords. Try again in a few minutes."
         case .transport(let transportError):
             return connectionTestCategory(for: transportError).failureCategory.message
         case .httpStatus, .malformedResponse, .invalidParameters, .rpcError, .unsupportedAlgorithm, .unsupportedHashMethod:
@@ -650,6 +710,14 @@ final class AppEnvironment {
         case .unreachable, .redirectRefused, .tlsFailure, .cancelled, .localNetworkDenied, .untrustedServer: .network
         case .responseTooLarge, .invalidResponse: .malformedResponse
         }
+    }
+
+    /// The launch guess: onboarding unless the saved, selected profile is a
+    /// finished live router. Reads the file without loading the store.
+    static func peekNeedsSetup(in directory: URL) -> Bool {
+        guard let saved = AtomicJSONStore.peek(ProfileSettings.self, from: .profiles, in: directory) else { return true }
+        let selected = saved.profiles.first { $0.id == saved.selectedID } ?? saved.profiles.first
+        return !(selected?.liveEndpoint != nil && selected?.setupComplete == true)
     }
 
     static func configured(
@@ -670,12 +738,23 @@ final class AppEnvironment {
         let mode = BackendMode.resolve(variables["ROUTEWELL_BACKEND"], allowsMock: allowsMock)
         #if DEBUG
         if mode == .mock {
-            return AppEnvironment(model: AppModel(mode: mode), backend: MockRouterBackend(), store: store, credentials: credentials)
+            let mockScenario = variables["ROUTEWELL_ONBOARDING"].flatMap(MockOnboardingScenario.init(rawValue:))
+            let environment = AppEnvironment(model: AppModel(mode: mode), backend: MockRouterBackend(), store: store, credentials: credentials,
+                                             launchShowsOnboarding: mockScenario != nil)
+            environment.onboarding.launchMockScenario = mockScenario
+            return environment
         }
         #endif
+        let directory = URL.applicationSupportDirectory.appendingPathComponent("Routewell", isDirectory: true)
+        let launchShowsOnboarding = !persist || Self.peekNeedsSetup(in: directory)
         return AppEnvironment(model: AppModel(mode: mode), backend: nil, store: store, credentials: credentials,
-                              sshDirectory: sshDirectory, transportFactory: transportFactory)
+                              sshDirectory: sshDirectory, launchShowsOnboarding: launchShowsOnboarding, transportFactory: transportFactory)
     }
+}
+
+/// Never prompts. Onboarding shows the fingerprint on its own step first.
+private struct RefusingTrustPrompt: TrustPromptHandler {
+    func requestTrust(host: String, port: Int, decision: TrustDecision) async -> Bool { false }
 }
 
 /// Hops `TrustPromptHandler.requestTrust` into `TrustPromptController` on the

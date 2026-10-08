@@ -362,8 +362,7 @@ private func temporaryKeyFile() throws -> URL {
                                      hostKeyScanner: FakeScanner(candidates: [candidate(0)]), processRunner: processes,
                                      transportFactory: { _ in NoTransport() })
     await environment.waitUntilReady()
-    let saved = await environment.saveLiveRouterProfile(endpoint: try RouterEndpoint.parse("192.0.2.1"), username: "admin",
-                                                        password: Data("secret".utf8), plainHTTPAcknowledged: false)
+    let saved = await environment.saveFinishedRouter(try RouterEndpoint.parse("192.0.2.1"))
     #expect(saved)
     await environment.waitUntilReady()
     await environment.refresh.waitForRefresh()

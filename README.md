@@ -97,8 +97,9 @@ Routewell is heavily inspired by
 #### Copyright
 
 Copyright © 2026 Simon Solts. Routewell is licensed
-under the GNU General Public License v3.0 only. See [LICENSE](LICENSE) and
-[COPYRIGHT](COPYRIGHT). Third-party contributions retain their respective
+under the GNU General Public License v3.0 only, with one additional term under
+Section 7(b): you must keep the attribution to the author. See [LICENSE](LICENSE),
+[NOTICE](NOTICE) and [COPYRIGHT](COPYRIGHT). Third-party contributions retain their respective
 copyright notices; see [Third-party notices](THIRD_PARTY_NOTICES.md).
 
 

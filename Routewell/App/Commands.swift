@@ -49,12 +49,50 @@ struct RoutewellCommands: Commands {
             Button("Record Fixtures…") { environment.recordFixtures() }
                 .disabled(environment.model.mode != .live || !environment.model.session.isReady ||
                           !(environment.model.session.lease?.backend is LiveRouterBackend))
+            Divider()
+            if environment.model.mode == .mock {
+                Menu("Show Onboarding") {
+                    ForEach(MockOnboardingScenario.allCases) { scenario in
+                        Button(scenario.title) {
+                            environment.onboarding.showWindow = { openWindow(id: "onboarding") }
+                            environment.onboarding.startMock(scenario)
+                        }
+                    }
+                }
+            } else {
+                Button("Start Setup Again…") { startSetupAgain() }
+            }
         }
         #endif
     }
 
+    #if DEBUG
+    /// Debug only until chunk 15B adds the Settings button: removes the
+    /// router from this Mac, then runs onboarding.
+    private func startSetupAgain() {
+        let alert = NSAlert()
+        alert.messageText = "Start setup again?"
+        alert.informativeText = "Routewell removes this router and its settings from this Mac. Nothing changes on the router."
+        alert.addButton(withTitle: "Start Setup Again")
+        alert.addButton(withTitle: "Cancel")
+        guard alert.runModal() == .alertFirstButtonReturn else { return }
+        Task {
+            if let id = environment.persistence.selectedProfile?.id, environment.persistence.selectedProfile?.liveEndpoint != nil {
+                await environment.forgetRouter(id)
+            }
+            environment.onboarding.showWindow = { openWindow(id: "onboarding") }
+            environment.onboarding.start()
+        }
+    }
+    #endif
+
     private func select(_ destination: SidebarDestination) {
         environment.model.selection = destination
+        if environment.model.needsSetup {
+            openWindow(id: "onboarding")
+            NSApp.activate(ignoringOtherApps: true)
+            return
+        }
         openWindow(id: "main")
         NSApp.activate(ignoringOtherApps: true)
     }

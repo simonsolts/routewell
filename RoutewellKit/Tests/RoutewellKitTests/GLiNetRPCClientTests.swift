@@ -339,6 +339,27 @@ private enum RPCFixtures {
     #expect(await counter.count("challenge") == 1)
 }
 
+/// Chunk 15A: the code the router sent after repeated refused logins.
+@Test func loginPausedCodeMapsToLoginPausedAndIsNotRetried() async throws {
+    let counter = RPCCallCounter()
+    let stub = StubHTTPTransport { request in
+        let id = RPCFixtures.requestID(request) ?? 0
+        switch RPCFixtures.method(request) {
+        case "challenge": return RPCFixtures.okResponse(id: id, result: RPCFixtures.challengeResult)
+        case "login":
+            _ = await counter.next("login")
+            return RPCFixtures.errorResponse(id: id, code: -32003, message: "Too many attempts")
+        default: Issue.record("unexpected method"); return RPCFixtures.errorResponse(id: id, code: -1)
+        }
+    }
+    let client = RPCFixtures.makeClient(transport: stub)
+
+    await #expect(throws: GLiNetRPCError.loginPaused) {
+        _ = try await client.sessionID()
+    }
+    #expect(await counter.count("login") == 1)
+}
+
 // MARK: - keepAlive
 
 @Test func keepAliveReturnsTrueWhenSIDStillValid() async throws {

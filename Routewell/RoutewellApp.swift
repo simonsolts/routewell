@@ -18,7 +18,21 @@ struct RoutewellApp: App {
         }
         .defaultSize(width: 1180, height: 760)
         .windowResizability(.contentMinSize)
+        .defaultLaunchBehavior(environment.launchShowsOnboarding ? .suppressed : .presented)
         .commands { RoutewellCommands(environment: environment) }
+
+        // First run (chunk 15A): the main window opens at Finish.
+        Window("Set Up Routewell", id: "onboarding") {
+            OnboardingWindow(environment: environment, delegate: delegate)
+                .environment(model)
+                .onAppear {
+                    delegate.persistence = environment.persistence
+                    delegate.clients = environment.clients
+                }
+        }
+        .windowResizability(.contentSize)
+        .defaultLaunchBehavior(environment.launchShowsOnboarding ? .presented : .suppressed)
+        .restorationBehavior(.disabled)
 
         Settings {
             SettingsView(environment: environment).environment(model)

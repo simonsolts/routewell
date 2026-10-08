@@ -145,9 +145,7 @@ private actor VisibleVPNProbeForTest: VPNService {
     #expect(calls == 0)
 
     let endpoint = try! RouterEndpoint.parse("192.0.2.1")
-    let saved = await environment.saveLiveRouterProfile(
-        endpoint: endpoint, username: "root", password: Data("secret".utf8), plainHTTPAcknowledged: false
-    )
+    let saved = await environment.saveFinishedRouter(endpoint)
     #expect(saved)
     #expect(environment.transportFactoryWasUsed)
     #expect(calls == 1)
@@ -162,9 +160,7 @@ private actor VisibleVPNProbeForTest: VPNService {
     await environment.waitUntilReady()
 
     let endpoint = try! RouterEndpoint.parse("192.0.2.1")
-    let saved = await environment.saveLiveRouterProfile(
-        endpoint: endpoint, username: "admin", password: Data("secret".utf8), plainHTTPAcknowledged: false
-    )
+    let saved = await environment.saveFinishedRouter(endpoint)
     #expect(saved)
     #expect(calls == 1)
 
@@ -186,9 +182,7 @@ private actor VisibleVPNProbeForTest: VPNService {
     await environment.waitUntilReady()
 
     let endpoint = try! RouterEndpoint.parse("192.0.2.1")
-    let saved = await environment.saveLiveRouterProfile(
-        endpoint: endpoint, username: "root", password: Data("secret".utf8), plainHTTPAcknowledged: false
-    )
+    let saved = await environment.saveFinishedRouter(endpoint)
     #expect(saved)
     await environment.waitUntilReady()
     let firstToken = environment.model.session.expectedToken
@@ -454,4 +448,14 @@ private func successfulResult(at date: Date = .distantPast) -> OverviewRefreshRe
           internet: .success(.init(), observedAt: date, source: .mock),
           adGuard: .success(.init(), observedAt: date, source: .mock),
           clients: .success(.init(), observedAt: date, source: .mock))
+}
+
+extension AppEnvironment {
+    /// A finished live router, saved as onboarding saves it.
+    func saveFinishedRouter(_ endpoint: RouterEndpoint) async -> Bool {
+        guard let id = await saveOnboardedProfile(name: endpoint.displayString, endpoint: endpoint, password: Data("secret".utf8)) else {
+            return false
+        }
+        return await completeSetup(id, name: endpoint.displayString)
+    }
 }

@@ -5,7 +5,8 @@ import SwiftUI
 final class AppDelegate: NSObject, NSApplicationDelegate {
     weak var persistence: PersistenceController?
     weak var clients: ClientsController?
-    var reopenMainWindow: (() -> Void)?
+    /// Opens the main window, or onboarding while setup is not finished.
+    var reopen: (() -> Void)?
     private weak var mainWindow: NSWindow?
     private weak var refresh: RefreshController?
     private var observing = false
@@ -73,7 +74,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { false }
 
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
-        reopenMainWindow?()
+        reopen?()
         return true
     }
 }

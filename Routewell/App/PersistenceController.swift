@@ -96,11 +96,15 @@ final class PersistenceController {
             credentialMessage = credentialError(error)
             return false
         }
+        let before = profiles
         profiles.profiles.append(profile)
         profiles.selectedID = profile.id
         await flush()
         guard errors[.profiles] == nil else {
-            credentialMessage = "Router password saved, but the router could not be saved. Try again."
+            // Undo the add, so a retry does not leave a second profile.
+            profiles = before
+            try? await credentials.delete(profile.credential)
+            credentialMessage = "The router could not be saved. Try again."
             return false
         }
         credentialMessage = "Router password saved in Keychain."
@@ -121,6 +125,35 @@ final class PersistenceController {
             await flush()
             return true
         } catch { credentialMessage = credentialError(error); return false }
+    }
+
+    /// Removes one profile and its Keychain items (router password and any
+    /// separate AdGuard Home password). Keychain delete is idempotent, so a
+    /// failed save afterwards can simply be retried.
+    func removeProfile(_ id: UUID) async {
+        guard let profile = profiles.profiles.first(where: { $0.id == id }) else { return }
+        try? await credentials.delete(profile.credential)
+        if profile.liveEndpoint != nil {
+            try? await credentials.delete(CredentialReference(profileID: profile.id, endpoint: profile.endpoint, kind: .adGuardPassword))
+        }
+        profiles.profiles.removeAll { $0.id == id }
+        if profiles.selectedID == id { profiles.selectedID = profiles.profiles.first?.id }
+        await flush()
+    }
+
+    /// Onboarding's Finish: names the profile and marks it complete.
+    func completeSetup(_ id: UUID, name: String) async -> Bool {
+        guard let index = profiles.profiles.firstIndex(where: { $0.id == id }) else { return false }
+        let old = profiles.profiles[index]
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        profiles.profiles[index].name = trimmed.isEmpty ? old.name : trimmed
+        profiles.profiles[index].setupComplete = true
+        await flush()
+        guard errors[.profiles] == nil else {
+            profiles.profiles[index] = old
+            return false
+        }
+        return true
     }
 
     enum CredentialAction { case save(Data), check, delete }
@@ -164,7 +197,8 @@ final class PersistenceController {
         defer { credentialBusy = false }
         let rebuilt = RouterProfile(
             id: old.id, name: old.name, liveEndpoint: endpoint, username: old.username,
-            plainHTTPAcknowledged: old.plainHTTPAcknowledged, adGuard: old.adGuard, ssh: old.ssh
+            plainHTTPAcknowledged: old.plainHTTPAcknowledged, adGuard: old.adGuard, ssh: old.ssh,
+            setupComplete: old.setupComplete
         )
         do {
             let secret = try await credentials.read(old.credential)

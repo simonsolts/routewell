@@ -8,6 +8,9 @@ public enum GLiNetRPCError: Error, Equatable, Sendable {
     case httpStatus(Int)
     case malformedResponse
     case accessDenied
+    /// `-32003`, seen live after about eight refused logins (2026-09-27).
+    /// That it means "sign-in paused" is `[assumed]`.
+    case loginPaused
     case methodNotFound(String)
     case invalidParameters
     case rpcError(code: Int, message: String)

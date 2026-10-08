@@ -19,8 +19,8 @@ final class AppModel {
     let session = SessionController()
     var mockScenarioID = "healthy"
     private(set) var hasLiveEndpoint = false
-    /// `.live` mode with no saved profile that has a `liveEndpoint` yet.
-    /// `MainWindow` shows `SetupScreen` instead of the normal detail content.
+    /// `.live` mode with no finished live profile selected. Onboarding runs
+    /// in its own window and the main window stays closed (chunk 15A).
     var needsSetup: Bool { mode == .live && !hasLiveEndpoint }
     func setHasLiveEndpoint(_ value: Bool) { hasLiveEndpoint = value }
     var showInMenuBar = true { didSet { refreshSettingsChanged?(); persistenceSettingsChanged?() } }
