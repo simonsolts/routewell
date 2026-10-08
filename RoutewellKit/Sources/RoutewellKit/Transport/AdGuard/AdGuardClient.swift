@@ -89,6 +89,10 @@ public enum AdGuardWrite: Sendable, Equatable {
     /// `PUT control/safesearch/settings`: the status object as read, with
     /// `enabled` replaced, so the engine flags go back unchanged.
     case safeSearchSettings(JSONValue)
+    /// `POST control/filtering/config {"enabled", "interval"}`: AdGuard
+    /// Home's "Filter requests" (chunk 17, user request). The interval goes
+    /// back as read. The web UI sends this shape (user, 2026-10-08).
+    case filteringConfig(enabled: Bool, intervalHours: Int)
 
     var httpMethod: String {
         if case .safeSearchSettings = self { return "PUT" }
@@ -105,6 +109,7 @@ public enum AdGuardWrite: Sendable, Equatable {
             case .safeSearch: "control/safesearch/settings"
             }
         case .safeSearchSettings: "control/safesearch/settings"
+        case .filteringConfig: "control/filtering/config"
         }
     }
 
@@ -114,6 +119,8 @@ public enum AdGuardWrite: Sendable, Equatable {
             .object(["enabled": .bool(enabled), "duration": .number(Double(duration))])
         case .feature: nil
         case .safeSearchSettings(let settings): settings
+        case .filteringConfig(let enabled, let interval):
+            .object(["enabled": .bool(enabled), "interval": .number(Double(interval))])
         }
     }
 
@@ -122,6 +129,7 @@ public enum AdGuardWrite: Sendable, Equatable {
         case .protection: "setProtection"
         case .feature(let feature, _): "set \(feature.rawValue)"
         case .safeSearchSettings: "set safeSearch"
+        case .filteringConfig: "set filtering"
         }
     }
 }

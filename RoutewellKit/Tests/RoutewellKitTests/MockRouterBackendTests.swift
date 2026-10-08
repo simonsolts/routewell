@@ -73,6 +73,18 @@ import RoutewellMock
     #expect(body["google"] == .bool(true))
 }
 
+@Test func mockFilterRequestsTurnsOffAndTheOverviewShowsIt() async throws {
+    let backend = MockRouterBackend()
+    await backend.mockAdGuard.setScenario(.running)
+    let report = await backend.adGuardSettings!.run(.filtering(enabled: false), availability: .running)
+    #expect(report.outcome == .verifiedSuccess(.feature(false)))
+    let reading = try await backend.adGuardOverview!.overview(range: .day)
+    #expect(try reading.filtering.get().enabled == false)
+    guard case .filteringConfig(false, 24)? = await backend.mockAdGuard.writes.last else {
+        Issue.record("expected the filtering config with the interval as read"); return
+    }
+}
+
 @Test func mockOverviewLimitsRangesToTheRetention() async throws {
     let backend = MockRouterBackend()
     await backend.mockAdGuard.setScenario(.running)

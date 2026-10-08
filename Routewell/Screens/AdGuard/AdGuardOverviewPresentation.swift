@@ -63,7 +63,9 @@ extension AdGuardPresentation {
         if let stats, !stats.topClients.isEmpty || stats.queries != nil {
             parts.append("Filtering DNS for \(devices(stats.deviceCount))")
         }
-        if let rules = filtering?.activeRuleCount {
+        if filtering?.enabled == false {
+            parts.append("Filter requests is off")
+        } else if let rules = filtering?.activeRuleCount {
             parts.append("\(rules.formatted()) \(rules == 1 ? "rule" : "rules") active")
         }
         return parts.isEmpty ? "Filtering DNS requests." : parts.joined(separator: " · ")
@@ -208,6 +210,9 @@ extension AdGuardPresentation {
 
     // MARK: Protection card
 
+    /// AdGuard Home's own name for the filtering switch.
+    static let filteringTitle = "Filter requests"
+
     static func title(_ feature: AdGuardFeature) -> String {
         switch feature {
         case .safeBrowsing: "Block malware and phishing"
@@ -239,6 +244,7 @@ extension AdGuardPresentation {
             case .protection(.disable): return "AdGuard Home did not turn protection off."
             case .protection(.pause): return "AdGuard Home did not pause protection."
             case .feature(let feature, _): return "AdGuard Home did not change “\(title(feature))”."
+            case .filtering: return "AdGuard Home did not change “\(filteringTitle)”."
             }
         case .conflictingExternalEdit:
             return "Protection changed from somewhere else. Refresh to check."

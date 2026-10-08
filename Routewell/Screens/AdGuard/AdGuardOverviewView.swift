@@ -303,6 +303,8 @@ struct AdGuardProtectionCard: View {
         VStack(alignment: .leading, spacing: 8) {
             Text("Protection").font(.headline).frame(height: 22).padding(.horizontal, 2)
             VStack(spacing: 0) {
+                filteringRow
+                Divider()
                 ForEach(AdGuardFeature.allCases, id: \.self) { feature in
                     row(feature)
                     Divider()
@@ -326,6 +328,27 @@ struct AdGuardProtectionCard: View {
             }
             .overlay(RoundedRectangle(cornerRadius: 10).stroke(.separator, lineWidth: 1))
         }
+    }
+
+    /// AdGuard Home's "Filter requests" (user, chunk 17): blocklists,
+    /// allowlists, and custom rules all at once.
+    private var filteringRow: some View {
+        let value = adGuard.filtering?.enabled
+        let title = AdGuardPresentation.filteringTitle
+        var shown = value ?? false
+        if case .filtering(let enabled)? = adGuard.settingInFlight { shown = enabled }
+        return HStack(spacing: 10) {
+            VStack(alignment: .leading, spacing: 1) {
+                Text(title)
+                if value == nil { Text("Unknown").font(.caption).foregroundStyle(.secondary) }
+            }
+            Spacer(minLength: 8)
+            if case .filtering? = adGuard.settingInFlight { ProgressView().controlSize(.small) }
+            Toggle(title, isOn: Binding(get: { shown }, set: { adGuard.runSetting(.filtering(enabled: $0)) }))
+                .toggleStyle(.switch).labelsHidden()
+                .disabled(adGuard.availability.isReadOnly || busy || value == nil)
+        }
+        .padding(.horizontal, 12).padding(.vertical, 9)
     }
 
     private func row(_ feature: AdGuardFeature) -> some View {

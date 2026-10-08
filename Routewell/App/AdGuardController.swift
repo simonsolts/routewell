@@ -47,6 +47,7 @@ final class AdGuardController {
     /// before that time shows the verified value, not its older one.
     private var verifiedProtection: (state: ProtectionState, at: Date)?
     private var verifiedFeatures: [AdGuardFeature: (value: Bool, at: Date)] = [:]
+    private var verifiedFiltering: (value: Bool, at: Date)?
     @ObservationIgnored private var pauseEndTask: Task<Void, Never>?
 
     init(model: AppModel, refresh: RefreshController, store: AdGuardArchiveStore) {
@@ -135,8 +136,10 @@ final class AdGuardController {
     }
 
     var filtering: AdGuardFilteringStatus? {
-        if availability == .running { return try? liveOverview?.filtering.get() }
-        return archive?.filtering?.value
+        guard availability == .running else { return archive?.filtering?.value }
+        guard let live = liveOverview, var status = try? live.filtering.get() else { return nil }
+        if let verified = verifiedFiltering, live.observedAt < verified.at { status.enabled = verified.value }
+        return status
     }
 
     /// The ranges the pop-up offers. Running: up to the stats retention.
@@ -312,6 +315,8 @@ final class AdGuardController {
                     self.schedulePauseEnd()
                 case (.feature(let feature, _), .feature(let value?)):
                     self.verifiedFeatures[feature] = (value, report.finishedAt)
+                case (.filtering, .feature(let value?)):
+                    self.verifiedFiltering = (value, report.finishedAt)
                 default: break
                 }
             }

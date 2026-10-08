@@ -17,6 +17,11 @@ extension MockAdGuardTransport: AdGuardSettingTransport, AdGuardOverviewService 
         return .object(object)
     }
 
+    public func readFiltering() async throws -> AdGuardFilteringStatus {
+        guard currentStatus() != nil else { throw AdGuardClientError.transport(.timedOut) }
+        return Self.filtering(enabled: filteringEnabled)
+    }
+
     public func write(_ write: AdGuardWrite) async throws {
         guard currentStatus() != nil else { throw AdGuardClientError.transport(.timedOut) }
         try? await Task.sleep(for: .milliseconds(150))
@@ -31,6 +36,8 @@ extension MockAdGuardTransport: AdGuardSettingTransport, AdGuardOverviewService 
             guard stuckFeature != .safeSearch else { return }
             options.safeSearch = settings["enabled"]?.bool
             for (key, value) in settings.object ?? [:] where key != "enabled" { safeSearchEngines[key] = value }
+        case .filteringConfig(let enabled, _):
+            filteringEnabled = enabled
         }
     }
 
@@ -41,19 +48,20 @@ extension MockAdGuardTransport: AdGuardSettingTransport, AdGuardOverviewService 
             return AdGuardOverviewReading(range: range, stats: .failure(.timeout), statsConfig: .failure(.timeout),
                                           protection: .failure(.timeout), filtering: .failure(.timeout), observedAt: now)
         }
-        return Self.overview(range: range, now: now, options: options)
+        return Self.overview(range: range, now: now, options: options, filteringEnabled: filteringEnabled)
     }
 
     /// The Overview a running mock shows at `now`. A range longer than the
     /// retention answers 400, as AdGuard Home does.
-    static func overview(range: AdGuardStatsRange, now: Date, options: ProtectionOptions) -> AdGuardOverviewReading {
+    static func overview(range: AdGuardStatsRange, now: Date, options: ProtectionOptions,
+                         filteringEnabled: Bool = true) -> AdGuardOverviewReading {
         let available = range.isAvailable(retentionMilliseconds: retentionMilliseconds)
         return AdGuardOverviewReading(
             range: range,
             stats: available ? .success(stats(range: range)) : .failure(.malformedResponse),
             statsConfig: .success(AdGuardStatsConfig(enabled: true, intervalMilliseconds: retentionMilliseconds)),
             protection: .success(options),
-            filtering: .success(filtering),
+            filtering: .success(filtering(enabled: filteringEnabled)),
             observedAt: now
         )
     }
@@ -90,9 +98,9 @@ extension MockAdGuardTransport: AdGuardSettingTransport, AdGuardOverviewService 
         return stats
     }
 
-    static var filtering: AdGuardFilteringStatus {
+    static func filtering(enabled: Bool) -> AdGuardFilteringStatus {
         var status = AdGuardFilteringStatus()
-        status.enabled = true
+        status.enabled = enabled
         status.intervalHours = 24
         status.blocklists = [
             AdGuardFilterList(id: 1, name: "Example base list", url: "https://lists.example.com/base.txt", enabled: true, rulesCount: 183_412),

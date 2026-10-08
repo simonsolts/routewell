@@ -63,6 +63,8 @@ public actor MockAdGuardTransport: AdGuardServiceTransport {
     /// A timed pause ends on its own, as in AdGuard Home.
     var pausedUntil: Date?
     var options = MockAdGuardTransport.defaultOptions
+    /// "Filter requests".
+    var filteringEnabled = true
     /// Safe Search's engine flags, sent back unchanged by the switch.
     var safeSearchEngines: [String: JSONValue] = ["bing": .bool(true), "duckduckgo": .bool(true), "ecosia": .bool(true),
         "google": .bool(true), "pixabay": .bool(true), "yandex": .bool(true), "youtube": .bool(true)]
@@ -80,6 +82,7 @@ public actor MockAdGuardTransport: AdGuardServiceTransport {
         protectionEnabled = scenario != .paused
         pausedUntil = scenario == .paused ? Date().addingTimeInterval(10 * 60) : nil
         options = Self.defaultOptions
+        filteringEnabled = true
         stuckFeature = scenario == .switchFails ? .parental : nil
         switch scenario {
         case .off, .cached, .turnOnFails: config = AdGuardRouterConfig(enabled: false, handlesDNS: true)

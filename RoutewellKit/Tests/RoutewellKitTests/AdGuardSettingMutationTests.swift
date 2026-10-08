@@ -536,6 +536,50 @@ private var oneShotPolicy: AdGuardSettingVerifyPolicy {
         #expect(writes.count == 1)
     }
 
+    /// "Filter requests" (user, chunk 17): `POST control/filtering/config`
+    /// with the interval sent back as read.
+    @Test func filterRequestsPostsTheConfigWithTheIntervalAsRead() async throws {
+        let server = FilteringServer(enabled: true, interval: 72)
+        let executor = AdGuardSettingExecutor(transport: LiveAdGuardSettingTransport(adGuard: makeClient(server.transport)), gate: MutationGate())
+        let report = await executor.run(.filtering(enabled: false), availability: .running)
+        #expect(report.outcome == .verifiedSuccess(.feature(false)))
+        let post = try #require(await server.transport.recorded().first { $0.request.httpMethod == "POST" })
+        #expect(post.request.url!.path == "/control/filtering/config")
+        let body = try JSONDecoder().decode(JSONValue.self, from: try #require(post.body))
+        #expect(body == .object(["enabled": .bool(false), "interval": .number(72)]))
+    }
+
+    @Test func filterRequestsAlreadyInStateSendsNothing() async throws {
+        let server = FilteringServer(enabled: true, interval: 24)
+        let executor = AdGuardSettingExecutor(transport: LiveAdGuardSettingTransport(adGuard: makeClient(server.transport)), gate: MutationGate())
+        let report = await executor.run(.filtering(enabled: true), availability: .running)
+        #expect(report.outcome == .verifiedSuccess(.feature(true)))
+        #expect(!report.dispatched)
+        #expect(await server.transport.recorded().count == 1)
+    }
+
+    /// Without the interval, Routewell cannot send the config back unchanged.
+    @Test func filterRequestsWithoutAnIntervalSendsNothing() async throws {
+        let server = FilteringServer(enabled: true, interval: nil)
+        let executor = AdGuardSettingExecutor(transport: LiveAdGuardSettingTransport(adGuard: makeClient(server.transport)), gate: MutationGate())
+        let report = await executor.run(.filtering(enabled: false), availability: .running)
+        #expect(report.outcome == .rejected(.preconditionFailed("AdGuard Home did not send its list update interval.")))
+        #expect(!report.dispatched)
+        #expect(await server.transport.recorded().allSatisfy { $0.request.httpMethod == "GET" })
+    }
+
+    @Test func filterRequestsThatDoesNotChangeIsMismatchWithOneWrite() async throws {
+        let server = FilteringServer(enabled: true, interval: 24, stuck: true)
+        let clock = VirtualClock()
+        let executor = AdGuardSettingExecutor(
+            transport: LiveAdGuardSettingTransport(adGuard: makeClient(server.transport)), gate: MutationGate(),
+            clock: { clock.now() }, sleep: { try await clock.sleep($0) }
+        )
+        let report = await executor.run(.filtering(enabled: false), availability: .running)
+        #expect(report.outcome == .verifiedMismatch(expected: .feature(false), actual: .feature(true)))
+        #expect(await server.transport.recorded().filter { $0.request.httpMethod == "POST" }.count == 1)
+    }
+
     @Test func switchStatusReadFailureIsRejectedWithoutWrite() async throws {
         let transport = StubHTTPTransport { request in (Data(), StubHTTPTransport.response(500, url: request.url!)) }
         let executor = AdGuardSettingExecutor(transport: LiveAdGuardSettingTransport(adGuard: makeClient(transport)), gate: MutationGate())
@@ -624,5 +668,41 @@ private actor FeatureState {
             if let body, let value = try? JSONDecoder().decode(JSONValue.self, from: body) { safeSearch = value }
         default: break
         }
+    }
+}
+
+/// `control/filtering/status` and `/config` in memory.
+private final class FilteringServer: Sendable {
+    let transport: StubHTTPTransport
+
+    init(enabled: Bool, interval: Int?, stuck: Bool = false) {
+        let state = FilteringState(enabled: enabled, interval: interval)
+        transport = StubHTTPTransport { request in
+            let url = request.url!
+            if request.httpMethod == "POST", !stuck, let body = request.httpBody,
+               let value = try? JSONDecoder().decode(JSONValue.self, from: body), let enabled = value["enabled"]?.bool {
+                await state.set(enabled)
+            }
+            if request.httpMethod == "POST" { return (Data(), StubHTTPTransport.response(200, url: url)) }
+            return (try JSONEncoder().encode(await state.status()), StubHTTPTransport.response(200, url: url))
+        }
+    }
+}
+
+private actor FilteringState {
+    var enabled: Bool
+    let interval: Int?
+
+    init(enabled: Bool, interval: Int?) {
+        self.enabled = enabled
+        self.interval = interval
+    }
+
+    func set(_ value: Bool) { enabled = value }
+
+    func status() -> JSONValue {
+        var object: [String: JSONValue] = ["enabled": .bool(enabled), "filters": .array([]), "whitelist_filters": .null]
+        if let interval { object["interval"] = .number(Double(interval)) }
+        return .object(object)
     }
 }

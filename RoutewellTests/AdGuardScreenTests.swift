@@ -307,6 +307,25 @@ private func loadOverview(_ environment: AppEnvironment) async {
     #expect(devices.rows.first?.count == 9_600.formatted(.number.notation(.compactName)))
 }
 
+/// "Filter requests" off: the banner does not claim rules are active.
+@MainActor @Test func filterRequestsOffInTheMock() async {
+    let environment = await mockEnvironment(.running)
+    let adGuard = environment.adGuard
+    await loadOverview(environment)
+    #expect(adGuard.filtering?.enabled == true)
+    adGuard.runSetting(.filtering(enabled: false))
+    #expect(adGuard.settingInFlight == .filtering(enabled: false))
+    await eventually { adGuard.settingInFlight == nil }
+    #expect(adGuard.lastSettingReport?.outcome == .verifiedSuccess(.feature(false)))
+    // The verified value shows at once, before the next read.
+    #expect(adGuard.filtering?.enabled == false)
+    await loadOverview(environment)
+    #expect(adGuard.filtering?.enabled == false)
+    #expect(AdGuardPresentation.onMessage(stats: nil, filtering: adGuard.filtering) == "Filter requests is off")
+    #expect(AdGuardPresentation.settingOutcomeText(.filtering(enabled: true), .verifiedMismatch(expected: .feature(true), actual: .feature(false)))
+            == "AdGuard Home did not change “Filter requests”.")
+}
+
 @Test func settingOutcomeTextNamesWhatHappened() {
     #expect(AdGuardPresentation.settingOutcomeText(.protection(.enable), .verifiedSuccess(.protection(.enabled))) == nil)
     #expect(AdGuardPresentation.settingOutcomeText(.feature(.parental, enabled: true), .verifiedMismatch(expected: .feature(true), actual: .feature(false)))

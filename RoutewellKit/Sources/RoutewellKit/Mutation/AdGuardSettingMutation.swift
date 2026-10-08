@@ -41,9 +41,11 @@ public enum ProtectionIntent: Sendable, Equatable {
 }
 
 /// A change to a setting inside AdGuard Home (architecture 04): protection
-/// on, off, or paused, and the three Protection switches.
+/// on, off, or paused, "Filter requests", and the three Protection switches.
 public enum AdGuardSettingIntent: Sendable, Equatable {
     case protection(ProtectionIntent)
+    /// AdGuard Home's "Filter requests": blocklists, allowlists, and rules.
+    case filtering(enabled: Bool)
     case feature(AdGuardFeature, enabled: Bool)
 
     /// Writes run only while AdGuard Home runs; the read-only UI is not the
@@ -68,6 +70,8 @@ public protocol AdGuardSettingTransport: Sendable {
     /// The feature's status object as AdGuard Home sent it (`enabled`, and
     /// for Safe Search the engine flags).
     func readFeature(_ feature: AdGuardFeature) async throws -> JSONValue
+    /// `control/filtering/status`.
+    func readFiltering() async throws -> AdGuardFilteringStatus
     func write(_ write: AdGuardWrite) async throws
 }
 
@@ -140,6 +144,7 @@ public struct AdGuardSettingExecutor: AdGuardSettingControl {
         let step: Step
         switch intent {
         case .protection(let protection): step = await performProtection(protection)
+        case .filtering(let enabled): step = await performFiltering(enabled: enabled)
         case .feature(let feature, let enabled): step = await performFeature(feature, enabled: enabled)
         }
         await gate.release(token)
@@ -208,6 +213,28 @@ public struct AdGuardSettingExecutor: AdGuardSettingControl {
         if poll.matched != nil { return (.verifiedSuccess(.feature(enabled)), true, nil) }
         guard let last = poll.last else { return (.unknownAfterDispatch, true, poll.failure) }
         return (.verifiedMismatch(expected: .feature(enabled), actual: .feature(last["enabled"]?.bool)), true, nil)
+    }
+
+    // MARK: Filter requests (gate held)
+
+    private func performFiltering(enabled: Bool) async -> Step {
+        let before: AdGuardFilteringStatus
+        do {
+            before = try await transport.readFiltering()
+        } catch {
+            return (.rejected(.preconditionFailed("status unavailable")), false, Self.category(for: error))
+        }
+        if before.enabled == enabled { return (.verifiedSuccess(.feature(enabled)), false, nil) }
+        // The update interval goes back as read; without it nothing is sent.
+        guard let interval = before.intervalHours else {
+            return (.rejected(.preconditionFailed("AdGuard Home did not send its list update interval.")), false, .malformedResponse)
+        }
+        if let stop = await dispatch(.filteringConfig(enabled: enabled, intervalHours: interval)) { return stop }
+
+        let poll = await poll { try await transport.readFiltering() } matches: { $0.enabled == enabled }
+        if poll.matched != nil { return (.verifiedSuccess(.feature(enabled)), true, nil) }
+        guard let last = poll.last else { return (.unknownAfterDispatch, true, poll.failure) }
+        return (.verifiedMismatch(expected: .feature(enabled), actual: .feature(last.enabled)), true, nil)
     }
 
     // MARK: Dispatch and verify
@@ -346,6 +373,9 @@ public struct LiveAdGuardSettingTransport: AdGuardSettingTransport {
     public func readStatus() async throws -> AdGuardStatusResponse { try await adGuard.status() }
     public func readFeature(_ feature: AdGuardFeature) async throws -> JSONValue {
         try await adGuard.read(.status(of: feature))
+    }
+    public func readFiltering() async throws -> AdGuardFilteringStatus {
+        AdGuardFilteringStatus.parse(try await adGuard.read(.filteringStatus))
     }
     public func write(_ write: AdGuardWrite) async throws { try await adGuard.write(write) }
 }
