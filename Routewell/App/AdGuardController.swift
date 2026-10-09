@@ -46,6 +46,8 @@ final class AdGuardController {
     private var verifiedProtection: (state: ProtectionState, at: Date)?
     private var verifiedFeatures: [AdGuardFeature: (value: Bool, at: Date)] = [:]
     private var verifiedFiltering: (value: Bool, at: Date)?
+    /// Chunk 19: the lists and rules after a verified Filters write.
+    private var verifiedFilters: (status: AdGuardFilteringStatus, at: Date)?
     @ObservationIgnored private var pauseEndTask: Task<Void, Never>?
 
     init(model: AppModel, refresh: RefreshController, store: AdGuardArchiveStore) {
@@ -136,6 +138,7 @@ final class AdGuardController {
     var filtering: AdGuardFilteringStatus? {
         guard availability == .running else { return archive?.filtering?.value }
         guard let live = liveOverview, var status = try? live.filtering.get() else { return nil }
+        if let verified = verifiedFilters, live.observedAt < verified.at { status = verified.status }
         if let verified = verifiedFiltering, live.observedAt < verified.at { status.enabled = verified.value }
         return status
     }
@@ -284,14 +287,21 @@ final class AdGuardController {
     /// Pause, Resume, Turn Off Protection, and the three switches. Rejected
     /// by the executor unless AdGuard Home runs.
     func runSetting(_ intent: AdGuardSettingIntent) {
-        guard !isWriting, let lease = model.session.lease else { return }
+        startSetting(intent)
+    }
+
+    /// Starts one setting write; the task gives its report (`nil` when the
+    /// session changed). `nil` when another write runs.
+    @discardableResult
+    func startSetting(_ intent: AdGuardSettingIntent) -> Task<MutationReport<AdGuardSettingState>?, Never>? {
+        guard !isWriting, let lease = model.session.lease else { return nil }
         let availability = availability
         settingInFlight = intent
         lastSettingIntent = intent
         lastSettingReport = nil
         lastReport = nil
-        Task { [weak self] in
-            guard let self else { return }
+        return Task { [weak self] in
+            guard let self else { return nil }
             let report: MutationReport<AdGuardSettingState>
             do {
                 report = try await self.model.session.routerSession.runAdGuardSetting(
@@ -301,9 +311,9 @@ final class AdGuardController {
                 // The session changed during the write: never re-sent; the
                 // new session reads AdGuard Home afresh.
                 self.settingInFlight = nil
-                return
+                return nil
             }
-            guard lease.token == self.model.session.expectedToken else { self.settingInFlight = nil; return }
+            guard lease.token == self.model.session.expectedToken else { self.settingInFlight = nil; return nil }
             self.lastSettingReport = report
             if case .verifiedSuccess(let state) = report.outcome {
                 // Show the verified value until the refresh lands.
@@ -315,6 +325,13 @@ final class AdGuardController {
                     self.verifiedFeatures[feature] = (value, report.finishedAt)
                 case (.filtering, .feature(let value?)):
                     self.verifiedFiltering = (value, report.finishedAt)
+                case (_, .filters(let status)), (_, .listsUpdated(_, let status?)):
+                    self.verifiedFilters = (status, report.finishedAt)
+                case (_, .rules(let rules)):
+                    if var status = self.filtering {
+                        status.userRules = rules
+                        self.verifiedFilters = (status, report.finishedAt)
+                    }
                 default: break
                 }
             }
@@ -324,6 +341,7 @@ final class AdGuardController {
             } else {
                 self.refresh.refreshNow()
             }
+            return report
         }
     }
 

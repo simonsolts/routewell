@@ -14,6 +14,7 @@ final class AppEnvironment {
     let logging: LoggingController
     let trust: TrustController
     let adGuard: AdGuardController
+    let filters: AdGuardFiltersController
     let clients: ClientsController
     let clientDNS: ClientDNSController
     let queryLog: QueryLogController
@@ -94,6 +95,7 @@ final class AppEnvironment {
         // Mock copies stay in memory; live ones use `adguard/<profile>/archive.json`.
         self.adGuard = AdGuardController(model: model, refresh: refresh,
                                          store: AdGuardArchiveStore(root: model.mode == .live ? dataDirectory : nil))
+        self.filters = AdGuardFiltersController(adGuard: adGuard, refresh: refresh)
         #if DEBUG
         mockBackend = backend as? MockRouterBackend
         #endif
