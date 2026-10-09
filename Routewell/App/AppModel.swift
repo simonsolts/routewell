@@ -129,13 +129,14 @@ final class AppModel {
         }
     }
 
-    /// The filter AdGuard Home › Query Log opens with: Clients' Show DNS
-    /// Log and the Overview's top rows set it. The tab is a placeholder
-    /// until chunk 18, which reads it.
+    /// What AdGuard Home › Query Log opens searching for: Clients' Show DNS
+    /// Log and the Overview's top rows set it, and the tab takes it once.
     var adGuardQueryLogFilter: AdGuardQueryLogFilter?
+    /// Counts Refresh from the toolbar or ⌘R, not timed refreshes.
+    var personRefreshes = 0
 
     func showDNSLog(client: String) {
-        showQueryLog(AdGuardQueryLogFilter(client: client))
+        showQueryLog(AdGuardQueryLogFilter(search: client))
     }
 
     func showQueryLog(_ filter: AdGuardQueryLogFilter) {

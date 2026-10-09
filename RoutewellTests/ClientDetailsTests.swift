@@ -97,10 +97,12 @@ private let kindle = mac("fc:65:de:02:1b:9a")
     let follow = Task { await dns.follow(mac: iPhone, ip: "192.168.8.192", sectionVisible: true) }
     #expect(await eventually { dns.fetchCount >= 2 })
     let activity = try #require(dns.feed(for: iPhone)?.activity)
-    #expect(activity.total == 89)
+    // The mock log has more than one page for this client.
+    #expect(activity.total == 500)
+    #expect(activity.windowLimited)
     #expect(activity.blocked > 0)
     #expect(activity.topRequested.count == 5 && activity.topBlocked.count <= 5)
-    #expect(ClientDetailsFormat.dnsHeader(activity, paused: false) == "Latest 10 of 89 · live")
+    #expect(ClientDetailsFormat.dnsHeader(activity, paused: false) == "Latest 10 of 500 · live")
 
     dns.paused = true
     _ = await follow.value
@@ -108,7 +110,7 @@ private let kindle = mac("fc:65:de:02:1b:9a")
     try await Task.sleep(for: .milliseconds(200))
     #expect(dns.fetchCount == stopped)
     #expect(dns.feed(for: iPhone)?.activity != nil)
-    #expect(ClientDetailsFormat.dnsHeader(activity, paused: true) == "Latest 10 of 89 · paused")
+    #expect(ClientDetailsFormat.dnsHeader(activity, paused: true) == "Latest 10 of 500 · paused")
     dns.paused = false
 }
 

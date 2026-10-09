@@ -144,6 +144,13 @@ struct MockSettingsSections: View {
                 Text("AdGuard join mismatch").tag(MockClientsService.Scenario.adGuardMismatch)
                 Text("Router list fails").tag(MockClientsService.Scenario.primaryFailure)
             }
+            Picker("Query Log data", selection: Binding(
+                get: { environment.mockQueryLogEmpty },
+                set: { environment.setMockQueryLogEmpty($0) }
+            )) {
+                Text("Populated").tag(false)
+                Text("Empty").tag(true)
+            }
             Picker("Ping and Wake", selection: Binding(
                 get: { environment.mockClientActionsMechanism },
                 set: { environment.setMockClientActions($0) }
@@ -156,7 +163,7 @@ struct MockSettingsSections: View {
         } header: {
             Text("Mock clients")
         } footer: {
-            Text("Device and presence history in mock mode stay in memory. Each device the seed history has not seen is reported once per app session. DNS activity uses the query-log capability above.")
+            Text("Device and presence history in mock mode stay in memory. Each device the seed history has not seen is reported once per app session. DNS activity and AdGuard Home › Query Log use the query-log capability above; Failing makes the read fail.")
         }
     }
 

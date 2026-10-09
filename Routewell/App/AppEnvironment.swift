@@ -16,6 +16,7 @@ final class AppEnvironment {
     let adGuard: AdGuardController
     let clients: ClientsController
     let clientDNS: ClientDNSController
+    let queryLog: QueryLogController
     let clientActions: ClientActionsController
     let router: RouterController
     let sshSetup: SSHSetupController
@@ -48,6 +49,8 @@ final class AppEnvironment {
     private(set) var mockFirmwareBehavior: MockRouterService.FirmwareBehavior = .unableToCheck
     private(set) var mockSSHScenario: MockSSHService.Scenario = .populated
     private(set) var mockAdGuardScenario: MockAdGuardScenario = .running
+    /// The "Empty" Query Log: AdGuard Home answers with no entries.
+    private(set) var mockQueryLogEmpty = false
     #endif
     /// Set when `transportFactory` was actually called. Tests use this to
     /// prove mock mode never constructs a live transport.
@@ -82,6 +85,7 @@ final class AppEnvironment {
         self.clients = ClientsController(model: model, registry: deviceRegistry, presence: presenceLog, logging: logging)
         self.refresh = RefreshController(model: model, logging: logging, registry: deviceRegistry, presence: presenceLog)
         self.clientDNS = ClientDNSController(model: model)
+        self.queryLog = QueryLogController(model: model)
         self.clientActions = ClientActionsController(model: model)
         // Mock baselines stay in memory; live ones use `snapshots.json`.
         self.router = RouterController(model: model, baselines: UpgradeBaselineStore(store: model.mode == .live ? store : nil))
@@ -294,6 +298,13 @@ final class AppEnvironment {
         }
     }
 
+    func setMockQueryLogEmpty(_ empty: Bool) {
+        guard model.mode == .mock, let mockBackend else { return }
+        mockQueryLogEmpty = empty
+        Task { await mockBackend.mockQueryLog.setEmpty(empty) }
+        model.personRefreshes += 1
+    }
+
     func recordFixtures() {
         guard model.mode == .live, let lease = model.session.lease,
               lease.backend is LiveRouterBackend else { return }
@@ -362,8 +373,10 @@ final class AppEnvironment {
         let sqm = mockSQMBehavior
         let firmware = mockFirmwareBehavior
         let adGuardScenario = mockAdGuardScenario
+        let queryLogEmpty = mockQueryLogEmpty
         setup = model.session.switchProfile(profile.name, model: model, refresh: refresh) {
             await backend.mockAdGuard.setScenario(adGuardScenario)
+            await backend.mockQueryLog.setEmpty(queryLogEmpty)
             await backend.setClientsScenario(clientsScenario)
             await backend.mockRouter.setSQMBehavior(sqm)
             await backend.mockRouter.setFirmwareBehavior(firmware)
