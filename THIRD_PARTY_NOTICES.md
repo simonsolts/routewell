@@ -27,6 +27,19 @@ the upstream path and revision, Routewell destination, adaptation date, and
 description of changes. Preserve applicable upstream copyright and license
 notices in those files.
 
+## AdGuard HostlistsRegistry
+
+- Project: [HostlistsRegistry](https://github.com/AdguardTeam/HostlistsRegistry)
+- Creator: AdGuard (AdguardTeam) and contributors
+- License: GNU General Public License v3.0 (`GPL-3.0`), see the upstream [license](https://github.com/AdguardTeam/HostlistsRegistry/blob/d08718e04d45196725f86b460521b2ca0cbcd511/LICENSE)
+- Snapshot: [`assets/filters.json`](https://github.com/AdguardTeam/HostlistsRegistry/blob/d08718e04d45196725f86b460521b2ca0cbcd511/assets/filters.json) at commit `d08718e04d45196725f86b460521b2ca0cbcd511` (2026-10-09)
+- Routewell path: `RoutewellKit/Sources/RoutewellKit/Resources/adguard-filters.json`
+
+The bundled file is an unmodified copy of the catalog: list names, groups,
+descriptions, and URLs. Routewell does not bundle the content of any list. The
+router downloads each list from its own URL, and each list has its own licence.
+`scripts/update-adguard-catalog.py` refreshes the copy and prints the commit.
+
 The GPLv3 text is included in [LICENSE](LICENSE). These credits supplement,
 rather than replace, applicable license notices and source-distribution
 requirements.
