@@ -52,6 +52,13 @@ public enum FixtureRecordingPlan {
         .init(.adGuard, method: "control/safebrowsing/status", fileName: "adguard-safebrowsing-status.json"),
         .init(.adGuard, method: "control/parental/status", fileName: "adguard-parental-status.json"),
         .init(.adGuard, method: "control/safesearch/status", fileName: "adguard-safesearch-status.json"),
+        // Chunk 18: Query Log pages. The `{…}` values come from the first
+        // page; `resolve` fills them in and checks each one.
+        .init(.adGuard, method: "control/querylog?limit=500", fileName: queryLogFirstPage),
+        .init(.adGuard, method: "control/querylog?limit=500&older_than={oldest}", fileName: "adguard-querylog-500-older.json"),
+        .init(.adGuard, method: "control/querylog?limit=500&search={newest_client}", fileName: "adguard-querylog-search-client.json"),
+        .init(.adGuard, method: "control/querylog?limit=500&search={newest_domain}", fileName: "adguard-querylog-search-domain.json"),
+        .init(.adGuard, method: "control/querylog?limit=500&response_status=blocked", fileName: "adguard-querylog-status-blocked.json"),
         // Chunk 15: the SSH reads. Recorded only when SSH is set up for the
         // profile; otherwise they are skipped.
         .init(.ssh, method: "system-board", fileName: "ssh-ubus-system-board.json"),
@@ -78,6 +85,47 @@ public enum FixtureRecordingPlan {
         "adguard-process": .adGuardProcess,
     ]
     public static let interfaceTelemetryKey = "interface-telemetry"
+    public static let queryLogFirstPage = "adguard-querylog-500.json"
+
+    /// The call with each `{…}` value taken from the first Query Log page:
+    /// `oldest`, and the newest entry's `client` and `question.name`. `nil`
+    /// when a value is missing or fails `isSafeQueryValue`.
+    public static func resolve(_ call: FixtureCall, firstPage: JSONValue?) -> FixtureCall? {
+        guard call.method.contains("{") else { return call }
+        let newest = firstPage?["data"]?.array?.first
+        let values: [String: String?] = [
+            "{oldest}": firstPage?["oldest"]?.string,
+            "{newest_client}": newest?["client"]?.string,
+            "{newest_domain}": newest?["question"]?["name"]?.string,
+        ]
+        var method = call.method
+        for (placeholder, value) in values where method.contains(placeholder) {
+            guard let value else { return nil }
+            method = method.replacingOccurrences(of: placeholder, with: value)
+        }
+        guard !method.contains("{"), let query = method.split(separator: "?", maxSplits: 1).dropFirst().first else { return nil }
+        for pair in query.split(separator: "&") {
+            let field = pair.split(separator: "=", maxSplits: 1).map(String.init)
+            guard field.count == 2, isSafeQueryValue(name: field[0], value: field[1]) else { return nil }
+        }
+        return FixtureCall(call.transport, object: call.object, method: method, fileName: call.fileName)
+    }
+
+    /// Query values the recorder may send. Most are letters, digits, and `_`.
+    /// `older_than` is an ISO-8601 time; `search` is an IP address or a
+    /// domain (letters, digits, `-`, `.`).
+    public static func isSafeQueryValue(name: String, value: String) -> Bool {
+        guard !name.isEmpty, name.allSatisfy({ $0.isASCII && ($0.isLetter || $0.isNumber || $0 == "_") }), !value.isEmpty else { return false }
+        switch name {
+        case "older_than":
+            return value.range(of: #"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{1,9})?(Z|[+-]\d{2}:\d{2})$"#, options: .regularExpression) != nil
+        case "search":
+            return IPAddressText.isValid(value)
+                || value.range(of: #"^[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)*\.?$"#, options: .regularExpression) != nil && value.count <= 253
+        default:
+            return value.allSatisfy { $0.isASCII && ($0.isLetter || $0.isNumber || $0 == "_") }
+        }
+    }
 
     /// RPC reads whose names do not start with `get_`. Each one is named
     /// exactly; the prefix rule stays the only general rule.
@@ -298,8 +346,17 @@ public actor FixtureRecorder {
         var count = 0
         var aliases = FixtureAliases()
         var written: [String] = []
-        for call in calls {
+        var firstQueryLogPage: JSONValue?
+        for planned in calls {
             try Task.checkCancellation()
+            guard let call = FixtureRecordingPlan.resolve(planned, firstPage: firstQueryLogPage) else {
+                // No safe value from the first page: the file says so.
+                let missing: JSONValue = .object(["error": .object(["category": .string("no value from \(FixtureRecordingPlan.queryLogFirstPage)")])])
+                try JSONEncoder().encode(missing).write(to: directory.appendingPathComponent(planned.fileName), options: .atomic)
+                written.append(planned.fileName)
+                count += 1
+                continue
+            }
             try await session.validateBefore(lease)
             let data: Data
             if call.transport == .ssh {
@@ -317,6 +374,8 @@ public actor FixtureRecorder {
                 let value = await backend.recordFixture(call)
                 try Task.checkCancellation()
                 try await session.validateAfter(lease)
+                // Kept unredacted in memory only, for the `{…}` values.
+                if call.fileName == FixtureRecordingPlan.queryLogFirstPage { firstQueryLogPage = value }
                 RecordedFixtureRedactor.collectAliases(value, into: &aliases)
                 data = try PayloadRedactor.redact(JSONEncoder().encode(value), schema: .recordedFixture, aliases: aliases)
             }

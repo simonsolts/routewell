@@ -200,8 +200,8 @@ public actor AdGuardClient {
         return try await get(path: "control/querylog", query: query, method: "querylog", retried: false)
     }
 
-    /// `path` may end in a query (`control/stats?recent=86400000`). Only
-    /// letters, digits, and `_` are allowed in its names and values.
+    /// `path` may end in a query (`control/stats?recent=86400000`). Each
+    /// name and value must pass `FixtureRecordingPlan.isSafeQueryValue`.
     public func recordRead(path: String) async -> JSONValue {
         let parts = path.split(separator: "?", maxSplits: 1, omittingEmptySubsequences: false)
         let route = String(parts[0])
@@ -209,7 +209,7 @@ public actor AdGuardClient {
         if parts.count == 2 {
             for pair in parts[1].split(separator: "&") {
                 let field = pair.split(separator: "=", maxSplits: 1, omittingEmptySubsequences: false).map(String.init)
-                guard field.count == 2, field.allSatisfy({ !$0.isEmpty && $0.allSatisfy { $0.isLetter || $0.isNumber || $0 == "_" } }) else {
+                guard field.count == 2, FixtureRecordingPlan.isSafeQueryValue(name: field[0], value: field[1]) else {
                     return .object(["error": .object(["category": .string("invalid path")])])
                 }
                 query.append(URLQueryItem(name: field[0], value: field[1]))
@@ -389,7 +389,15 @@ public actor AdGuardClient {
 
     private func requestURL(path: String, query: [URLQueryItem] = []) -> URL {
         var url = baseURL.appendingPathComponent(path)
-        if !query.isEmpty { url.append(queryItems: query) }
+        if !query.isEmpty {
+            url.append(queryItems: query)
+            // `URL` leaves `+` as is, and AdGuard Home reads it as a space.
+            // A time such as `older_than=…+01:00` needs `%2B`.
+            if var components = URLComponents(url: url, resolvingAgainstBaseURL: false), let encoded = components.percentEncodedQuery, encoded.contains("+") {
+                components.percentEncodedQuery = encoded.replacingOccurrences(of: "+", with: "%2B")
+                url = components.url ?? url
+            }
+        }
         precondition(url.host == baseURL.host && url.port == baseURL.port,
                      "AdGuardClient must never leave baseURL's host/port")
         return url

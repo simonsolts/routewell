@@ -84,7 +84,9 @@ import RoutewellMock
         #expect(!text.contains("secret-wifi"))
         #expect(!text.contains("192.168.8.22"))
         #expect(!text.contains("AA:BB:CC:DD:EE:FF"))
-        #expect(text.contains("-32601"))
+        // The first Query Log page has no entries here, so the reads that
+        // take a value from it say so instead of calling.
+        #expect(text.contains(call.method.contains("{") ? "no value" : "-32601"))
     }
     let manifestData = try Data(contentsOf: directory.appendingPathComponent("_recording-manifest.json"))
     let manifest = try JSONDecoder().decode(FixtureRecordingManifest.self, from: manifestData)
@@ -106,6 +108,34 @@ private struct FixtureBackend: RouterBackend, FixtureRecordableBackend {
             "client_ip": .string("192.168.8.22"), "mac": .string("AA:BB:CC:DD:EE:FF")
         ])
     }
+}
+
+/// Chunk 18: the older page and both searches take their values from the
+/// first Query Log page, and only checked values are sent.
+@Test func fixturePlanFillsQueryLogValuesFromTheFirstPage() async throws {
+    let page: JSONValue = .object([
+        "oldest": .string("2026-01-02T03:04:05.123456789+01:00"),
+        "data": .array([.object(["client": .string("192.0.2.10"), "question": .object(["name": .string("example.com")])])]),
+    ])
+    let calls = FixtureRecordingPlan.calls.filter { $0.method.hasPrefix("control/querylog?") }
+    #expect(calls.count == 5)
+    let methods = calls.compactMap { FixtureRecordingPlan.resolve($0, firstPage: page)?.method }
+    #expect(methods == [
+        "control/querylog?limit=500",
+        "control/querylog?limit=500&older_than=2026-01-02T03:04:05.123456789+01:00",
+        "control/querylog?limit=500&search=192.0.2.10",
+        "control/querylog?limit=500&search=example.com",
+        "control/querylog?limit=500&response_status=blocked",
+    ])
+    let unsafe: JSONValue = .object([
+        "oldest": .string("yesterday&limit=1"),
+        "data": .array([.object(["client": .string("192.0.2.10/24"), "question": .object(["name": .string("a b.example")])])]),
+    ])
+    #expect(calls.compactMap { FixtureRecordingPlan.resolve($0, firstPage: unsafe) }.count == 2)
+    #expect(FixtureRecordingPlan.isSafeQueryValue(name: "search", value: "2001:db8::1"))
+    #expect(!FixtureRecordingPlan.isSafeQueryValue(name: "search", value: "example.com/path"))
+    #expect(!FixtureRecordingPlan.isSafeQueryValue(name: "limit", value: "5-00"))
+    #expect(calls.allSatisfy(FixtureRecordingPlan.isReadOnly))
 }
 
 @Test func recorderKeepsTechnicalEvidenceButHidesPersonalText() throws {
