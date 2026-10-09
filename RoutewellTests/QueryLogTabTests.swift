@@ -100,6 +100,9 @@ private func entry(_ reason: String, filterID: Int? = nil, cached: Bool? = false
     #expect(QueryLogPresentation.response(0.254) == "0.25 ms")
     #expect(QueryLogPresentation.response(12.4) == "12 ms")
     #expect(QueryLogPresentation.response(nil) == "—")
+    #expect(QueryLogPresentation.response(.infinity) == "—")
+    #expect(QueryLogPresentation.response(.nan) == "—")
+    #expect(QueryLogPresentation.response(1e300).hasSuffix(" ms"))
 }
 
 @Test func footerSaysLoadedNotTotal() throws {
@@ -170,6 +173,25 @@ private func entry(_ reason: String, filterID: Int? = nil, cached: Bool? = false
     await backend.mockQueryLog.setBehavior(.failing)
     await environment.queryLog.loadFirstPage()
     #expect(environment.queryLog.phase == .failed(.network))
+}
+
+@MainActor @Test func oldRetryCannotReplaceANewerSearch() async throws {
+    let environment = await runningEnvironment()
+    let backend = try #require(environment.model.session.lease?.backend as? MockRouterBackend)
+    let controller = environment.queryLog
+    // Try Again starts a slow read of the whole log.
+    await backend.mockQueryLog.setBehavior(.slow)
+    let retry = Task { await controller.loadFirstPage() }
+    await eventually { controller.phase == .loading }
+    await backend.mockQueryLog.setBehavior(.supported)
+    // A new search loads first.
+    controller.search(for: "192.168.8.150")
+    await controller.loadFirstPage()
+    #expect(controller.phase == .loaded)
+    await retry.value
+    #expect(!controller.entries.isEmpty)
+    #expect(controller.entries.allSatisfy { $0.client == "192.168.8.150" })
+    #expect(controller.browser.search == "192.168.8.150")
 }
 
 @MainActor @Test func handOffsOpenTheTabSearching() async {

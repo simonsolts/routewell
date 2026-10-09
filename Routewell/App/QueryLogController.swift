@@ -37,6 +37,9 @@ final class QueryLogController {
     var liveInterval: Duration = .seconds(3)
     /// Live reads made, for tests.
     private(set) var liveReads = 0
+    /// Goes up when page one starts loading or the tab closes. A read from
+    /// an older generation changes nothing.
+    private var generation = 0
 
     init(model: AppModel) {
         self.model = model
@@ -56,6 +59,9 @@ final class QueryLogController {
 
     /// Live runs: page one is shown, no filter is set, and the list is at the top.
     var isLive: Bool { phase == .loaded && !isFiltered && isAtTop }
+
+    /// Live pauses while Load More reads, so the older page always fits.
+    private var readsLive: Bool { isLive && !loadingMore }
 
     // MARK: Filters
 
@@ -95,13 +101,14 @@ final class QueryLogController {
         await loadFirstPage()
         while !Task.isCancelled {
             do { try await Task.sleep(for: liveInterval) } catch { return }
-            guard isLive else { continue }
+            guard readsLive else { continue }
             await readLive()
         }
     }
 
     /// Leaving the tab drops the loaded pages.
     func stop() {
+        generation += 1
         browser = QueryLogBrowser(search: filter.search, status: filter.status)
         phase = .idle
         loadingMore = false
@@ -117,9 +124,11 @@ final class QueryLogController {
             browser = fresh
             selection = nil
         }
+        generation += 1
         phase = .loading
+        loadingMore = false
         moreFailure = nil
-        guard let (page, lease) = await read(fresh.firstPageQuery) else { return }
+        guard let (page, lease) = await read(fresh.firstPageQuery, generation: generation) else { return }
         var loaded = fresh
         loaded.replace(with: page)
         browser = loaded
@@ -132,25 +141,28 @@ final class QueryLogController {
         guard !loadingMore, phase == .loaded, let query = browser.nextPageQuery else { return }
         loadingMore = true
         moreFailure = nil
-        let expected = browser
-        defer { loadingMore = false }
-        guard let (page, lease) = await read(query, failure: { [weak self] in self?.moreFailure = $0 }) else { return }
-        // A reload or a new filter during the read wins.
-        guard browser == expected, lease == token else { return }
+        let started = generation
+        defer { if generation == started { loadingMore = false } }
+        guard let (page, lease) = await read(query, generation: started,
+                                             failure: { [weak self] in self?.moreFailure = $0 }) else { return }
+        // A reload, a new filter, or Close during the read wins.
+        guard lease == token else { return }
         browser.append(page)
     }
 
     private func readLive() async {
         let expected = browser
-        guard let (page, lease) = await read(QueryLogBrowser.liveQuery, failure: { _ in }) else { return }
+        guard let (page, lease) = await read(QueryLogBrowser.liveQuery, generation: generation, failure: { _ in }) else { return }
         liveReads += 1
-        guard browser == expected, lease == token, isLive else { return }
+        guard browser == expected, lease == token, readsLive else { return }
         if browser.mergeLive(page) == .reloadNeeded { await loadFirstPage() }
     }
 
-    /// One fenced read. `nil` when cancelled, the session changed, or the
-    /// read failed (`failure` gets the category; by default it fails page one).
-    private func read(_ query: QueryLogQuery, failure: ((RefreshFailureCategory) -> Void)? = nil) async -> (QueryLogPage, SessionToken)? {
+    /// One fenced read. `nil` when cancelled, the session or generation
+    /// changed, or the read failed (`failure` gets the category; by default
+    /// it fails page one).
+    private func read(_ query: QueryLogQuery, generation: Int,
+                      failure: ((RefreshFailureCategory) -> Void)? = nil) async -> (QueryLogPage, SessionToken)? {
         guard let lease = model.session.lease, model.session.isReady else { return nil }
         let result: AreaRefreshResult<QueryLogPage>?
         do {
@@ -159,7 +171,7 @@ final class QueryLogController {
             // Cancelled, or the session changed: the result belongs to no one.
             return nil
         }
-        guard !Task.isCancelled, model.session.expectedToken == lease.token else { return nil }
+        guard !Task.isCancelled, model.session.expectedToken == lease.token, generation == self.generation else { return nil }
         switch result {
         case nil:
             if failure == nil { phase = .notConfigured }

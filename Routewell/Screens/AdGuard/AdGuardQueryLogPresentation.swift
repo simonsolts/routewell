@@ -129,9 +129,9 @@ enum QueryLogPresentation {
 
     /// "0.25 ms" below 1 ms, else "12 ms".
     static func response(_ milliseconds: Double?) -> String {
-        guard let milliseconds else { return "—" }
+        guard let milliseconds, milliseconds.isFinite else { return "—" }
         if milliseconds < 1 { return "\(milliseconds.formatted(.number.precision(.fractionLength(2)))) ms" }
-        return "\(Int(milliseconds.rounded()).formatted()) ms"
+        return "\(milliseconds.rounded().formatted(.number.precision(.fractionLength(0)))) ms"
     }
 
     /// The answer values, "HTTPS record" for an HTTPS query.
