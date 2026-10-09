@@ -241,6 +241,7 @@ public enum RecordedFixtureRedactor {
             if ["enabled", "disabled", "running", "stopped", "online", "offline", "up", "down", "unknown"].contains(string.lowercased()) { return .string(string) }
             if tokenFields.contains(field), string.range(of: #"^[A-Za-z0-9._:/+()-]{1,40}$"#, options: .regularExpression) != nil { return .string(string) }
             if numericFields.contains(field), string.range(of: #"^-?\d{1,20}(\.\d{1,17})?$"#, options: .regularExpression) != nil { return .string(string) }
+            if field == "url", isPublicListURL(string) { return .string(string) }
             if timeFields.contains(field), string.range(of: #"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{1,9})?(Z|[+-]\d{2}:\d{2})$"#, options: .regularExpression) != nil { return .string(string) }
             return .string("[REDACTED TEXT]")
         default: return value
@@ -256,7 +257,17 @@ public enum RecordedFixtureRedactor {
         "firmware_version", "current_version", "new_firmware_version", "version", "kernel_version", "openwrt_version", "architecture",
         "firmware_type", "htmode", "hwmode", "txpower", "qdisc", "protocol", "device", "state", "interface"]
     private static let numericFields: Set<String> = ["total_rx", "total_tx", "total_rx_init", "total_tx_init", "online_time", "elapsedms", "upload", "download"]
-    private static let timeFields: Set<String> = ["time", "oldest"]
+    /// Chunk 19: `last_updated` of a blocklist or allowlist.
+    private static let timeFields: Set<String> = ["time", "oldest", "last_updated"]
+    /// Chunk 19: hosts of AdGuard's public list catalog. A list URL on one
+    /// of them is public; any other URL can be private and is replaced.
+    static let publicListHosts: Set<String> = ["adguardteam.github.io", "raw.githubusercontent.com", "filters.adtidy.org"]
+
+    static func isPublicListURL(_ string: String) -> Bool {
+        guard let url = URL(string: string), url.scheme == "https", url.user == nil, url.query == nil,
+              let host = url.host?.lowercased() else { return false }
+        return publicListHosts.contains(host)
+    }
 
     private static func isNameField(_ field: String) -> Bool {
         field.contains("ssid") || field.contains("name") || field.contains("host") || field == "alias"
