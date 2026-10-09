@@ -93,6 +93,9 @@ public enum AdGuardWrite: Sendable, Equatable {
     /// Home's "Filter requests" (chunk 17, user request). The interval goes
     /// back as read. The web UI sends this shape (user, 2026-10-08).
     case filteringConfig(enabled: Bool, intervalHours: Int)
+    /// `POST control/filtering/set_rules {"rules": [...]}`: the whole custom
+    /// rules list (chunk 18, Block or Unblock Domain) `[assumed]`.
+    case setRules([String])
 
     var httpMethod: String {
         if case .safeSearchSettings = self { return "PUT" }
@@ -110,6 +113,7 @@ public enum AdGuardWrite: Sendable, Equatable {
             }
         case .safeSearchSettings: "control/safesearch/settings"
         case .filteringConfig: "control/filtering/config"
+        case .setRules: "control/filtering/set_rules"
         }
     }
 
@@ -121,6 +125,8 @@ public enum AdGuardWrite: Sendable, Equatable {
         case .safeSearchSettings(let settings): settings
         case .filteringConfig(let enabled, let interval):
             .object(["enabled": .bool(enabled), "interval": .number(Double(interval))])
+        case .setRules(let rules):
+            .object(["rules": .array(rules.map(JSONValue.string))])
         }
     }
 
@@ -130,6 +136,7 @@ public enum AdGuardWrite: Sendable, Equatable {
         case .feature(let feature, _): "set \(feature.rawValue)"
         case .safeSearchSettings: "set safeSearch"
         case .filteringConfig: "set filtering"
+        case .setRules: "set rules"
         }
     }
 }
@@ -195,8 +202,16 @@ public actor AdGuardClient {
     /// the newest entries. `search` narrows the page on the server
     /// `[assumed]`; callers still filter the result exactly.
     public func queryLog(search: String?, limit: Int) async throws -> JSONValue {
-        var query = [URLQueryItem(name: "limit", value: String(limit))]
-        if let search, !search.isEmpty { query.append(URLQueryItem(name: "search", value: search)) }
+        try await queryLog(QueryLogQuery(search: search, limit: limit))
+    }
+
+    /// `GET control/querylog?limit=<N>[&older_than=…][&search=…][&response_status=…]`
+    /// (chunk 18). `all` is not sent.
+    public func queryLog(_ request: QueryLogQuery) async throws -> JSONValue {
+        var query = [URLQueryItem(name: "limit", value: String(request.limit))]
+        if let olderThan = request.olderThan { query.append(URLQueryItem(name: "older_than", value: olderThan)) }
+        if let search = request.search { query.append(URLQueryItem(name: "search", value: search)) }
+        if request.status != .all { query.append(URLQueryItem(name: "response_status", value: request.status.responseStatus)) }
         return try await get(path: "control/querylog", query: query, method: "querylog", retried: false)
     }
 

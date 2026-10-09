@@ -22,6 +22,11 @@ extension MockAdGuardTransport: AdGuardSettingTransport, AdGuardOverviewService 
         return Self.filtering(enabled: filteringEnabled)
     }
 
+    public func readUserRules() async throws -> [String] {
+        guard currentStatus() != nil else { throw AdGuardClientError.transport(.timedOut) }
+        return userRules
+    }
+
     public func write(_ write: AdGuardWrite) async throws {
         guard currentStatus() != nil else { throw AdGuardClientError.transport(.timedOut) }
         try? await Task.sleep(for: .milliseconds(150))
@@ -38,6 +43,8 @@ extension MockAdGuardTransport: AdGuardSettingTransport, AdGuardOverviewService 
             for (key, value) in settings.object ?? [:] where key != "enabled" { safeSearchEngines[key] = value }
         case .filteringConfig(let enabled, _):
             filteringEnabled = enabled
+        case .setRules(let rules):
+            userRules = rules
         }
     }
 

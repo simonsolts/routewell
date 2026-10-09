@@ -86,6 +86,18 @@ public actor RouterSession {
         return try result.get()
     }
 
+    /// Reads one Query Log tab page (chunk 18), fenced like `overview(using:)`.
+    /// `nil` when the backend has no query-log service.
+    public func queryLogPage(using lease: SessionLease, query: QueryLogQuery) async throws -> AreaRefreshResult<QueryLogPage>? {
+        try validateBefore(lease)
+        guard let service = lease.backend.queryLog else { return nil }
+        let result: Result<AreaRefreshResult<QueryLogPage>, any Error>
+        do { result = .success(try await service.page(query)) }
+        catch { result = .failure(error) }
+        try validateAfter(lease)
+        return try result.get()
+    }
+
     /// Reads the Router screen's Wi-Fi and SQM, fenced like `overview(using:)`.
     /// `nil` when the backend has no Router service.
     public func routerDetails(using lease: SessionLease) async throws -> RouterDetailsResult? {

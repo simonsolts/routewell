@@ -27,7 +27,7 @@ private let adGuardURL = URL(string: "http://192.0.2.20:3000/")!
         #expect(first.time == QueryLogParser.timestamp("2026-09-23T14:34:40.610Z"))
         #expect(page.entries.allSatisfy { $0.time != nil && $0.client != nil && $0.domain != nil })
         let results = Dictionary(grouping: page.entries, by: \.result).mapValues(\.count)
-        #expect(results == [.allowed: 176, .blocked: 35])
+        #expect(results == [.processed: 176, .blocked: 35])
     }
 
     @Test func summarizesOneClientExactly() throws {
@@ -62,7 +62,7 @@ private let adGuardURL = URL(string: "http://192.0.2.20:3000/")!
         #expect(page.isFull)
         #expect(page.oldest == nil)
         #expect(page.entries[0].result == .blocked)
-        #expect(page.entries[1] == QueryLogEntry(reason: "SomethingNew"))
+        #expect(page.entries[1] == QueryLogEntry(timeText: "not a time", reason: "SomethingNew"))
         #expect(page.entries[1].result == .unknown)
         #expect(page.entries[2].result == .rewritten)
         #expect(page.entries[2].time == QueryLogParser.timestamp("2026-09-23T14:34:40.500Z"))
@@ -110,7 +110,10 @@ private let adGuardURL = URL(string: "http://192.0.2.20:3000/")!
         try await session.installLease(lease)
         let result = try await session.recentQueries(using: lease, search: "192.168.8.192", limit: 500)
         guard case .success(let page, _, .mock)? = result else { Issue.record("expected mock page"); return }
-        #expect(ClientQueryActivity.summarize(page, clientIP: "192.168.8.192", fetchedAt: .now).total == 89)
+        // The mock log is longer than one page for every client.
+        let activity = ClientQueryActivity.summarize(page, clientIP: "192.168.8.192", fetchedAt: .now)
+        #expect(activity.total == 500)
+        #expect(activity.windowLimited)
 
         try await session.beginRevision(SessionToken(profileID: "a", revision: 2))
         await #expect(throws: SessionError.self) { _ = try await session.recentQueries(using: lease, search: nil, limit: 5) }

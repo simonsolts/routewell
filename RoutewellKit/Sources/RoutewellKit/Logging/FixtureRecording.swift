@@ -240,7 +240,7 @@ public enum RecordedFixtureRedactor {
             if isNameField(field) { return .string(aliases.names[string] ?? "Example") }
             if ["enabled", "disabled", "running", "stopped", "online", "offline", "up", "down", "unknown"].contains(string.lowercased()) { return .string(string) }
             if tokenFields.contains(field), string.range(of: #"^[A-Za-z0-9._:/+()-]{1,40}$"#, options: .regularExpression) != nil { return .string(string) }
-            if numericFields.contains(field), string.range(of: #"^-?\d{1,20}(\.\d{1,12})?$"#, options: .regularExpression) != nil { return .string(string) }
+            if numericFields.contains(field), string.range(of: #"^-?\d{1,20}(\.\d{1,17})?$"#, options: .regularExpression) != nil { return .string(string) }
             if timeFields.contains(field), string.range(of: #"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{1,9})?(Z|[+-]\d{2}:\d{2})$"#, options: .regularExpression) != nil { return .string(string) }
             return .string("[REDACTED TEXT]")
         default: return value
