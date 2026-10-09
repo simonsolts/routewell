@@ -11,6 +11,10 @@ public enum MockAdGuardScenario: String, CaseIterable, Sendable {
     case unreachable
     case turnOnFails
     case switchFails
+    // Chunk 19: AdGuard Home › Filters.
+    case addListFails
+    case refreshPartial
+    case rulesConflict
 
     public var title: String {
         switch self {
@@ -22,6 +26,9 @@ public enum MockAdGuardScenario: String, CaseIterable, Sendable {
         case .unreachable: "On, not answering"
         case .turnOnFails: "Turn On fails"
         case .switchFails: "Running, Block adult content fails"
+        case .addListFails: "Running, adding a list fails"
+        case .refreshPartial: "Running, Update Now updates one list"
+        case .rulesConflict: "Running, rules change elsewhere"
         }
     }
 
@@ -40,7 +47,7 @@ public enum MockAdGuardScenario: String, CaseIterable, Sendable {
                                   statsConfig: (try? overview.statsConfig.get()).map { .init(savedAt: savedAt, value: $0) },
                                   protection: (try? overview.protection.get()).map { .init(savedAt: savedAt, value: $0) },
                                   filtering: (try? overview.filtering.get()).map { .init(savedAt: savedAt, value: $0) })
-        case .off, .running, .paused, .runningWithoutDNS, .turnOnFails, .switchFails:
+        case .off, .running, .paused, .runningWithoutDNS, .turnOnFails, .switchFails, .addListFails, .refreshPartial, .rulesConflict:
             return nil
         }
     }
@@ -66,7 +73,16 @@ public actor MockAdGuardTransport: AdGuardServiceTransport {
     /// "Filter requests".
     var filteringEnabled = true
     /// Custom rules, changed by Block and Unblock Domain (chunk 18).
-    public internal(set) var userRules: [String] = ["# Example custom rules", ""]
+    public internal(set) var userRules: [String] = MockAdGuardTransport.defaultRules
+    static let defaultRules = ["! Example custom rules", "||ads.example.com^", "@@||cdn.example.net^", ""]
+    // Chunk 19: the lists, interval, and Filters scenarios.
+    var filterLists = MockAdGuardTransport.filtering(enabled: true)
+    /// When each added list has its rules ("Downloading…" until then).
+    var downloads: [String: Date] = [:]
+    static let downloadDelay: TimeInterval = 2
+    var failsListAdd = false
+    var refreshesPartly = false
+    var changesRulesElsewhere = false
     /// Safe Search's engine flags, sent back unchanged by the switch.
     var safeSearchEngines: [String: JSONValue] = ["bing": .bool(true), "duckduckgo": .bool(true), "ecosia": .bool(true),
         "google": .bool(true), "pixabay": .bool(true), "yandex": .bool(true), "youtube": .bool(true)]
@@ -86,9 +102,15 @@ public actor MockAdGuardTransport: AdGuardServiceTransport {
         options = Self.defaultOptions
         filteringEnabled = true
         stuckFeature = scenario == .switchFails ? .parental : nil
+        userRules = Self.defaultRules
+        filterLists = Self.filtering(enabled: true)
+        downloads = [:]
+        failsListAdd = scenario == .addListFails
+        refreshesPartly = scenario == .refreshPartial
+        changesRulesElsewhere = scenario == .rulesConflict
         switch scenario {
         case .off, .cached, .turnOnFails: config = AdGuardRouterConfig(enabled: false, handlesDNS: true)
-        case .running, .paused, .unreachable, .switchFails: config = AdGuardRouterConfig(enabled: true, handlesDNS: true)
+        case .running, .paused, .unreachable, .switchFails, .addListFails, .refreshPartial, .rulesConflict: config = AdGuardRouterConfig(enabled: true, handlesDNS: true)
         case .runningWithoutDNS: config = AdGuardRouterConfig(enabled: true, handlesDNS: false)
         }
     }

@@ -19,13 +19,61 @@ extension MockAdGuardTransport: AdGuardSettingTransport, AdGuardOverviewService 
 
     public func readFiltering() async throws -> AdGuardFilteringStatus {
         guard currentStatus() != nil else { throw AdGuardClientError.transport(.timedOut) }
-        return Self.filtering(enabled: filteringEnabled)
+        return currentFiltering()
     }
 
     public func readUserRules() async throws -> [String] {
         guard currentStatus() != nil else { throw AdGuardClientError.transport(.timedOut) }
+        if changesRulesElsewhere {
+            // "Rules conflict": another edit lands just before Save.
+            changesRulesElsewhere = false
+            userRules.insert("||changed-elsewhere.example^", at: 0)
+        }
         return userRules
     }
+
+    public func refreshLists(_ kind: FilterListKind) async throws -> Int? {
+        guard currentStatus() != nil else { throw AdGuardClientError.transport(.timedOut) }
+        try? await Task.sleep(for: .milliseconds(600))
+        writes.append(.refreshLists(whitelist: kind.isAllowlist))
+        let now = Self.timestamp(Date())
+        var updated = 0
+        func refresh(_ lists: inout [AdGuardFilterList]) {
+            for index in lists.indices where lists[index].enabled == true {
+                // "Refresh partial": only the first list on is updated.
+                if refreshesPartly, updated == 1 { break }
+                lists[index].lastUpdated = now
+                updated += 1
+            }
+        }
+        if kind == .blocklist { refresh(&filterLists.blocklists) } else { refresh(&filterLists.allowlists) }
+        return updated
+    }
+
+    /// The lists as AdGuard Home reports them now: a list added less than
+    /// `downloadDelay` ago has no rules yet.
+    public func currentFiltering(now: Date = Date()) -> AdGuardFilteringStatus {
+        var status = filterLists
+        status.enabled = filteringEnabled
+        status.userRules = userRules
+        func settle(_ lists: inout [AdGuardFilterList]) {
+            for index in lists.indices {
+                guard let url = lists[index].url, let ready = downloads[url] else { continue }
+                if now >= ready {
+                    lists[index].rulesCount = 48_000 + (url.count * 1_337) % 90_000
+                    lists[index].lastUpdated = Self.timestamp(ready)
+                } else {
+                    lists[index].rulesCount = 0
+                    lists[index].lastUpdated = nil
+                }
+            }
+        }
+        settle(&status.blocklists)
+        settle(&status.allowlists)
+        return status
+    }
+
+    static func timestamp(_ date: Date) -> String { date.formatted(.iso8601) }
 
     public func write(_ write: AdGuardWrite) async throws {
         guard currentStatus() != nil else { throw AdGuardClientError.transport(.timedOut) }
@@ -45,7 +93,26 @@ extension MockAdGuardTransport: AdGuardSettingTransport, AdGuardOverviewService 
             filteringEnabled = enabled
         case .setRules(let rules):
             userRules = rules
+        case .addList(let name, let url, let whitelist):
+            if failsListAdd { throw AdGuardClientError.httpStatus(400) }
+            let list = AdGuardFilterList(id: Int(Date().timeIntervalSince1970), name: name, url: url, enabled: true, rulesCount: 0)
+            downloads[url] = Date().addingTimeInterval(Self.downloadDelay)
+            if whitelist { filterLists.allowlists.append(list) } else { filterLists.blocklists.append(list) }
+        case .setList(let url, let whitelist, let name, let enabled):
+            func update(_ lists: inout [AdGuardFilterList]) {
+                for index in lists.indices where lists[index].url == url {
+                    lists[index].name = name
+                    lists[index].enabled = enabled
+                    if enabled, lists[index].rulesCount == 0 { downloads[url] = Date().addingTimeInterval(Self.downloadDelay) }
+                }
+            }
+            if whitelist { update(&filterLists.allowlists) } else { update(&filterLists.blocklists) }
+        case .removeList(let url, let whitelist):
+            if whitelist { filterLists.allowlists.removeAll { $0.url == url } } else { filterLists.blocklists.removeAll { $0.url == url } }
+        case .refreshLists:
+            break
         }
+        if case .filteringConfig(_, let hours) = write { filterLists.intervalHours = hours }
     }
 
     public func overview(range: AdGuardStatsRange) async throws -> AdGuardOverviewReading {
@@ -55,7 +122,9 @@ extension MockAdGuardTransport: AdGuardSettingTransport, AdGuardOverviewService 
             return AdGuardOverviewReading(range: range, stats: .failure(.timeout), statsConfig: .failure(.timeout),
                                           protection: .failure(.timeout), filtering: .failure(.timeout), observedAt: now)
         }
-        return Self.overview(range: range, now: now, options: options, filteringEnabled: filteringEnabled)
+        var reading = Self.overview(range: range, now: now, options: options, filteringEnabled: filteringEnabled)
+        reading.filtering = .success(currentFiltering(now: now))
+        return reading
     }
 
     /// The Overview a running mock shows at `now`. A range longer than the
@@ -109,10 +178,19 @@ extension MockAdGuardTransport: AdGuardSettingTransport, AdGuardOverviewService 
         var status = AdGuardFilteringStatus()
         status.enabled = enabled
         status.intervalHours = 24
+        status.userRules = defaultRules
+        let updated = timestamp(Calendar.current.startOfDay(for: Date()).addingTimeInterval(6 * 60 * 60))
+        status.allowlists = [
+            AdGuardFilterList(id: 11, name: "Example allowlist", url: "https://lists.example.net/allow.txt", enabled: true,
+                              rulesCount: 214, lastUpdated: updated),
+        ]
         status.blocklists = [
-            AdGuardFilterList(id: 1, name: "Example base list", url: "https://lists.example.com/base.txt", enabled: true, rulesCount: 183_412),
-            AdGuardFilterList(id: 2, name: "Example malware list", url: "https://lists.example.com/malware.txt", enabled: true, rulesCount: 164_790),
-            AdGuardFilterList(id: 3, name: "Example tracking list", url: "https://lists.example.org/tracking.txt", enabled: true, rulesCount: 243_701),
+            AdGuardFilterList(id: 1, name: "Example base list", url: "https://lists.example.com/base.txt", enabled: true,
+                              rulesCount: 183_412, lastUpdated: updated),
+            AdGuardFilterList(id: 2, name: "Example malware list", url: "https://lists.example.com/malware.txt", enabled: true,
+                              rulesCount: 164_790, lastUpdated: updated),
+            AdGuardFilterList(id: 3, name: "Example tracking list", url: "https://lists.example.org/tracking.txt", enabled: true,
+                              rulesCount: 243_701, lastUpdated: updated),
             AdGuardFilterList(id: 4, name: "Example social list", url: "https://lists.example.org/social.txt", enabled: false, rulesCount: 0),
         ]
         return status
