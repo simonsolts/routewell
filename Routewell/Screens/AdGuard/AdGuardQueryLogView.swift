@@ -3,7 +3,7 @@ import RoutewellKit
 
 /// AdGuard Home › Query Log (chunk 18): filter row, table, footer, and a
 /// 280 pt inspector, read live from AdGuard Home while it runs.
-struct QueryLogView: View {
+struct AdGuardQueryLogView: View {
     @Environment(AppModel.self) private var model
     @Environment(AppEnvironment.self) private var environment
 

@@ -39,7 +39,7 @@ struct AdGuardScreen: View {
         case .queryLog:
             // Read live only; there is no saved copy of the log.
             if environment.adGuard.availability == .running {
-                QueryLogView()
+                AdGuardQueryLogView()
             } else {
                 QueryLogUnavailableView(availability: environment.adGuard.availability)
             }
