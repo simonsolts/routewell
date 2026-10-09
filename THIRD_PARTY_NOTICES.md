@@ -29,16 +29,7 @@ notices in those files.
 
 ## AdGuard HostlistsRegistry
 
-- Project: [HostlistsRegistry](https://github.com/AdguardTeam/HostlistsRegistry)
-- Creator: AdGuard (AdguardTeam) and contributors
-- License: GNU General Public License v3.0 (`GPL-3.0`), see the upstream [license](https://github.com/AdguardTeam/HostlistsRegistry/blob/d08718e04d45196725f86b460521b2ca0cbcd511/LICENSE)
-- Snapshot: [`assets/filters.json`](https://github.com/AdguardTeam/HostlistsRegistry/blob/d08718e04d45196725f86b460521b2ca0cbcd511/assets/filters.json) at commit `d08718e04d45196725f86b460521b2ca0cbcd511` (2026-10-09)
-- Routewell path: `RoutewellKit/Sources/RoutewellKit/Resources/adguard-filters.json`
-
-The bundled file is an unmodified copy of the catalog: list names, groups,
-descriptions, and URLs. Routewell does not bundle the content of any list. The
-router downloads each list from its own URL, and each list has its own licence.
-At release time, download https://raw.githubusercontent.com/AdguardTeam/HostlistsRegistry/main/assets/filters.json over the bundled file, and update the commit and date in this entry.
+`RoutewellKit/Sources/RoutewellKit/Resources/adguard-filters.json` is an unmodified copy of `assets/filters.json` from [HostlistsRegistry](https://github.com/AdguardTeam/HostlistsRegistry) by AdGuard and contributors, licensed under GPL-3.0.
 
 The GPLv3 text is included in [LICENSE](LICENSE). These credits supplement,
 rather than replace, applicable license notices and source-distribution
