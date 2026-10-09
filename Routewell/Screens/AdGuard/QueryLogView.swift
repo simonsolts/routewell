@@ -285,7 +285,8 @@ struct QueryLogInspectorContent: View {
                 .disabled(entry.client == nil)
                 if case .domainRule = adGuard.settingInFlight {
                     ProgressView().controlSize(.small)
-                } else if let intent = adGuard.lastSettingIntent, case .domainRule = intent, let report = adGuard.lastSettingReport {
+                } else if let intent = adGuard.lastSettingIntent, case .domainRule(_, let domain) = intent, domain == entry.domain,
+                          let report = adGuard.lastSettingReport {
                     Text(Self.resultText(intent, report.outcome))
                         .font(.system(size: 11)).foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)

@@ -37,7 +37,8 @@ public enum ScreenRefreshPlan {
             intervals[.ssh] = defaultInterval
         }
         // Chunk 17: the Overview tab's stats, switches, and blocklists.
-        if destination == "adGuard", segment == nil || segment == "Overview" {
+        // Chunk 18: the Query Log needs the blocklist names for its Reason.
+        if destination == "adGuard", segment == nil || segment == "Overview" || segment == "Query Log" {
             intervals[.adGuardOverview] = defaultInterval
         }
         return intervals.map { AreaCadence($0.key, every: $0.value) }.sorted { $0.area.rawValue < $1.area.rawValue }

@@ -468,6 +468,9 @@ private func loadOverview(_ environment: AppEnvironment) async {
     #expect(overview.contains(.adGuardOverview))
     let instance = ScreenRefreshPlan.resolve(destination: "adGuard", segment: "Instance").map(\.area)
     #expect(!instance.contains(.adGuardOverview))
+    // The Query Log names blocklists from the same read.
+    let queryLog = ScreenRefreshPlan.resolve(destination: "adGuard", segment: "Query Log").map(\.area)
+    #expect(queryLog.contains(.adGuardOverview))
 }
 
 // MARK: - Snapshots
