@@ -257,10 +257,9 @@ public enum RecordedFixtureRedactor {
         "firmware_version", "current_version", "new_firmware_version", "version", "kernel_version", "openwrt_version", "architecture",
         "firmware_type", "htmode", "hwmode", "txpower", "qdisc", "protocol", "device", "state", "interface"]
     private static let numericFields: Set<String> = ["total_rx", "total_tx", "total_rx_init", "total_tx_init", "online_time", "elapsedms", "upload", "download"]
-    /// Chunk 19: `last_updated` of a blocklist or allowlist.
     private static let timeFields: Set<String> = ["time", "oldest", "last_updated"]
-    /// Chunk 19: hosts of AdGuard's public list catalog. A list URL on one
-    /// of them is public; any other URL can be private and is replaced.
+    /// A list URL on one of these hosts is public; any other URL can be
+    /// private and is replaced.
     static let publicListHosts: Set<String> = ["adguardteam.github.io", "raw.githubusercontent.com", "filters.adtidy.org"]
 
     static func isPublicListURL(_ string: String) -> Bool {

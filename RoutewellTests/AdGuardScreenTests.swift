@@ -534,7 +534,6 @@ private func loadOverview(_ environment: AppEnvironment) async {
     let noCopy = await mockEnvironment(.unreachable)
     await noCopy.adGuard.replaceArchive(nil)
     write("unreachable-no-copy", noCopy)
-    // Chunk 19: Filters, each segment running, and read-only.
     for (name, scenario) in [("running", MockAdGuardScenario.running), ("cached", .cached)] {
         let environment = await mockEnvironment(scenario)
         await loadOverview(environment)

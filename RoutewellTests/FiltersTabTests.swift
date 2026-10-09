@@ -5,8 +5,6 @@ import RoutewellKit
 import RoutewellMock
 @testable import Routewell
 
-/// Chunk 19: AdGuard Home › Filters in the app.
-
 @MainActor
 private func eventually(timeout: Duration = .seconds(10), _ predicate: () async -> Bool) async {
     let deadline = ContinuousClock.now + timeout

@@ -1,15 +1,13 @@
 import Foundation
 
-/// The two list kinds on AdGuard Home › Filters (chunk 19). AdGuard Home
-/// calls allowlists `whitelist`.
+/// AdGuard Home calls allowlists `whitelist`.
 public enum FilterListKind: String, Sendable, Equatable, CaseIterable, Codable {
     case blocklist, allowlist
 
     public var isAllowlist: Bool { self == .allowlist }
 }
 
-/// "Check every" values, in hours (`filtering/config` `interval`). 0 is
-/// "Never" `[assumed]` from the schema.
+/// "Check every" values, in hours. 0 is "Never".
 public enum FilterUpdateInterval {
     public static let hours: [Int] = [1, 12, 24, 72, 168, 0]
 
@@ -56,11 +54,7 @@ public enum CustomRulesText {
     }
 }
 
-/// The bundled copy of AdGuard's canonical HostlistsRegistry file
-/// (`assets/filters.json`), downloaded over this file at release time.
-/// The app never reads the registry
-/// over the network and never downloads a list: the router does. The file
-/// has no rule counts.
+/// The bundled list catalog. It has no rule counts.
 public struct AdGuardListCatalog: Sendable, Equatable, Decodable {
     public struct Group: Sendable, Equatable, Decodable, Identifiable {
         public let id: Int
@@ -92,7 +86,6 @@ public struct AdGuardListCatalog: Sendable, Equatable, Decodable {
         case groups, lists = "filters"
     }
 
-    /// The groups in registry order, each with its lists in registry order.
     /// Deprecated lists and empty groups are left out.
     public var sections: [(group: Group, lists: [Entry])] {
         groups.sorted { ($0.displayNumber ?? .max, $0.id) < ($1.displayNumber ?? .max, $1.id) }.compactMap { group in

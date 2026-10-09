@@ -46,7 +46,6 @@ final class AdGuardController {
     private var verifiedProtection: (state: ProtectionState, at: Date)?
     private var verifiedFeatures: [AdGuardFeature: (value: Bool, at: Date)] = [:]
     private var verifiedFiltering: (value: Bool, at: Date)?
-    /// Chunk 19: the lists and rules after a verified Filters write.
     private var verifiedFilters: (status: AdGuardFilteringStatus, at: Date)?
     @ObservationIgnored private var pauseEndTask: Task<Void, Never>?
 

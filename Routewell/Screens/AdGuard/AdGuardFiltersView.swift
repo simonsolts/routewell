@@ -1,9 +1,7 @@
 import SwiftUI
 import RoutewellKit
 
-/// AdGuard Home › Filters (chunk 19): Blocklists, Allowlists, and Custom
-/// rules. Read-only (the saved copy) when AdGuard Home is off or does not
-/// answer: the tables and rules show, every control is disabled.
+/// Read-only when AdGuard Home is not running.
 struct AdGuardFiltersView: View {
     @Environment(AppEnvironment.self) private var environment
 

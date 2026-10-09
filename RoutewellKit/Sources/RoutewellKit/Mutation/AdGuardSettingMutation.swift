@@ -50,7 +50,7 @@ public enum AdGuardSettingIntent: Sendable, Equatable {
     /// Block Domain or Unblock Domain from the Query Log (chunk 18): one
     /// rule in the custom rules.
     case domainRule(DomainRuleAction, domain: String)
-    // Chunk 19: AdGuard Home › Filters. Lists are found by URL.
+    // Lists are found by URL.
     /// Turn one list on or off (`set_url`, name and URL as read).
     case listEnabled(FilterListKind, url: String, enabled: Bool)
     case addList(FilterListKind, name: String, url: String)
@@ -88,7 +88,6 @@ public enum AdGuardSettingState: Sendable, Equatable {
     case feature(Bool?)
     /// The domain rule is in the custom rules, and its opposite is not.
     case rule(applied: Bool)
-    /// Chunk 19: the lists, interval, and rules AdGuard Home reported.
     case filters(AdGuardFilteringStatus)
     /// Update Now: AdGuard Home's `updated` count (`nil` when it sent
     /// none), and the lists after it.
@@ -316,7 +315,7 @@ public struct AdGuardSettingExecutor: AdGuardSettingControl {
         return (.verifiedMismatch(expected: .rule(applied: true), actual: .rule(applied: false)), true, nil)
     }
 
-    // MARK: Filters (chunk 19, gate held)
+    // MARK: Filters (gate held)
 
     /// One fresh `filtering/status` read before a list or interval write.
     private enum Before { case read(AdGuardFilteringStatus), stop(Step) }

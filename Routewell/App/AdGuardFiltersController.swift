@@ -2,11 +2,7 @@ import Foundation
 import Observation
 import RoutewellKit
 
-/// AdGuard Home › Filters (chunk 19): the segment, the selected list, the
-/// lists that are downloading, the last Update Now count, and the custom
-/// rules editor. The lists and rules come from `AdGuardController.filtering`
-/// (live while running, else the saved copy); every write runs through its
-/// setting executor.
+/// State and actions for the Filters tab.
 @MainActor @Observable
 final class AdGuardFiltersController {
     enum Segment: String, CaseIterable {
@@ -89,7 +85,6 @@ final class AdGuardFiltersController {
         }
     }
 
-    /// The design removes at once, without a confirm (user, chunk 19).
     func removeSelected(kind: FilterListKind) {
         guard let url = selection, lists(kind).contains(where: { $0.url == url }),
               let task = adGuard.startSetting(.removeList(kind, url: url)) else { return }

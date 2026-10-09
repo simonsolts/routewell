@@ -262,8 +262,6 @@ public struct AdGuardFilterList: Sendable, Equatable, Codable {
         url.flatMap { URL(string: $0)?.host() }
     }
 
-    /// `last_updated` as a date. AdGuard Home writes RFC 3339 `[assumed]`;
-    /// the anonymized fixture has `Z`, the schema allows an offset.
     public var lastUpdatedDate: Date? {
         guard let lastUpdated else { return nil }
         if let date = try? Date(lastUpdated, strategy: .iso8601) { return date }
@@ -286,8 +284,7 @@ public struct AdGuardFilteringStatus: Sendable, Equatable, Codable {
     public var blocklists: [AdGuardFilterList] = []
     /// `whitelist_filters`; `null` on 4.9.1 when there are none `[verified live]`.
     public var allowlists: [AdGuardFilterList] = []
-    /// `user_rules` as sent (chunk 19); `null` is an empty list, `nil` when
-    /// the field is missing.
+    /// `null` is an empty list, `nil` when the field is missing.
     public var userRules: [String]?
 
     public init() {}

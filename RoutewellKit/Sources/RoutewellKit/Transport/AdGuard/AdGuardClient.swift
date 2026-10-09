@@ -96,8 +96,7 @@ public enum AdGuardWrite: Sendable, Equatable {
     /// `POST control/filtering/set_rules {"rules": [...]}`: the whole custom
     /// rules list (chunk 18, Block or Unblock Domain) `[assumed]`.
     case setRules([String])
-    /// Chunk 19, all `[assumed]` from the schema: `POST control/filtering/add_url
-    /// {"name", "url", "whitelist"}`.
+    /// `POST control/filtering/add_url {"name", "url", "whitelist"}`.
     case addList(name: String, url: String, whitelist: Bool)
     /// `POST control/filtering/set_url {"url", "whitelist", "data": {"name",
     /// "url", "enabled"}}`: name and URL go back as read.

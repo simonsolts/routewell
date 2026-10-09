@@ -247,7 +247,6 @@ extension AdGuardPresentation {
             case .filtering: return "AdGuard Home did not change “\(filteringTitle)”."
             case .domainRule(.block, let domain): return "AdGuard Home did not add the rule to block \(domain)."
             case .domainRule(.unblock, let domain): return "AdGuard Home did not add the rule to unblock \(domain)."
-            // Chunk 19 `[decision]`: copy not in the design.
             case .listEnabled(_, _, true): return "AdGuard Home did not turn the list on."
             case .listEnabled(_, _, false): return "AdGuard Home did not turn the list off."
             case .addList: return "AdGuard Home did not add the list. Check the URL, and that the router can download it."

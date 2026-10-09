@@ -38,7 +38,6 @@ public enum ScreenRefreshPlan {
         }
         // Chunk 17: the Overview tab's stats, switches, and blocklists.
         // Chunk 18: the Query Log needs the blocklist names for its Reason.
-        // Chunk 19: Filters shows the lists and rules from the same read.
         if destination == "adGuard", segment == nil || ["Overview", "Query Log", "Filters"].contains(segment) {
             intervals[.adGuardOverview] = defaultInterval
         }

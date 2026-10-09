@@ -1,8 +1,7 @@
 import Foundation
 import RoutewellKit
 
-/// Text for AdGuard Home › Filters (chunk 19). Copy from the design unless
-/// marked `[decision]`.
+/// Text for the Filters tab.
 enum FiltersPresentation {
     static let checkEvery = "Check every"
     static let updateNow = "Update Now"
@@ -14,7 +13,6 @@ enum FiltersPresentation {
     static let namePlaceholder = "My blocklist"
     static let urlPlaceholder = "https://example.com/hosts.txt"
 
-    /// The design's syntax panel; item 3 uses a documentation address.
     static let syntax: [(code: String, text: String)] = [
         ("||example.com^", "Block a domain and its subdomains"),
         ("@@||example.com^", "Never block this domain"),
@@ -32,8 +30,7 @@ enum FiltersPresentation {
         }
     }
 
-    /// The pop-up's items: the design's, plus a value AdGuard Home has that
-    /// the design does not offer `[decision]`.
+    /// Adds the current value when it is not one of the standard items.
     static func intervalChoices(current: Int?) -> [Int] {
         guard let current, !FilterUpdateInterval.isValid(current) else { return FilterUpdateInterval.hours }
         return FilterUpdateInterval.hours + [current]
@@ -47,7 +44,7 @@ enum FiltersPresentation {
     }
 
     /// "Just now" in the first minute, "Today at 14:05", else the date
-    /// and time `[decision]`; "—" without a time.
+    /// and time; "—" without a time.
     static func lastUpdated(_ list: AdGuardFilterList, now: Date = .now, calendar: Calendar = .current) -> String {
         guard let date = list.lastUpdatedDate else { return list.lastUpdated == nil ? "—" : "Unknown" }
         if abs(now.timeIntervalSince(date)) < 60 { return "Just now" }
@@ -59,8 +56,7 @@ enum FiltersPresentation {
         return "\(date.formatted(date: .abbreviated, time: .omitted)) at \(time)"
     }
 
-    /// "3 of 6 on · 581,421 rules". It counts the blocklists on both
-    /// segments, as in the design (user, chunk 19).
+    /// "3 of 6 on · 581,421 rules". Always counts the blocklists.
     static func summary(_ status: AdGuardFilteringStatus?) -> String {
         guard let status else { return "" }
         let on = "\(status.enabledBlocklists.count) of \(status.blocklists.count) on"
@@ -68,8 +64,6 @@ enum FiltersPresentation {
         return "\(on) · \(rules.formatted(.number)) rules"
     }
 
-    /// After Update Now `[decision]`: the plan asks for the count; the
-    /// design shows none.
     static func updateResult(_ count: Int?) -> String? {
         switch count {
         case nil: nil
@@ -79,8 +73,6 @@ enum FiltersPresentation {
         }
     }
 
-    /// Allowlists add only by URL: the catalog has blocklists only (user,
-    /// chunk 19).
     static func sheetTitle(_ kind: FilterListKind) -> String {
         kind == .blocklist ? "Add blocklists" : "Add allowlists"
     }
@@ -89,7 +81,7 @@ enum FiltersPresentation {
         selected == 0 ? "Add" : "Add \(selected)"
     }
 
-    // MARK: Rules conflict `[decision]`
+    // MARK: Rules conflict
 
     static let conflictTitle = "Custom rules changed on AdGuard Home"
     static let conflictMessage = "The rules changed after you started to edit them. Your changes are not saved."

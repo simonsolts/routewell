@@ -11,7 +11,6 @@ public enum MockAdGuardScenario: String, CaseIterable, Sendable {
     case unreachable
     case turnOnFails
     case switchFails
-    // Chunk 19: AdGuard Home › Filters.
     case addListFails
     case refreshPartial
     case rulesConflict
@@ -75,7 +74,6 @@ public actor MockAdGuardTransport: AdGuardServiceTransport {
     /// Custom rules, changed by Block and Unblock Domain (chunk 18).
     public internal(set) var userRules: [String] = MockAdGuardTransport.defaultRules
     static let defaultRules = ["! Example custom rules", "||ads.example.com^", "@@||cdn.example.net^", ""]
-    // Chunk 19: the lists, interval, and Filters scenarios.
     var filterLists = MockAdGuardTransport.filtering(enabled: true)
     /// When each added list has its rules ("Downloading…" until then).
     var downloads: [String: Date] = [:]
