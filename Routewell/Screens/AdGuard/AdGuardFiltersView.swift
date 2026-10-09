@@ -139,9 +139,9 @@ struct FilterListSegment: View {
                     TableColumn("Rules") { row in
                         Text(FiltersPresentation.rules(row.list, downloading: filters.isDownloading(row.list, now: now)))
                             .monospacedDigit().opacity(0.85)
-                            .frame(maxWidth: .infinity, alignment: .trailing)
                     }
                     .width(100)
+                    .alignment(.trailing)
                     TableColumn("Last updated") { row in
                         Text(FiltersPresentation.lastUpdated(row.list, now: now)).opacity(0.65)
                     }
