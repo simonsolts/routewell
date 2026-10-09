@@ -36,17 +36,15 @@ struct AdGuardScreen: View {
         switch AdGuardTab(rawValue: model.subpages[.adGuard] ?? "") ?? .overview {
         case .overview: AdGuardOverviewView()
         case .instance: AdGuardInstanceView()
-        case .queryLog: AdGuardPlaceholderTab(tab: .queryLog, detail: Self.filterText(model.adGuardQueryLogFilter))
-        case let tab: AdGuardPlaceholderTab(tab: tab, detail: nil)
+        case .queryLog:
+            // Read live only; there is no saved copy of the log.
+            if environment.adGuard.availability == .running {
+                AdGuardQueryLogView()
+            } else {
+                QueryLogUnavailableView(availability: environment.adGuard.availability)
+            }
+        case let tab: AdGuardPlaceholderTab(tab: tab)
         }
-    }
-
-    /// Until chunk 18 builds the Query Log, the placeholder names the filter.
-    static func filterText(_ filter: AdGuardQueryLogFilter?) -> String? {
-        guard let filter else { return nil }
-        if let client = filter.client { return "Opened for \(client)." }
-        if let search = filter.search { return "Opened for \(search)." }
-        return nil
     }
 }
 
@@ -104,16 +102,15 @@ struct AdGuardUnreachableView: View {
     }
 }
 
-/// A tab whose chunk has not landed yet (17, 18, 19, 19A).
+/// A tab whose chunk has not landed yet (19, 19A).
 struct AdGuardPlaceholderTab: View {
     let tab: AdGuardTab
-    let detail: String?
 
     var body: some View {
         ContentUnavailableView {
             Label(tab.rawValue, systemImage: "shield")
         } description: {
-            Text(["This tab is not available yet.", detail].compactMap { $0 }.joined(separator: " "))
+            Text("This tab is not available yet.")
         }
     }
 }

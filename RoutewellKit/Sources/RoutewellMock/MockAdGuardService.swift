@@ -65,6 +65,8 @@ public actor MockAdGuardTransport: AdGuardServiceTransport {
     var options = MockAdGuardTransport.defaultOptions
     /// "Filter requests".
     var filteringEnabled = true
+    /// Custom rules, changed by Block and Unblock Domain (chunk 18).
+    public internal(set) var userRules: [String] = ["# Example custom rules", ""]
     /// Safe Search's engine flags, sent back unchanged by the switch.
     var safeSearchEngines: [String: JSONValue] = ["bing": .bool(true), "duckduckgo": .bool(true), "ecosia": .bool(true),
         "google": .bool(true), "pixabay": .bool(true), "yandex": .bool(true), "youtube": .bool(true)]

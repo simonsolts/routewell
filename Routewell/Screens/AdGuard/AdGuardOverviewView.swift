@@ -393,7 +393,7 @@ struct AdGuardTopLists: View {
                    color: Color.blue.opacity(0.6)) { model.showQueryLog(AdGuardQueryLogFilter(search: $0)) }
             column(stats.map { AdGuardPresentation.deviceList($0) { ClientNaming.automatic(ip: $0, clients: clients, records: records) } }
                    ?? AdGuardPresentation.TopList(title: "Top devices", hint: "", rows: []),
-                   color: .indigo) { model.showQueryLog(AdGuardQueryLogFilter(client: $0)) }
+                   color: .indigo) { model.showQueryLog(AdGuardQueryLogFilter(search: $0)) }
         }
     }
 

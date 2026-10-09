@@ -2,13 +2,11 @@ import Foundation
 import Observation
 import RoutewellKit
 
-/// What AdGuard Home › Query Log opens filtered by. Clients' Show DNS Log
-/// and the Overview's top rows set it; chunk 18 reads it.
+/// What AdGuard Home › Query Log opens searching for (chunk 18): a domain
+/// from Top blocked or Top queried, or a client IP from Top devices or
+/// Clients' Show DNS Log. AdGuard Home has one search for both.
 struct AdGuardQueryLogFilter: Equatable, Sendable {
-    /// A domain, from Top blocked or Top queried.
-    var search: String?
-    /// A client IP, from Top devices or Show DNS Log.
-    var client: String?
+    var search: String
 }
 
 /// The AdGuard Home screen's state: the last service reading, the saved

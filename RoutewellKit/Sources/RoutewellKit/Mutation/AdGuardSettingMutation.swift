@@ -47,13 +47,20 @@ public enum AdGuardSettingIntent: Sendable, Equatable {
     /// AdGuard Home's "Filter requests": blocklists, allowlists, and rules.
     case filtering(enabled: Bool)
     case feature(AdGuardFeature, enabled: Bool)
+    /// Block Domain or Unblock Domain from the Query Log (chunk 18): one
+    /// rule in the custom rules.
+    case domainRule(DomainRuleAction, domain: String)
 
     /// Writes run only while AdGuard Home runs; the read-only UI is not the
     /// only guard.
     public func validate(_ availability: AdGuardAvailability) -> MutationRejection? {
         guard availability == .running else { return .preconditionFailed("AdGuard Home is not running.") }
-        if case .protection(let intent) = self { return intent.validate() }
-        return nil
+        switch self {
+        case .protection(let intent): return intent.validate()
+        case .domainRule(let action, let domain):
+            return action.rule(for: domain) == nil ? .invalidIntent("Not a domain name") : nil
+        case .filtering, .feature: return nil
+        }
     }
 }
 
@@ -62,6 +69,8 @@ public enum AdGuardSettingState: Sendable, Equatable {
     case protection(ProtectionState)
     /// A switch; `nil` when the status did not say.
     case feature(Bool?)
+    /// The domain rule is in the custom rules, and its opposite is not.
+    case rule(applied: Bool)
 }
 
 /// The calls a setting write needs. Live: AdGuard Home's own API.
@@ -72,6 +81,8 @@ public protocol AdGuardSettingTransport: Sendable {
     func readFeature(_ feature: AdGuardFeature) async throws -> JSONValue
     /// `control/filtering/status`.
     func readFiltering() async throws -> AdGuardFilteringStatus
+    /// `control/filtering/status` `user_rules`, as sent.
+    func readUserRules() async throws -> [String]
     func write(_ write: AdGuardWrite) async throws
 }
 
@@ -146,6 +157,7 @@ public struct AdGuardSettingExecutor: AdGuardSettingControl {
         case .protection(let protection): step = await performProtection(protection)
         case .filtering(let enabled): step = await performFiltering(enabled: enabled)
         case .feature(let feature, let enabled): step = await performFeature(feature, enabled: enabled)
+        case .domainRule(let action, let domain): step = await performDomainRule(action, domain: domain)
         }
         await gate.release(token)
         await log?.record(LogEvent(
@@ -235,6 +247,33 @@ public struct AdGuardSettingExecutor: AdGuardSettingControl {
         if poll.matched != nil { return (.verifiedSuccess(.feature(enabled)), true, nil) }
         guard let last = poll.last else { return (.unknownAfterDispatch, true, poll.failure) }
         return (.verifiedMismatch(expected: .feature(enabled), actual: .feature(last.enabled)), true, nil)
+    }
+
+    // MARK: Domain rule (gate held)
+
+    /// Custom rules are written whole (`set_rules`), so the list is read
+    /// first under the gate, changed by one line, and sent back.
+    private func performDomainRule(_ action: DomainRuleAction, domain: String) async -> Step {
+        let before: [String]
+        do {
+            before = try await transport.readUserRules()
+        } catch {
+            return (.rejected(.preconditionFailed("rules unavailable")), false, Self.category(for: error))
+        }
+        if action.isApplied(in: before, domain: domain) { return (.verifiedSuccess(.rule(applied: true)), false, nil) }
+        guard let rules = action.apply(to: before, domain: domain) else {
+            return (.rejected(.invalidIntent("Not a domain name")), false, nil)
+        }
+        if let stop = await dispatch(.setRules(rules)) { return stop }
+
+        let poll = await poll { try await transport.readUserRules() } matches: { action.isApplied(in: $0, domain: domain) }
+        if poll.matched != nil { return (.verifiedSuccess(.rule(applied: true)), true, nil) }
+        guard let last = poll.last else { return (.unknownAfterDispatch, true, poll.failure) }
+        if last != before {
+            // The rules changed, but not to what was sent: another edit.
+            return (.conflictingExternalEdit(actual: .rule(applied: false)), true, nil)
+        }
+        return (.verifiedMismatch(expected: .rule(applied: true), actual: .rule(applied: false)), true, nil)
     }
 
     // MARK: Dispatch and verify
@@ -376,6 +415,15 @@ public struct LiveAdGuardSettingTransport: AdGuardSettingTransport {
     }
     public func readFiltering() async throws -> AdGuardFilteringStatus {
         AdGuardFilteringStatus.parse(try await adGuard.read(.filteringStatus))
+    }
+    public func readUserRules() async throws -> [String] {
+        let json = try await adGuard.read(.filteringStatus)
+        guard case .array(let rules)? = json["user_rules"] else {
+            // `null` is an empty list; anything else is not the rules.
+            if case .null? = json["user_rules"] { return [] }
+            throw AdGuardClientError.malformedResponse
+        }
+        return rules.compactMap(\.string)
     }
     public func write(_ write: AdGuardWrite) async throws { try await adGuard.write(write) }
 }

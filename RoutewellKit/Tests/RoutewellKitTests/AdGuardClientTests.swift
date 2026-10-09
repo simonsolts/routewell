@@ -66,6 +66,24 @@ private actor StubSessionProvider: RouterSessionTokenProvider {
         #expect(urls == ["http://192.168.8.1:3000/control/stats?recent=86400000"])
     }
 
+    /// Chunk 18: a time sends `+` as `%2B`, which AdGuard Home would
+    /// otherwise read as a space.
+    @Test func recordReadEncodesPlusInATime() async throws {
+        let transport = StubHTTPTransport { request in
+            (Data(#"{"data":[]}"#.utf8), StubHTTPTransport.response(200, url: request.url!))
+        }
+        let client = AdGuardClient(baseURL: Self.baseURL, credentials: BasicAdGuardCredentials(username: "admin", password: { "secret" }), transport: transport)
+        _ = await client.recordRead(path: "control/querylog?limit=500&older_than=2026-01-02T03:04:05.5+01:00")
+        _ = await client.recordRead(path: "control/querylog?limit=500&search=example.com")
+        let refused = await client.recordRead(path: "control/querylog?limit=500&search=a/b")
+        #expect(refused["error"]?["category"]?.string == "invalid path")
+        let urls = await transport.recorded().map { $0.request.url?.absoluteString }
+        #expect(urls == [
+            "http://192.168.8.1:3000/control/querylog?limit=500&older_than=2026-01-02T03:04:05.5%2B01:00",
+            "http://192.168.8.1:3000/control/querylog?limit=500&search=example.com",
+        ])
+    }
+
     @Test func statsParsesFixture() async throws {
         let body = fixtureData("control-stats", subdirectory: "Fixtures/adguard")
         let transport = StubHTTPTransport { request in

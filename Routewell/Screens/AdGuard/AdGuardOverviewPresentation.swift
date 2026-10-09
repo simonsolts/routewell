@@ -245,8 +245,11 @@ extension AdGuardPresentation {
             case .protection(.pause): return "AdGuard Home did not pause protection."
             case .feature(let feature, _): return "AdGuard Home did not change “\(title(feature))”."
             case .filtering: return "AdGuard Home did not change “\(filteringTitle)”."
+            case .domainRule(.block, let domain): return "AdGuard Home did not add the rule to block \(domain)."
+            case .domainRule(.unblock, let domain): return "AdGuard Home did not add the rule to unblock \(domain)."
             }
         case .conflictingExternalEdit:
+            if case .domainRule = intent { return "The custom rules changed from somewhere else. Refresh to check." }
             return "Protection changed from somewhere else. Refresh to check."
         case .recoveryFailed, .unknownAfterDispatch:
             return "AdGuard Home did not answer in time. The change may have applied. Refresh to check."

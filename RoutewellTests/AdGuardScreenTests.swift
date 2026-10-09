@@ -68,7 +68,7 @@ private func loadOverview(_ environment: AppEnvironment) async {
     model.showDNSLog(client: "192.0.2.20")
     #expect(model.selection == .adGuard)
     #expect(model.subpages[.adGuard] == "Query Log")
-    #expect(model.adGuardQueryLogFilter == AdGuardQueryLogFilter(client: "192.0.2.20"))
+    #expect(model.adGuardQueryLogFilter == AdGuardQueryLogFilter(search: "192.0.2.20"))
 }
 
 // MARK: - Presentation
@@ -459,9 +459,8 @@ private func loadOverview(_ environment: AppEnvironment) async {
     #expect(model.selection == .adGuard)
     #expect(model.subpages[.adGuard] == "Query Log")
     #expect(model.adGuardQueryLogFilter == AdGuardQueryLogFilter(search: "ads.example.com"))
-    model.showQueryLog(AdGuardQueryLogFilter(client: "192.0.2.10"))
-    #expect(model.adGuardQueryLogFilter?.client == "192.0.2.10")
-    #expect(AdGuardScreen.filterText(model.adGuardQueryLogFilter) == "Opened for 192.0.2.10.")
+    model.showQueryLog(AdGuardQueryLogFilter(search: "192.0.2.10"))
+    #expect(model.adGuardQueryLogFilter?.search == "192.0.2.10")
 }
 
 @Test func refreshPlanReadsTheOverviewOnlyOnItsTab() {
@@ -469,6 +468,9 @@ private func loadOverview(_ environment: AppEnvironment) async {
     #expect(overview.contains(.adGuardOverview))
     let instance = ScreenRefreshPlan.resolve(destination: "adGuard", segment: "Instance").map(\.area)
     #expect(!instance.contains(.adGuardOverview))
+    // The Query Log names blocklists from the same read.
+    let queryLog = ScreenRefreshPlan.resolve(destination: "adGuard", segment: "Query Log").map(\.area)
+    #expect(queryLog.contains(.adGuardOverview))
 }
 
 // MARK: - Snapshots
@@ -520,6 +522,15 @@ private func loadOverview(_ environment: AppEnvironment) async {
     off2.adGuard.runSetting(.protection(.disable))
     await eventually { off2.adGuard.settingInFlight == nil }
     write("overview-protection-off", off2)
+    // Chunk 18: the Query Log, live with a blocked row selected, and read-only.
+    let log = await mockEnvironment(.running)
+    log.model.subpages[.adGuard] = AdGuardTab.queryLog.rawValue
+    await log.queryLog.loadFirstPage()
+    log.queryLog.selection = log.queryLog.entries.first { $0.result == .blocked }?.id
+    write("querylog-running", log)
+    let logCached = await mockEnvironment(.cached)
+    logCached.model.subpages[.adGuard] = AdGuardTab.queryLog.rawValue
+    write("querylog-cached", logCached)
     let noCopy = await mockEnvironment(.unreachable)
     await noCopy.adGuard.replaceArchive(nil)
     write("unreachable-no-copy", noCopy)

@@ -93,6 +93,9 @@ public enum AdGuardWrite: Sendable, Equatable {
     /// Home's "Filter requests" (chunk 17, user request). The interval goes
     /// back as read. The web UI sends this shape (user, 2026-10-08).
     case filteringConfig(enabled: Bool, intervalHours: Int)
+    /// `POST control/filtering/set_rules {"rules": [...]}`: the whole custom
+    /// rules list (chunk 18, Block or Unblock Domain) `[assumed]`.
+    case setRules([String])
 
     var httpMethod: String {
         if case .safeSearchSettings = self { return "PUT" }
@@ -110,6 +113,7 @@ public enum AdGuardWrite: Sendable, Equatable {
             }
         case .safeSearchSettings: "control/safesearch/settings"
         case .filteringConfig: "control/filtering/config"
+        case .setRules: "control/filtering/set_rules"
         }
     }
 
@@ -121,6 +125,8 @@ public enum AdGuardWrite: Sendable, Equatable {
         case .safeSearchSettings(let settings): settings
         case .filteringConfig(let enabled, let interval):
             .object(["enabled": .bool(enabled), "interval": .number(Double(interval))])
+        case .setRules(let rules):
+            .object(["rules": .array(rules.map(JSONValue.string))])
         }
     }
 
@@ -130,6 +136,7 @@ public enum AdGuardWrite: Sendable, Equatable {
         case .feature(let feature, _): "set \(feature.rawValue)"
         case .safeSearchSettings: "set safeSearch"
         case .filteringConfig: "set filtering"
+        case .setRules: "set rules"
         }
     }
 }
@@ -195,13 +202,21 @@ public actor AdGuardClient {
     /// the newest entries. `search` narrows the page on the server
     /// `[assumed]`; callers still filter the result exactly.
     public func queryLog(search: String?, limit: Int) async throws -> JSONValue {
-        var query = [URLQueryItem(name: "limit", value: String(limit))]
-        if let search, !search.isEmpty { query.append(URLQueryItem(name: "search", value: search)) }
+        try await queryLog(QueryLogQuery(search: search, limit: limit))
+    }
+
+    /// `GET control/querylog?limit=<N>[&older_than=…][&search=…][&response_status=…]`
+    /// (chunk 18). `all` is not sent.
+    public func queryLog(_ request: QueryLogQuery) async throws -> JSONValue {
+        var query = [URLQueryItem(name: "limit", value: String(request.limit))]
+        if let olderThan = request.olderThan { query.append(URLQueryItem(name: "older_than", value: olderThan)) }
+        if let search = request.search { query.append(URLQueryItem(name: "search", value: search)) }
+        if request.status != .all { query.append(URLQueryItem(name: "response_status", value: request.status.responseStatus)) }
         return try await get(path: "control/querylog", query: query, method: "querylog", retried: false)
     }
 
-    /// `path` may end in a query (`control/stats?recent=86400000`). Only
-    /// letters, digits, and `_` are allowed in its names and values.
+    /// `path` may end in a query (`control/stats?recent=86400000`). Each
+    /// name and value must pass `FixtureRecordingPlan.isSafeQueryValue`.
     public func recordRead(path: String) async -> JSONValue {
         let parts = path.split(separator: "?", maxSplits: 1, omittingEmptySubsequences: false)
         let route = String(parts[0])
@@ -209,7 +224,7 @@ public actor AdGuardClient {
         if parts.count == 2 {
             for pair in parts[1].split(separator: "&") {
                 let field = pair.split(separator: "=", maxSplits: 1, omittingEmptySubsequences: false).map(String.init)
-                guard field.count == 2, field.allSatisfy({ !$0.isEmpty && $0.allSatisfy { $0.isLetter || $0.isNumber || $0 == "_" } }) else {
+                guard field.count == 2, FixtureRecordingPlan.isSafeQueryValue(name: field[0], value: field[1]) else {
                     return .object(["error": .object(["category": .string("invalid path")])])
                 }
                 query.append(URLQueryItem(name: field[0], value: field[1]))
@@ -389,7 +404,15 @@ public actor AdGuardClient {
 
     private func requestURL(path: String, query: [URLQueryItem] = []) -> URL {
         var url = baseURL.appendingPathComponent(path)
-        if !query.isEmpty { url.append(queryItems: query) }
+        if !query.isEmpty {
+            url.append(queryItems: query)
+            // `URL` leaves `+` as is, and AdGuard Home reads it as a space.
+            // A time such as `older_than=…+01:00` needs `%2B`.
+            if var components = URLComponents(url: url, resolvingAgainstBaseURL: false), let encoded = components.percentEncodedQuery, encoded.contains("+") {
+                components.percentEncodedQuery = encoded.replacingOccurrences(of: "+", with: "%2B")
+                url = components.url ?? url
+            }
+        }
         precondition(url.host == baseURL.host && url.port == baseURL.port,
                      "AdGuardClient must never leave baseURL's host/port")
         return url

@@ -26,7 +26,7 @@ struct RoutewellCommands: Commands {
                 environment.model.showStatusBar.toggle()
             }
             .disabled(environment.model.selection != .logs)
-            Button("Refresh") { environment.refresh.refreshNow() }
+            Button("Refresh") { environment.refresh.refreshFromPerson() }
                 .keyboardShortcut("r", modifiers: .command)
                 .disabled(!environment.refresh.isAvailable || environment.model.isRefreshing)
         }

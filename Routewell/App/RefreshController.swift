@@ -32,6 +32,12 @@ final class RefreshController {
     var onAdGuardOverview: ((SessionLease) async throws -> Void)?
 
     var isAvailable: Bool { model.session.isReady && !sleeping }
+    /// Refresh from the toolbar or the View menu. The Query Log reads page
+    /// one again on each one (`AppModel.personRefreshes`).
+    func refreshFromPerson() {
+        model.personRefreshes += 1
+        refreshNow()
+    }
 
     init(
         model: AppModel,

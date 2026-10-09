@@ -105,30 +105,9 @@ struct MainWindow: View {
         .accessibilityElement(children: .combine)
     }
 
-    /// AdGuard Home carries a status dot (green running, orange paused, grey
-    /// saved copy, red not answering); no dot when off.
-    @ViewBuilder private func sidebarRow(_ destination: SidebarDestination) -> some View {
-        if destination == .adGuard,
-           let tone = AdGuardPresentation.sidebarTone(environment.adGuard.availability, protection: model.snapshot?.adGuard.protection) {
-            HStack {
-                Label(destination.title, systemImage: destination.symbol)
-                Spacer()
-                StatusDot(tone: tone)
-            }
-            .accessibilityElement(children: .combine)
-            .accessibilityValue(Self.adGuardDotDescription(tone))
-        } else {
-            Label(destination.title, systemImage: destination.symbol)
-        }
-    }
-
-    static func adGuardDotDescription(_ tone: StatusTone) -> String {
-        switch tone {
-        case .healthy: "Running"
-        case .degraded: "Paused"
-        case .error: "Not answering"
-        default: "Off, saved copy"
-        }
+    /// No status dot on AdGuard Home (user, chunk 18).
+    private func sidebarRow(_ destination: SidebarDestination) -> some View {
+        Label(destination.title, systemImage: destination.symbol)
     }
 
     /// Clients counts devices awaiting review. Notifications keeps its mock
@@ -184,7 +163,7 @@ struct MainWindow: View {
             }
         }
         ToolbarItem(placement: .primaryAction) {
-            Button("Refresh", systemImage: "arrow.clockwise") { environment.refresh.refreshNow() }
+            Button("Refresh", systemImage: "arrow.clockwise") { environment.refresh.refreshFromPerson() }
                 .labelStyle(.iconOnly)
                 .disabled(!environment.refresh.isAvailable || model.isRefreshing)
                 .help("Refresh sample data (⌘R)")

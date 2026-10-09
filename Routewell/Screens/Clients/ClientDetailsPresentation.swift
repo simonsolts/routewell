@@ -114,7 +114,8 @@ enum ClientDetailsFormat {
 
     static func resultText(_ result: QueryResult) -> (text: String, tone: StatusTone) {
         switch result {
-        case .allowed: ("Allowed", .healthy)
+        // The pane keeps one word for every query that was not blocked.
+        case .allowed, .processed: ("Allowed", .healthy)
         case .blocked: ("Blocked", .error)
         case .rewritten: ("Rewritten", .unknown)
         case .unknown: (ClientsFormat.unknown, .unknown)
