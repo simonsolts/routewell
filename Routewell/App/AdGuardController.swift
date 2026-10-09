@@ -196,6 +196,14 @@ final class AdGuardController {
         }
     }
 
+    /// Reads the overview at once while the AdGuard Home screen is visible;
+    /// `false` when it is not or AdGuard Home is not running.
+    func refreshOverviewNow() async -> Bool {
+        guard model.selection == .adGuard, availability == .running, let lease = model.session.lease else { return false }
+        try? await refreshOverview(using: lease)
+        return true
+    }
+
     func setRange(_ value: AdGuardStatsRange) {
         guard value != range else { return }
         range = value

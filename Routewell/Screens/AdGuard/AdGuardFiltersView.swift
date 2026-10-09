@@ -30,11 +30,6 @@ struct AdGuardFiltersView: View {
         } message: {
             Text(FiltersPresentation.conflictMessage)
         }
-        // Another router's lists and rules are not this one's edits.
-        .onChange(of: environment.persistence.selectedProfile?.id) {
-            filters.selection = nil
-            filters.revertRules()
-        }
     }
 }
 

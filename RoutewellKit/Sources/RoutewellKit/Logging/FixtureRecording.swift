@@ -258,15 +258,11 @@ public enum RecordedFixtureRedactor {
         "firmware_type", "htmode", "hwmode", "txpower", "qdisc", "protocol", "device", "state", "interface"]
     private static let numericFields: Set<String> = ["total_rx", "total_tx", "total_rx_init", "total_tx_init", "online_time", "elapsedms", "upload", "download"]
     private static let timeFields: Set<String> = ["time", "oldest", "last_updated"]
-    /// A list URL on one of these hosts is public; any other URL can be
-    /// private and is replaced.
-    static let publicListHosts: Set<String> = ["adguardteam.github.io", "raw.githubusercontent.com", "filters.adtidy.org"]
+    /// Only a catalog URL, exactly as the catalog has it, is public; any
+    /// other URL can be private and is replaced.
+    static let publicListURLs = Set(AdGuardListCatalog.bundled.lists.map(\.url))
 
-    static func isPublicListURL(_ string: String) -> Bool {
-        guard let url = URL(string: string), url.scheme == "https", url.user == nil, url.query == nil,
-              let host = url.host?.lowercased() else { return false }
-        return publicListHosts.contains(host)
-    }
+    static func isPublicListURL(_ string: String) -> Bool { publicListURLs.contains(string) }
 
     private static func isNameField(_ field: String) -> Bool {
         field.contains("ssid") || field.contains("name") || field.contains("host") || field == "alias"

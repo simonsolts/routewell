@@ -127,11 +127,20 @@ private func host(_ environment: AppEnvironment) -> NSWindow {
     let turnedOn = filters.lists(.blocklist).first { $0.url == off.url }!
     #expect(filters.isDownloading(turnedOn))
     // The mock has the rules after 2 s; the controller reads again.
-    await eventually {
-        await read(environment)
-        return (filters.lists(.blocklist).first { $0.url == off.url }?.rulesCount ?? 0) > 0
-    }
+    await eventually { (filters.lists(.blocklist).first { $0.url == off.url }?.rulesCount ?? 0) > 0 }
     #expect(!filters.isDownloading(filters.lists(.blocklist).first { $0.url == off.url }!))
+    await eventually { filters.downloadTask == nil }
+}
+
+@MainActor @Test func downloadPollStopsOffTheAdGuardScreen() async {
+    let environment = await environment()
+    let filters = environment.filters
+    let off = filters.lists(.blocklist).first { $0.enabled == false }!
+    filters.setEnabled(off, kind: .blocklist, enabled: true)
+    await eventually { filters.downloadTask != nil }
+    environment.model.selection = .router
+    await eventually { filters.downloadTask == nil }
+    #expect(filters.isDownloading(filters.lists(.blocklist).first { $0.url == off.url }!))
 }
 
 @MainActor @Test func addRemoveIntervalAndUpdateNow() async {
@@ -236,6 +245,22 @@ private func host(_ environment: AppEnvironment) -> NSWindow {
     filters.conflict = ["x"]
     filters.discardForConflict()
     #expect(!filters.hasRuleChanges)
+}
+
+@MainActor @Test func anotherRouterDropsTheDraftAndConflict() async {
+    let environment = await environment()
+    let filters = environment.filters
+    filters.editRules(filters.rulesText + "\n||router-a.example^")
+    filters.conflict = ["||router-a.example^"]
+    filters.selection = filters.lists(.blocklist).first?.url
+    #expect(filters.hasRuleChanges)
+    // Not on the Filters tab: the reset does not need its view.
+    environment.model.selection = .clients
+    environment.addMockProfile()
+    #expect(!filters.hasRuleChanges)
+    #expect(filters.conflict == nil)
+    #expect(filters.selection == nil)
+    #expect(!filters.rulesText.contains("router-a"))
 }
 
 // MARK: - Cached

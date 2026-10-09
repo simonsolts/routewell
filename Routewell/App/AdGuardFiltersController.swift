@@ -20,7 +20,6 @@ final class AdGuardFiltersController {
     }
 
     private let adGuard: AdGuardController
-    private let refresh: RefreshController
     /// How long a new list may show "Downloading…" without rules.
     static let downloadWindow: TimeInterval = 90
     static let downloadPoll: Duration = .seconds(2)
@@ -41,11 +40,21 @@ final class AdGuardFiltersController {
     private(set) var loadedRules: [String]?
     /// AdGuard Home's rules when Save found a change from elsewhere.
     var conflict: [String]?
-    @ObservationIgnored private var downloadTask: Task<Void, Never>?
+    @ObservationIgnored private(set) var downloadTask: Task<Void, Never>?
 
-    init(adGuard: AdGuardController, refresh: RefreshController) {
+    init(adGuard: AdGuardController) {
         self.adGuard = adGuard
-        self.refresh = refresh
+    }
+
+    /// Another router: its lists and rules are not this one's edits.
+    func reset() {
+        selection = nil
+        revertRules()
+        conflict = nil
+        lastUpdate = nil
+        downloadTask?.cancel()
+        downloadTask = nil
+        downloading = [:]
     }
 
     var status: AdGuardFilteringStatus? { adGuard.filtering }
@@ -122,9 +131,10 @@ final class AdGuardFiltersController {
                         && !lists.contains { $0.url == url && ($0.lastUpdated != nil || ($0.rulesCount ?? 0) > 0) }
                 }
                 if self.downloading.isEmpty { break }
-                self.refresh.refreshNow()
+                guard await self.adGuard.refreshOverviewNow() else { break }
             }
-            self?.downloadTask = nil
+            // A reset already started over; a newer loop may be running.
+            if !Task.isCancelled { self?.downloadTask = nil }
         }
     }
 
