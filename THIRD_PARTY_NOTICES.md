@@ -38,7 +38,7 @@ notices in those files.
 The bundled file is an unmodified copy of the catalog: list names, groups,
 descriptions, and URLs. Routewell does not bundle the content of any list. The
 router downloads each list from its own URL, and each list has its own licence.
-`scripts/update-adguard-catalog.py` refreshes the copy and prints the commit.
+At release time, download https://raw.githubusercontent.com/AdguardTeam/HostlistsRegistry/main/assets/filters.json over the bundled file, and update the commit and date in this entry.
 
 The GPLv3 text is included in [LICENSE](LICENSE). These credits supplement,
 rather than replace, applicable license notices and source-distribution

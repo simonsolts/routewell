@@ -57,8 +57,8 @@ public enum CustomRulesText {
 }
 
 /// The bundled copy of AdGuard's canonical HostlistsRegistry file
-/// (`assets/filters.json`), refreshed at release time by
-/// `scripts/update-adguard-catalog.py`. The app never reads the registry
+/// (`assets/filters.json`), downloaded over this file at release time
+/// (see THIRD_PARTY_NOTICES.md). The app never reads the registry
 /// over the network and never downloads a list: the router does. The file
 /// has no rule counts.
 public struct AdGuardListCatalog: Sendable, Equatable, Decodable {
