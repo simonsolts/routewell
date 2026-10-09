@@ -33,7 +33,7 @@ private func settle(_ environment: AppEnvironment, _ scenario: MockAdGuardScenar
         await environment.refresh.waitForRefresh()
         switch scenario {
         case .off, .turnOnFails: return adGuard.availability == .off
-        case .running, .runningWithoutDNS, .switchFails:
+        case .running, .runningWithoutDNS, .switchFails, .addListFails, .refreshPartial, .rulesConflict:
             return adGuard.availability == .running && adGuard.handlesDNS == (scenario != .runningWithoutDNS)
         case .paused:
             guard adGuard.availability == .running, case .paused? = adGuard.protection else { return false }
@@ -534,4 +534,32 @@ private func loadOverview(_ environment: AppEnvironment) async {
     let noCopy = await mockEnvironment(.unreachable)
     await noCopy.adGuard.replaceArchive(nil)
     write("unreachable-no-copy", noCopy)
+    // Chunk 19: Filters, each segment running, and read-only.
+    for (name, scenario) in [("running", MockAdGuardScenario.running), ("cached", .cached)] {
+        let environment = await mockEnvironment(scenario)
+        await loadOverview(environment)
+        environment.model.subpages[.adGuard] = AdGuardTab.filters.rawValue
+        for segment in AdGuardFiltersController.Segment.allCases {
+            environment.filters.segment = segment
+            if segment == .blocklists { environment.filters.selection = environment.filters.lists(.blocklist).first?.url }
+            write("filters-\(segment.kind?.rawValue ?? "rules")-\(name)", environment)
+        }
+    }
+    let sheets = await mockEnvironment(.running)
+    await loadOverview(sheets)
+    func writeSheet(_ kind: FilterListKind) {
+        let view = AddFilterListSheet(kind: kind).environment(sheets.model).environment(sheets)
+            .background(Color(nsColor: .windowBackgroundColor))
+        let host = NSHostingView(rootView: view)
+        host.frame = CGRect(x: 0, y: 0, width: 420, height: 440)
+        let window = NSWindow(contentRect: host.frame, styleMask: [.titled], backing: .buffered, defer: false)
+        window.contentView = host
+        host.layoutSubtreeIfNeeded()
+        RunLoop.main.run(until: Date().addingTimeInterval(0.3))
+        if let bitmap = host.bitmapImageRepForCachingDisplay(in: host.bounds) {
+            host.cacheDisplay(in: host.bounds, to: bitmap)
+            try? bitmap.representation(using: .png, properties: [:])?.write(to: directory.appendingPathComponent("filters-add-\(kind.rawValue).png"))
+        }
+    }
+    FilterListKind.allCases.forEach(writeSheet)
 }
