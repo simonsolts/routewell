@@ -63,7 +63,7 @@ final class RouterController {
         firmwareState = FirmwareState(token: lease.token, check: firmware?.check, checking: true)
         let check: FirmwareCheck?
         do {
-            check = try await model.session.routerSession.checkFirmware(using: lease)
+            check = try await model.session.routerSession.query(lease) { try await $0.router?.checkFirmware() }
         } catch {
             // Cancelled, or the session changed: the result belongs to no one.
             if firmwareState?.token == lease.token { firmwareState?.checking = false }

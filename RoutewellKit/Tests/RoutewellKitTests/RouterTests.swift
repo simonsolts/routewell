@@ -287,10 +287,10 @@ private enum RouterStub {
         let lease = SessionLease(token: old, backend: backend)
         try await session.beginRevision(old)
         try await session.installLease(lease)
-        #expect(try await session.routerDetails(using: lease) != nil)
+        #expect(try await session.query(lease) { try await $0.router?.details() } != nil)
         try await session.beginRevision(SessionToken(profileID: "home", revision: 2))
-        await #expect(throws: SessionError.stale) { try await session.routerDetails(using: lease) }
-        await #expect(throws: SessionError.stale) { try await session.checkFirmware(using: lease) }
+        await #expect(throws: SessionError.stale) { try await session.query(lease) { try await $0.router?.details() } }
+        await #expect(throws: SessionError.stale) { try await session.query(lease) { try await $0.router?.checkFirmware() } }
     }
 
     @Test func theRouterScreenRequestsTheRouterArea() {

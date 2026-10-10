@@ -119,9 +119,9 @@ private enum ServiceStub {
         let lease = SessionLease(token: old, backend: backend)
         try await session.beginRevision(old)
         try await session.installLease(lease)
-        #expect(try await session.clientInventory(using: lease) != nil)
+        #expect(try await session.query(lease) { try await $0.clients?.inventory() } != nil)
         try await session.beginRevision(SessionToken(profileID: "home", revision: 2))
-        await #expect(throws: SessionError.self) { try await session.clientInventory(using: lease) }
+        await #expect(throws: SessionError.self) { try await session.query(lease) { try await $0.clients?.inventory() } }
     }
 }
 

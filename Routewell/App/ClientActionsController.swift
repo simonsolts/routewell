@@ -52,7 +52,7 @@ final class ClientActionsController {
             let text: String
             let tone: StatusTone
             do {
-                switch try await session.ping(using: lease, address: address) {
+                switch try await session.query(lease, { try await $0.clientActions?.ping(address) }) {
                 case .success(let result)? where result.replied:
                     let average = result.averageMilliseconds.map { " · \($0.formatted(.number.precision(.fractionLength(1)))) ms average" } ?? ""
                     (text, tone) = ("Ping: replied to \(result.received) of \(result.transmitted)\(average).", .healthy)
@@ -79,7 +79,7 @@ final class ClientActionsController {
             let text: String
             let tone: StatusTone
             do {
-                switch try await session.wake(using: lease, mac: entry.mac)?.outcome {
+                switch try await session.command(lease, { await $0.clientActions?.wake(entry.mac) })?.outcome {
                 case .verifiedSuccess?:
                     (text, tone) = ("Wake-on-LAN packet sent. The device can take a minute to wake.", .healthy)
                 case .rejected(.preconditionFailed(SSHClientActions.wakeToolMissing))?:

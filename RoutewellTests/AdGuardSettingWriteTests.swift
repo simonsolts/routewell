@@ -59,7 +59,7 @@ private func report(_ outcome: MutationOutcome<AdGuardSettingState>, dispatched:
     await backend.waitUntilStarted()
 
     // The session moves on while the write is in flight, so
-    // `RouterSession.runAdGuardSetting`'s `validateAfter` throws `.stale`.
+    // `RouterSession.command`'s `validateAfter` throws `.stale`.
     await model.session.switchProfile("second", model: model, refresh: refresh) {
         SessionLease(token: $0, backend: BlockingSettingBackend())
     }.value

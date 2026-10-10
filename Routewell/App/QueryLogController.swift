@@ -166,7 +166,7 @@ final class QueryLogController {
         guard let lease = model.session.lease, model.session.isReady else { return nil }
         let result: AreaRefreshResult<QueryLogPage>?
         do {
-            result = try await model.session.routerSession.queryLogPage(using: lease, query: query)
+            result = try await model.session.routerSession.query(lease) { try await $0.queryLog?.page(query) }
         } catch {
             // Cancelled, or the session changed: the result belongs to no one.
             return nil

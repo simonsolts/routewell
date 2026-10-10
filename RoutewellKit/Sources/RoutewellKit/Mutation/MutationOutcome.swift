@@ -43,3 +43,11 @@ public struct MutationReport<State: Sendable & Equatable>: Sendable, Equatable {
         self.failure = failure
     }
 }
+
+public extension MutationReport {
+    /// A write that was not sent because the backend has no service for it.
+    static var capabilityUnavailable: MutationReport {
+        let now = Date()
+        return MutationReport(outcome: .rejected(.capabilityUnavailable), dispatched: false, startedAt: now, finishedAt: now, failure: nil)
+    }
+}

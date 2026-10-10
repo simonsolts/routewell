@@ -138,13 +138,13 @@ PING 192.168.8.11 (192.168.8.11): 56 data bytes
         try await session.beginRevision(token)
         let lease = SessionLease(token: token, backend: backend)
         try await session.installLease(lease)
-        let ping = try await session.ping(using: lease, address: IPv4Literal("192.168.8.192")!)
+        let ping = try await session.query(lease) { try await $0.clientActions?.ping(IPv4Literal("192.168.8.192")!) }
         #expect(ping == .success(PingResult(transmitted: 3, received: 3, averageMilliseconds: 3.2)))
-        let wake = try await session.wake(using: lease, mac: device)
+        let wake = try await session.command(lease) { await $0.clientActions?.wake(device) }
         #expect(wake?.outcome == .verifiedSuccess(.sent))
         backend.mockClientActions.setMechanism(nil)
-        #expect(try await session.ping(using: lease, address: target) == nil)
+        #expect(try await session.query(lease) { try await $0.clientActions?.ping(target) } == nil)
         try await session.beginRevision(SessionToken(profileID: "a", revision: 2))
-        await #expect(throws: SessionError.self) { _ = try await session.wake(using: lease, mac: device) }
+        await #expect(throws: SessionError.self) { _ = try await session.command(lease) { await $0.clientActions?.wake(device) } }
     }
 }

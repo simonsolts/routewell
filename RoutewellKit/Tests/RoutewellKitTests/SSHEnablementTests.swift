@@ -590,13 +590,13 @@ private let postQuantumWarning = """
     try await session.beginRevision(token)
     let lease = SessionLease(token: token, backend: backend)
     try await session.installLease(lease)
-    #expect(try await session.sshProbe(using: lease)?.capability.state == .supported)
-    #expect(try await session.adGuardProcess(using: lease) == .value(4321))
+    #expect(try await session.query(lease) { try await $0.ssh?.check() }?.capability.state == .supported)
+    #expect(try await session.query(lease) { try await $0.ssh?.adGuardProcess() } == .value(4321))
     backend.mockSSH.setScenario(.off)
-    #expect(try await session.routerPorts(using: lease) == nil)
+    #expect(try await session.query(lease) { try await $0.ssh?.ports() } == nil)
     backend.mockSSH.setScenario(.populated)
     try await session.beginRevision(SessionToken(profileID: "a", revision: 2))
-    await #expect(throws: SessionError.self) { _ = try await session.routerLogs(using: lease) }
+    await #expect(throws: SessionError.self) { _ = try await session.query(lease) { try await $0.ssh?.logTail() } }
 }
 
 // MARK: - Recording

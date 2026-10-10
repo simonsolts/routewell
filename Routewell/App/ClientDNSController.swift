@@ -64,7 +64,7 @@ final class ClientDNSController {
         guard let lease = model.session.lease, model.session.isReady else { return }
         let result: AreaRefreshResult<QueryLogPage>?
         do {
-            result = try await model.session.routerSession.recentQueries(using: lease, search: ip, limit: QueryLogLimits.maximum)
+            result = try await model.session.routerSession.query(lease) { try await $0.queryLog?.recentQueries(search: ip, limit: QueryLogLimits.maximum) }
         } catch {
             // Cancelled, or the session changed: the result belongs to no one.
             return
