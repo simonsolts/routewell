@@ -86,8 +86,8 @@ final class AppModel {
 
     // MARK: Client details
 
-    /// The All Clients table selection. Kept here so Known Clients, the
-    /// review sheet, and the context menu can open a device in the pane.
+    /// The All Clients table selection. Kept here so the review sheet and
+    /// the context menu can open a device in the pane.
     var clientsSelection: Set<MACAddress> = []
     /// Local presence history, shared by every router session.
     private(set) var presence = PresenceLogState()

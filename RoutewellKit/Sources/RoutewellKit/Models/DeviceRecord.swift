@@ -19,7 +19,7 @@ public struct DeviceRecord: Sendable, Equatable, Codable, Identifiable {
     public var lastSeen: Date?
     public var notes: String
     public var category: DeviceCategory?
-    /// The most recent router-reported values, kept so Known Clients can show
+    /// The most recent router-reported values, kept so All Clients can show
     /// a device after the router stops listing it.
     public var lastIP: String?
     public var lastHostname: String?

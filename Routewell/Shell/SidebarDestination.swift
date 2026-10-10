@@ -54,7 +54,7 @@ enum SidebarDestination: String, CaseIterable, Identifiable {
         case .network: ["Overview", "Map", "Wi-Fi", "DHCP", "Ports", "Health", "Quality"]
         case .router: RouterSegment.allCases.map(\.rawValue)
         case .maintenance: ["Operations", "Health", "Snapshots", "Reports", "Support"]
-        case .clients: ["All Clients", "Known Clients"]
+        case .clients: ["All Clients"]
         default: []
         }
     }

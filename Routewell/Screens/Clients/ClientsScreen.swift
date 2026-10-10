@@ -1,30 +1,18 @@
 import SwiftUI
 import RoutewellKit
 
-/// Clients: All Clients (table, filter row, status line, details pane) and
-/// Known Clients. The segmented control and Refresh live in `MainWindow`'s
-/// toolbar; this view adds the search field and the details-pane toggle.
+/// Clients: All Clients (table, filter row, status line, details pane). The
+/// segmented control and Refresh live in `MainWindow`'s toolbar; this view
+/// adds the search field and the details-pane toggle.
 struct ClientsScreen: View {
     @Environment(AppModel.self) private var model
-    @State private var allSearch = ""
-    @State private var knownSearch = ""
-
-    private var segment: String { model.subpages[.clients] ?? SidebarDestination.clients.segments[0] }
-    private var showsKnownClients: Bool { segment == "Known Clients" }
+    @State private var search = ""
 
     var body: some View {
         @Bindable var model = model
-        Group {
-            if showsKnownClients {
-                KnownClientsView(search: knownSearch)
-            } else {
-                AllClientsView(search: allSearch)
-            }
-        }
-        .searchable(text: showsKnownClients ? $knownSearch : $allSearch, placement: .toolbar,
-                    prompt: showsKnownClients ? "Search known clients" : "Search clients")
-        .toolbar {
-            if !showsKnownClients {
+        AllClientsView(search: search)
+            .searchable(text: $search, placement: .toolbar, prompt: "Search clients")
+            .toolbar {
                 ToolbarItem(placement: .primaryAction) {
                     Button {
                         model.clientsDetailsVisible.toggle()
@@ -38,11 +26,10 @@ struct ClientsScreen: View {
                     .accessibilityValue(model.clientsDetailsVisible ? "Shown" : "Hidden")
                 }
             }
-        }
     }
 }
 
-/// The shared "no data yet" states for both segments.
+/// The shared "no data yet" states.
 struct ClientsUnavailableView: View {
     @Environment(AppModel.self) private var model
     @Environment(AppEnvironment.self) private var environment

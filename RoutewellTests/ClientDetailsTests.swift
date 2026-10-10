@@ -196,7 +196,6 @@ private let kindle = mac("fc:65:de:02:1b:9a")
     let (environment, _) = await detailsEnvironment()
     let model = environment.model
     model.clientsDetailsVisible = false
-    model.subpages[.clients] = "Known Clients"
     model.revealClient(printer, section: .personalise)
     #expect(model.selection == .clients)
     #expect(model.subpages[.clients] == "All Clients")
@@ -264,13 +263,8 @@ private let kindle = mac("fc:65:de:02:1b:9a")
     #expect(model.deviceRegistry.records[printer] != nil)
 }
 
-@MainActor @Test func knownClientsLaysOutWithWiredActions() async throws {
+@MainActor @Test func savedOnThisMacRows() async throws {
     let (environment, _) = await detailsEnvironment()
-    environment.model.subpages[.clients] = "Known Clients"
-    let view = NSHostingView(rootView: ClientsScreen().environment(environment.model).environment(environment)
-        .frame(width: 1100, height: 760))
-    view.layoutSubtreeIfNeeded()
-    #expect(view.fittingSize.width > 0)
     let savedRows = ClientDetailsFormat.savedOnThisMac(try #require(entry(environment, iPhone)), history: environment.model.presence.devices[iPhone], now: .now)
     #expect(savedRows.map(\.label) == ["Presence history", "Profile", "Notes", "Matched by"])
     #expect(savedRows.last?.value == "66:29:ea:33:fb:78")
