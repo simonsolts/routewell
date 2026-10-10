@@ -166,6 +166,18 @@ private func host<V: View>(_ environment: AppEnvironment, _ view: V, size: CGSiz
     #expect(dns.settings?.cacheSize == 16_777_216)
 }
 
+@MainActor @Test func editsDuringApplyStayAgainstTheNewValues() async {
+    let environment = await environment()
+    let dns = environment.dns
+    dns.edit { $0.cacheSize = 16_777_216 }
+    dns.apply()
+    dns.edit { $0.rateLimit = 7 }
+    dns.edit { $0.cacheSize = 4_194_304 }
+    await eventually { environment.adGuard.settingInFlight == nil && environment.adGuard.lastSettingReport != nil }
+    #expect(await environment.mockAdGuardWrites() == [.dnsConfig(["cache_size": .number(16_777_216)])])
+    #expect(dns.changes == ["cache_size": .number(4_194_304), "ratelimit": .number(7)])
+}
+
 @MainActor @Test func applyMismatchShowsAdGuardHomeValues() async {
     let environment = await environment(.dnsApplyMismatch)
     let dns = environment.dns
@@ -221,6 +233,24 @@ private func host<V: View>(_ environment: AppEnvironment, _ view: V, size: CGSiz
     guard case .failed? = result.status(of: "tls://dns.example.org") else { Issue.record("no failure"); return }
 }
 
+@MainActor @Test func changingAServerListClearsTheTestResult() async {
+    let environment = await environment(.upstreamTestFails)
+    let dns = environment.dns
+    dns.runTest()
+    await eventually { dns.test != .testing }
+    guard case .done = dns.test else { Issue.record("\(dns.test)"); return }
+    dns.edit { $0.bootstrap = ["192.0.2.10"] }
+    #expect(dns.test == .idle)
+    dns.revert()
+    guard case .done = dns.test else { Issue.record("\(dns.test)"); return }
+
+    dns.runTest()
+    dns.edit { $0.fallback = ["203.0.113.54"] }
+    #expect(dns.test == .idle)
+    dns.revert()
+    await eventually { if case .done = dns.test { true } else { false } }
+}
+
 @MainActor @Test func clearCacheRunsAtOnce() async {
     let environment = await environment()
     let dns = environment.dns
@@ -238,6 +268,20 @@ private func host<V: View>(_ environment: AppEnvironment, _ view: V, size: CGSiz
 }
 
 // MARK: - Cached
+
+@MainActor @Test func cachedShowsAdGuardHomeValuesNotStagedEdits() async {
+    let environment = await environment()
+    let dns = environment.dns
+    dns.edit { $0.rateLimit = 5 }
+    environment.setMockAdGuardScenario(.cached)
+    await eventually {
+        await environment.refresh.waitForRefresh()
+        return environment.adGuard.availability == .cached
+    }
+    #expect(dns.settings?.rateLimit != 5)
+    #expect(dns.settings == dns.server)
+    #expect(dns.staged?.rateLimit == 5)
+}
 
 @MainActor @Test func cachedShowsTheCopyAndDisablesEveryControl() async {
     let environment = await environment(.cached)

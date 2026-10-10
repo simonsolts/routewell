@@ -143,7 +143,8 @@ public struct AdGuardDNSSettings: Sendable, Equatable, Codable {
 
     /// Why Apply cannot send these settings, or `nil`.
     public var problem: String? {
-        if let upstreams, !upstreams.contains(where: { UpstreamLine($0).address != nil }) {
+        let hasUpstreamFile = !(fields["upstream_dns_file"]?.string ?? "").trimmingCharacters(in: .whitespaces).isEmpty
+        if let upstreams, !hasUpstreamFile, !upstreams.contains(where: { UpstreamLine($0).address != nil }) {
             return "Add at least one upstream server."
         }
         if blockingMode == .customIP {

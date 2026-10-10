@@ -77,6 +77,7 @@ struct AdGuardDNSParsingTests {
     @Test func problemsBlockApply() {
         var settings = AdGuardDNSSettings(fields: ["upstream_dns": .array([.string("# only a comment")])])
         #expect(settings.problem == "Add at least one upstream server.")
+        #expect(settings.applying(["upstream_dns_file": .string("/etc/upstreams.txt")]).problem == nil)
         settings.upstreams = ["192.0.2.53"]
         settings.blockingMode = .customIP
         #expect(settings.problem == "Enter a custom IPv4 or IPv6 address.")

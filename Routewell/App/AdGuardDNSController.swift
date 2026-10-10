@@ -21,7 +21,7 @@ final class AdGuardDNSController {
     private(set) var loaded: AdGuardDNSSettings?
     /// The selected upstream line, by index.
     var selection: Int?
-    private(set) var test: TestState = .idle
+    private var testRun: (request: UpstreamTestRequest, state: TestState)?
     private(set) var cacheCleared = false
 
     init(adGuard: AdGuardController) {
@@ -33,12 +33,13 @@ final class AdGuardDNSController {
         staged = nil
         loaded = nil
         selection = nil
-        test = .idle
+        testRun = nil
         cacheCleared = false
     }
 
     var server: AdGuardDNSSettings? { adGuard.dnsSettings }
-    var settings: AdGuardDNSSettings? { staged ?? server }
+    /// Read-only shows AdGuard Home's values; staged edits wait for it.
+    var settings: AdGuardDNSSettings? { isReadOnly ? server : staged ?? server }
     var stats: AdGuardStats? { adGuard.stats?.value }
     var isReadOnly: Bool { adGuard.availability.isReadOnly }
     var canEdit: Bool { adGuard.availability == .running && server != nil }
@@ -85,17 +86,26 @@ final class AdGuardDNSController {
         self.selection = nil
     }
 
+    /// Only for the lists as they are now.
+    var test: TestState {
+        guard let testRun, testRun.request == testRequest else { return .idle }
+        return testRun.state
+    }
+
+    private var testRequest: UpstreamTestRequest? {
+        settings.map { UpstreamTestRequest(upstreams: $0.upstreams ?? [], bootstrap: $0.bootstrap ?? [], fallback: $0.fallback ?? []) }
+    }
+
     func runTest() {
-        guard let settings, test != .testing, adGuard.availability == .running else { return }
-        let request = UpstreamTestRequest(upstreams: settings.upstreams ?? [], bootstrap: settings.bootstrap ?? [],
-                                          fallback: settings.fallback ?? [])
-        test = .testing
+        guard let request = testRequest, test != .testing, adGuard.availability == .running else { return }
+        testRun = (request, .testing)
         Task {
-            switch await adGuard.testUpstreams(request) {
-            case .success(let result)?: self.test = .done(result)
-            case .failure(let category)?: self.test = .failed(category)
-            case nil: self.test = .idle
+            let state: TestState = switch await adGuard.testUpstreams(request) {
+            case .success(let result)?: .done(result)
+            case .failure(let category)?: .failed(category)
+            case nil: .idle
             }
+            if self.testRun?.request == request { self.testRun = (request, state) }
         }
     }
 
@@ -107,14 +117,20 @@ final class AdGuardDNSController {
         guard let task = adGuard.startSetting(.dns(changes: changes)) else { return }
         Task {
             switch await task.value?.outcome {
-            case .verifiedSuccess?, .verifiedMismatch?:
-                // A mismatch shows what AdGuard Home has; only edits made
-                // while it applied are kept.
-                if self.staged == sent { self.revert() }
+            case .verifiedSuccess(.dns(let now))?, .verifiedMismatch(_, .dns(let now))?:
+                self.keepEdits(madeSince: sent, on: now)
             default:
                 break
             }
         }
+    }
+
+    /// Edits made while Apply ran, on top of what AdGuard Home has now.
+    private func keepEdits(madeSince sent: AdGuardDNSSettings, on now: AdGuardDNSSettings) {
+        guard let staged, staged != sent else { return revert() }
+        loaded = now
+        self.staged = now.applying(staged.changes(from: sent))
+        if !hasChanges { revert() }
     }
 
     func revert() {
