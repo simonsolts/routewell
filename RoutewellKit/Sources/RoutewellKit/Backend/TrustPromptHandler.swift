@@ -9,14 +9,3 @@ public protocol TrustPromptHandler: Sendable {
     /// stores the approval (keyed by `host`/`port`) itself when this returns `true`.
     func requestTrust(host: String, port: Int, decision: TrustDecision) async -> Bool
 }
-
-/// Always refuses. Useful for headless contexts (tests, background refreshes
-/// with no one to ask) where an unrecognized certificate must never be trusted
-/// silently.
-public struct DenyAllTrustPromptHandler: TrustPromptHandler {
-    public init() {}
-
-    public func requestTrust(host: String, port: Int, decision: TrustDecision) async -> Bool {
-        false
-    }
-}

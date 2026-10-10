@@ -360,42 +360,6 @@ private enum RPCFixtures {
     #expect(await counter.count("login") == 1)
 }
 
-// MARK: - keepAlive
-
-@Test func keepAliveReturnsTrueWhenSIDStillValid() async throws {
-    let stub = StubHTTPTransport { request in
-        let id = RPCFixtures.requestID(request) ?? 0
-        switch RPCFixtures.method(request) {
-        case "challenge": return RPCFixtures.okResponse(id: id, result: RPCFixtures.challengeResult)
-        case "login": return RPCFixtures.loginResponse(id: id, sid: "SID-A")
-        case "alive":
-            #expect(request.value(forHTTPHeaderField: "Cookie") == "Admin-Token=SID-A")
-            return RPCFixtures.okResponse(id: id, result: .null)
-        default: Issue.record("unexpected method"); return RPCFixtures.errorResponse(id: id, code: -1)
-        }
-    }
-    let client = RPCFixtures.makeClient(transport: stub)
-
-    let alive = try await client.keepAlive()
-    #expect(alive == true)
-}
-
-@Test func keepAliveReturnsFalseOnAccessDenied() async throws {
-    let stub = StubHTTPTransport { request in
-        let id = RPCFixtures.requestID(request) ?? 0
-        switch RPCFixtures.method(request) {
-        case "challenge": return RPCFixtures.okResponse(id: id, result: RPCFixtures.challengeResult)
-        case "login": return RPCFixtures.loginResponse(id: id, sid: "SID-A")
-        case "alive": return RPCFixtures.errorResponse(id: id, code: -32000, message: "Access denied")
-        default: Issue.record("unexpected method"); return RPCFixtures.errorResponse(id: id, code: -1)
-        }
-    }
-    let client = RPCFixtures.makeClient(transport: stub)
-
-    let alive = try await client.keepAlive()
-    #expect(alive == false)
-}
-
 // MARK: - Logging never carries secrets
 
 @Test func logEventsNeverContainSIDHashPasswordNonceOrSalt() async throws {

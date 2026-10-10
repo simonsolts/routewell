@@ -424,10 +424,4 @@ final class AdGuardController {
             return first
         }
     }
-
-    /// Clears the last result, for example when the screen changes.
-    func dismissReport() {
-        lastReport = nil
-        lastSettingReport = nil
-    }
 }

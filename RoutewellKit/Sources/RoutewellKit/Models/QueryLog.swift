@@ -156,9 +156,6 @@ public struct QueryLogQuery: Sendable, Equatable {
         self.olderThan = olderThan
         self.limit = min(max(limit, 1), QueryLogLimits.maximum)
     }
-
-    /// No search and all statuses.
-    public var isUnfiltered: Bool { search == nil && status == .all }
 }
 
 public struct DomainCount: Sendable, Equatable {

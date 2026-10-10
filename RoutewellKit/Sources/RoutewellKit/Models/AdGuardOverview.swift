@@ -245,14 +245,6 @@ public struct ProtectionOptions: Sendable, Equatable, Codable {
 /// A Protection switch and its AdGuard Home calls.
 public enum AdGuardFeature: String, CaseIterable, Sendable, Codable {
     case safeBrowsing, parental, safeSearch
-
-    public var statusPath: String {
-        switch self {
-        case .safeBrowsing: "control/safebrowsing/status"
-        case .parental: "control/parental/status"
-        case .safeSearch: "control/safesearch/status"
-        }
-    }
 }
 
 /// One blocklist or allowlist from `control/filtering/status`.
