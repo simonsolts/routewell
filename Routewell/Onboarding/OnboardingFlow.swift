@@ -35,7 +35,7 @@ enum OnboardingState: String, CaseIterable {
     case sshOffer, sshKey, sshChosen, sshPass, hostkey, sshCheck, sshRejected, sshUnreach
     case done, doneNoSsh, doneNoAdg
 
-    /// Which controls the content area shows (`kind` in the design).
+    /// Which controls the content area shows.
     enum Kind { case intro, search, found, manual, denied, name, cert, password, offer, key, hostkey, check, done }
 
     var spec: OnboardingSpec { OnboardingSpec.table[self]! }

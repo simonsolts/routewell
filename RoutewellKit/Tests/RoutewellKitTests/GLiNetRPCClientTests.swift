@@ -339,7 +339,7 @@ private enum RPCFixtures {
     #expect(await counter.count("challenge") == 1)
 }
 
-/// Chunk 15A: the code the router sent after repeated refused logins.
+/// The code the router sent after repeated refused logins.
 @Test func loginPausedCodeMapsToLoginPausedAndIsNotRetried() async throws {
     let counter = RPCCallCounter()
     let stub = StubHTTPTransport { request in

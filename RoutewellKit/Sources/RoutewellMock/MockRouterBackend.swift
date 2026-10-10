@@ -33,13 +33,13 @@ public actor MockRouterBackend: RouterBackend {
     /// `LiveRouterBackend` shares one.
     private let gate = MutationGate()
     public nonisolated let hostname: String
-    /// The router's AdGuard Home setting and AdGuard Home itself (chunk 16).
+    /// The router's AdGuard Home setting and AdGuard Home itself.
     public nonisolated let mockAdGuard = MockAdGuardTransport()
     /// Turn On, Stop, Handle DNS, Restart through the real executor.
     public nonisolated var adGuardService: (any AdGuardServiceControl)? {
         AdGuardServiceExecutor(transport: mockAdGuard, gate: gate, policy: .mock)
     }
-    /// Protection and the three switches through the real executor (chunk 17).
+    /// Protection and the three switches through the real executor.
     public nonisolated var adGuardSettings: (any AdGuardSettingControl)? {
         AdGuardSettingExecutor(transport: mockAdGuard, gate: gate, policy: .mock)
     }

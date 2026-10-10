@@ -1,7 +1,7 @@
 import SwiftUI
 import RoutewellKit
 
-/// AdGuard Home › Query Log (chunk 18): filter row, table, footer, and a
+/// AdGuard Home › Query Log: filter row, table, footer, and a
 /// 280 pt inspector, read live from AdGuard Home while it runs.
 struct AdGuardQueryLogView: View {
     @Environment(AppModel.self) private var model
@@ -321,7 +321,7 @@ struct QueryLogInspectorContent: View {
 }
 
 /// AdGuard Home is off, read-only, or not answering: the log is not shown,
-/// because it is read only from a running AdGuard Home. Not in design.
+/// because it is read only from a running AdGuard Home.
 struct QueryLogUnavailableView: View {
     @Environment(AppEnvironment.self) private var environment
     let availability: AdGuardAvailability

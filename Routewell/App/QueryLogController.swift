@@ -2,7 +2,7 @@ import Foundation
 import Observation
 import RoutewellKit
 
-/// AdGuard Home › Query Log (chunk 18): a live view of AdGuard Home's own
+/// AdGuard Home › Query Log: a live view of AdGuard Home's own
 /// log. The tab runs `follow` in a view task while it is visible and
 /// AdGuard Home runs; a new search, status, session, or Refresh restarts it
 /// from page one. Nothing is saved.

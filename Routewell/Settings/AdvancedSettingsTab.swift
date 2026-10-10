@@ -1,7 +1,7 @@
 import SwiftUI
 
 /// App settings only. The router login and the trusted certificate moved to
-/// the Router tab (chunk 15B).
+/// the Router tab.
 struct AdvancedSettingsTab: View {
     var body: some View {
         Form {

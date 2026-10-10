@@ -1,7 +1,7 @@
 import Foundation
 
 /// Forget Device…: removes the `DeviceRecord`, then this MAC's presence
-/// rows. Two files, no shared transaction (architecture 05), recovery class
+/// rows. Two files, no shared transaction, recovery class
 /// `none`. When the record is gone but the history save fails, the outcome
 /// is `unknownAfterDispatch`: the rows age out with the 7-day retention, and
 /// the person can retry from Availability if the device returns.

@@ -11,7 +11,7 @@ public struct DeviceRecord: Sendable, Equatable, Codable, Identifiable {
     public var userName: String?
     public var favourite: Bool
     public var hiddenFromAlerts: Bool
-    /// Notify when this device goes offline (chunk 13 wires the alert).
+    /// Notify when this device goes offline.
     public var monitored: Bool
     /// When Routewell first saw this MAC in a client list.
     public var firstSeen: Date

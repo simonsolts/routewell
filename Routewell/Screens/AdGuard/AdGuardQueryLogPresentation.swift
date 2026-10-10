@@ -1,8 +1,7 @@
 import SwiftUI
 import RoutewellKit
 
-/// Texts for AdGuard Home › Query Log (chunk 18). Copy follows the design
-/// (`design/adguard-home.md`); lines marked "not in design" are Routewell's.
+/// Texts for AdGuard Home › Query Log.
 enum QueryLogPresentation {
     static let searchPrompt = "Domain or client"
     static let emptyInspector = "Select a query to see where it went and why."
@@ -54,11 +53,10 @@ enum QueryLogPresentation {
     static func decidedBy(_ entry: QueryLogEntry, filtering: AdGuardFilteringStatus?) -> String? {
         switch entry.reason {
         case "FilteredBlockedService":
-            // Not in design.
             return entry.serviceName.map { "Blocked service: \($0)" } ?? "Blocked service"
-        case "FilteredSafeBrowsing": return "Safe Browsing" // Not in design.
-        case "FilteredParental": return "Parental control" // Not in design.
-        case "FilteredSafeSearch": return "Safe search" // Not in design.
+        case "FilteredSafeBrowsing": return "Safe Browsing"
+        case "FilteredParental": return "Parental control"
+        case "FilteredSafeSearch": return "Safe search"
         default: break
         }
         switch entry.result {
@@ -150,7 +148,7 @@ enum QueryLogPresentation {
         return text
     }
 
-    /// At the 5,000 cap. Not in design.
+    /// At the 5,000 cap.
     static let capNote = "Showing the newest 5,000. Narrow the search to see older queries."
 
     /// No rows. The filtered line is the design's.
@@ -158,7 +156,7 @@ enum QueryLogPresentation {
         filtered ? "No queries match these filters." : "AdGuard Home has no queries in its log."
     }
 
-    /// AdGuard Home is not running: no log to show. Not in design.
+    /// AdGuard Home is not running: no log to show.
     static let unavailableTitle = "No Query Log"
     static func unavailableMessage(_ availability: AdGuardAvailability) -> String {
         switch availability {

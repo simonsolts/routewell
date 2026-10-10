@@ -25,7 +25,7 @@ final class AppEnvironment {
     let sshSetup: SSHSetupController
     let trustPrompt = TrustPromptController()
     let onboarding = OnboardingController()
-    /// Settings › Router (chunk 15B).
+    /// Settings › Router.
     @ObservationIgnored private(set) lazy var liveRouterSettings = LiveRouterSettingsServices(environment: self)
     #if DEBUG
     /// Keeps the mock scenarios while the Settings window opens and closes.
@@ -277,7 +277,7 @@ final class AppEnvironment {
         Task { await mockBackend.mockRouter.setFirmwareBehavior(behavior) }
     }
 
-    /// Chunk 15: SSH off, probe pending, fails, times out, host key
+    /// SSH off, probe pending, fails, times out, host key
     /// changed, or populated. The probe runs again for the new scenario.
     func setMockSSHScenario(_ scenario: MockSSHService.Scenario) {
         guard model.mode == .mock, let mockBackend else { return }
@@ -287,12 +287,12 @@ final class AppEnvironment {
         refresh.refreshNow()
     }
 
-    /// Chunk 17: the writes the mock AdGuard Home received, for tests.
+    /// The writes the mock AdGuard Home received, for tests.
     func mockAdGuardWrites() async -> [AdGuardWrite] {
         await mockBackend?.mockAdGuard.writes ?? []
     }
 
-    /// Chunk 16: the router's AdGuard Home setting and the saved copy.
+    /// The router's AdGuard Home setting and the saved copy.
     func setMockAdGuardScenario(_ scenario: MockAdGuardScenario) {
         guard model.mode == .mock, let mockBackend else { return }
         mockAdGuardScenario = scenario
@@ -405,7 +405,7 @@ final class AppEnvironment {
         model.setHasLiveEndpoint(profile.liveEndpoint != nil && profile.setupComplete)
     }
 
-    // MARK: Onboarding (chunk 15A)
+    // MARK: Onboarding
 
     /// Sign-in for onboarding: a throwaway client checks the password with the
     /// certificate the person just trusted. A changed certificate is never
@@ -625,7 +625,7 @@ final class AppEnvironment {
         return URL(string: "\(scheme)://\(hostToken):\(settings.port)/")!
     }
 
-    // MARK: Test Connection (chunk 15B)
+    // MARK: Test Connection
 
     /// Settings › Router › Test Connection for the saved live profile, or
     /// `nil` without one. The router and AdGuard Home checks use throwaway

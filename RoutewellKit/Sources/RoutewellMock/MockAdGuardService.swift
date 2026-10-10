@@ -1,7 +1,7 @@
 import Foundation
 import RoutewellKit
 
-/// The AdGuard Home screen's mock scenarios (chunk 16).
+/// The AdGuard Home screen's mock scenarios.
 public enum MockAdGuardScenario: String, CaseIterable, Sendable {
     case off
     case running
@@ -81,14 +81,14 @@ public actor MockAdGuardTransport: AdGuardServiceTransport {
     private var refusesTurnOn = false
     private var answersAfter: Date?
     private var startTime = Date().addingTimeInterval(-5 * 24 * 60 * 60)
-    // Chunk 17: settings inside AdGuard Home.
+    // Settings inside AdGuard Home.
     var protectionEnabled = true
     /// A timed pause ends on its own, as in AdGuard Home.
     var pausedUntil: Date?
     var options = MockAdGuardTransport.defaultOptions
     /// "Filter requests".
     var filteringEnabled = true
-    /// Custom rules, changed by Block and Unblock Domain (chunk 18).
+    /// Custom rules, changed by Block and Unblock Domain.
     public internal(set) var userRules: [String] = MockAdGuardTransport.defaultRules
     static let defaultRules = ["! Example custom rules", "||ads.example.com^", "@@||cdn.example.net^", ""]
     var filterLists = MockAdGuardTransport.filtering(enabled: true)

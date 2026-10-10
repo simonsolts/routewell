@@ -2,7 +2,7 @@ import Foundation
 
 /// Turns raw GL.iNet RPC `result` payloads into the Overview model types.
 ///
-/// Every router API fact here is "assumed" (see chunk 09 plan). A missing or
+/// Every router API fact here is `[assumed]`. A missing or
 /// differently-typed field always yields `nil`/`.unknown`, never a thrown
 /// error — only a caller who cannot even reach the router (nil inputs) should
 /// see `.unknown` reachability.

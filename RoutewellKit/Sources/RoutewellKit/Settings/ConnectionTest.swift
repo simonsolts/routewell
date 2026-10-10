@@ -79,7 +79,7 @@ public struct ConnectionTestReport: Sendable, Equatable {
     public var isComplete: Bool { router != nil && ssh != nil && adGuard != nil }
 }
 
-/// Settings › Router › Test Connection (chunk 15B). The router check runs
+/// Settings › Router › Test Connection. The router check runs
 /// first. When it fails, SSH and AdGuard Home are not tested, so nothing
 /// else is sent. Otherwise both run at the same time.
 public struct ConnectionTest: Sendable {

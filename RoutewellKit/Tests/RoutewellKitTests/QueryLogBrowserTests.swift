@@ -2,7 +2,7 @@ import Foundation
 import Testing
 @testable import RoutewellKit
 
-/// Chunk 18: the Query Log tab's pages, Live, dates, and domain rules,
+/// The Query Log tab's pages, Live, dates, and domain rules,
 /// against the anonymized AdGuard Home v1.0.0-b.1 recording.
 private func recorded(_ name: String) throws -> JSONValue {
     let url = try #require(Bundle.module.url(forResource: name, withExtension: "json", subdirectory: "Fixtures/adguard/querylog/v1.0.0-b.1"))

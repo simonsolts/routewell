@@ -2,7 +2,7 @@ import Foundation
 import Observation
 import RoutewellKit
 
-/// What AdGuard Home › Query Log opens searching for (chunk 18): a domain
+/// What AdGuard Home › Query Log opens searching for: a domain
 /// from Top blocked or Top queried, or a client IP from Top devices or
 /// Clients' Show DNS Log. AdGuard Home has one search for both.
 struct AdGuardQueryLogFilter: Equatable, Sendable {
@@ -10,8 +10,8 @@ struct AdGuardQueryLogFilter: Equatable, Sendable {
 }
 
 /// The AdGuard Home screen's state: the last service reading, the saved
-/// copy for the selected router, and the writes (chunk 16), plus the
-/// Overview's reads, range, and setting writes (chunk 17). The reading and
+/// copy for the selected router, and the writes, plus the
+/// Overview's reads, range, and setting writes. The reading and
 /// the copy change together, so a cached router never shows the empty
 /// state while its copy loads.
 @MainActor @Observable
@@ -29,7 +29,7 @@ final class AdGuardController {
     private(set) var lastReport: MutationReport<AdGuardServiceState>?
     private(set) var lastIntent: AdGuardServiceIntent?
 
-    // Overview (chunk 17)
+    // Overview
     private(set) var overview: AdGuardOverviewReading?
     private var overviewToken: SessionToken?
     /// The Activity range. Changing it reads that range at once.

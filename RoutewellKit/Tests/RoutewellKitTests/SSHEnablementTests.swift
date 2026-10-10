@@ -3,9 +3,8 @@ import Testing
 @testable import RoutewellKit
 import RoutewellMock
 
-// Chunk 15. The SSH fixtures under `Fixtures/ssh/router/` follow the formats
-// recorded on firmware 4.9.1 (`recorded-chunk-15`, kept local) with neutral
-// values: documentation addresses, `02:00:…` MACs, example names, PIDs, and
+// The SSH fixtures under `Fixtures/ssh/router/` follow the formats
+// recorded on firmware 4.9.1 with neutral values: documentation addresses, `02:00:…` MACs, example names, PIDs, and
 // sizes. Log tags the recording did not contain (hostapd, netifd, odhcpd,
 // firewall, AdGuardHome, openvpn, block, procd) and the telemetry values
 // stay `[assumed]`. No test starts `ssh` or `ssh-keyscan`.
@@ -96,7 +95,7 @@ private func keyscanOutput(ed25519: String = keyA) -> Data {
     #expect(decoded.ssh?.keyFileBookmark == Data([1, 2, 3]))
     #expect(decoded.ssh?.identity == .keyFile(URL(fileURLWithPath: "/Users/me/.ssh/id_ed25519")))
 
-    // Saved before chunk 15 added `useAgent`.
+    // Saved before `useAgent` existed.
     let old = try JSONDecoder().decode(SSHSettings.self, from: Data(#"{"enabled":false,"port":22,"user":"root"}"#.utf8))
     #expect(old == SSHSettings())
     #expect(old.identity == nil)

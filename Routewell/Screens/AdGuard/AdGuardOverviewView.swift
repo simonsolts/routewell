@@ -2,7 +2,7 @@ import Charts
 import SwiftUI
 import RoutewellKit
 
-/// AdGuard Home › Overview (chunk 17): the status banner with Pause and
+/// AdGuard Home › Overview: the status banner with Pause and
 /// Resume, Activity with ranges, the Protection switches and Blocklists
 /// row, and the three top lists. Read-only (the saved copy) when AdGuard
 /// Home is off or does not answer: every write is disabled, the rows still
@@ -133,7 +133,7 @@ struct AdGuardBanner: View {
 }
 
 /// The Pause menu: the design's four durations, then until tomorrow, then
-/// Turn Off Protection (user, chunk 17). The Router menu uses it too.
+/// Turn Off Protection. The Router menu uses it too.
 struct ProtectionMenuItems: View {
     let adGuard: AdGuardController
 
@@ -330,7 +330,7 @@ struct AdGuardProtectionCard: View {
         }
     }
 
-    /// AdGuard Home's "Filter requests" (user, chunk 17): blocklists,
+    /// AdGuard Home's "Filter requests": blocklists,
     /// allowlists, and custom rules all at once.
     private var filteringRow: some View {
         let value = adGuard.filtering?.enabled

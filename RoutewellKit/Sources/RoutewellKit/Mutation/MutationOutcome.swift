@@ -9,9 +9,7 @@ public enum MutationRejection: Sendable, Equatable {
     case invalidIntent(String)
 }
 
-/// The terminal result of a verified mutation. See
-/// `../../../../../../routewell-private-docs/architecture/04-mutations.md`
-/// for the contract this implements.
+/// The terminal result of a verified mutation.
 public enum MutationOutcome<State: Sendable & Equatable>: Sendable, Equatable {
     case rejected(MutationRejection)
     case verifiedSuccess(State)

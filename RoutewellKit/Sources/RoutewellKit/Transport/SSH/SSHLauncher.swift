@@ -1,7 +1,7 @@
 import Darwin
 import Foundation
 
-/// Hostname/IP-literal validation shared with `RouterEndpoint` (chunk 08, task 1).
+/// Hostname/IP-literal validation shared with `RouterEndpoint`.
 /// Delegates to `RouterEndpoint.isValidHostLiteralOrName` so SSH targets accept
 /// exactly the same hosts as HTTP endpoints, including rejecting all-numeric
 /// non-IP hosts like "999.999.999.999".

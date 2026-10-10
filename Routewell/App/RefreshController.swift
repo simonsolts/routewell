@@ -20,15 +20,15 @@ final class RefreshController {
     private var overviewElapsed: Duration = .zero
     private var featureElapsed: [DataArea: Duration] = [:]
     /// SSH runs in its own task, one at a time, so a slow SSH probe or
-    /// read never holds up the RPC refresh (chunk 15).
+    /// read never holds up the RPC refresh.
     private var sshTask: Task<Void, Never>?
     private var sshPending: SSHWork?
     /// The lease whose SSH probe has started. One probe per lease.
     private var sshProbedToken: SessionToken?
     /// Each overview's AdGuard Home reading, for the AdGuard Home screen and
-    /// its saved copy (chunk 16).
+    /// its saved copy.
     var onAdGuardReading: ((AdGuardServiceReading, SessionToken) async -> Void)?
-    /// AdGuard Home › Overview's reads while the tab is visible (chunk 17).
+    /// AdGuard Home › Overview's reads while the tab is visible.
     var onAdGuardOverview: ((SessionLease) async throws -> Void)?
 
     var isAvailable: Bool { model.session.isReady && !sleeping }
@@ -300,7 +300,7 @@ final class RefreshController {
 
     func waitForRefresh() async { await task?.value }
 
-    // MARK: SSH (chunk 15)
+    // MARK: SSH
 
     enum SSHRead: Hashable { case ports, storage, logs, adGuardProcess, adGuardResources }
 

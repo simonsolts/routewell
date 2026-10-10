@@ -86,7 +86,7 @@ public actor RouterSession {
         return try result.get()
     }
 
-    /// Reads one Query Log tab page (chunk 18), fenced like `overview(using:)`.
+    /// Reads one Query Log tab page, fenced like `overview(using:)`.
     /// `nil` when the backend has no query-log service.
     public func queryLogPage(using lease: SessionLease, query: QueryLogQuery) async throws -> AreaRefreshResult<QueryLogPage>? {
         try validateBefore(lease)
@@ -133,7 +133,7 @@ public actor RouterSession {
         return try result.get()
     }
 
-    /// The SSH probe (chunk 15). `nil` when SSH is not set up.
+    /// The SSH probe. `nil` when SSH is not set up.
     public func sshProbe(using lease: SessionLease) async throws -> SSHProbeResult? {
         guard let service = lease.backend.ssh else { try validateBefore(lease); return nil }
         return try await fenced(lease) { try await service.check() }
@@ -192,7 +192,7 @@ public actor RouterSession {
         return report
     }
 
-    /// Runs one AdGuard Home service write (chunk 16). Fenced like
+    /// Runs one AdGuard Home service write. Fenced like
     /// `setProtection`: a `.stale` from `validateAfter` means the write may
     /// have reached the router.
     public func runAdGuardService(
@@ -211,8 +211,7 @@ public actor RouterSession {
         return report
     }
 
-    /// Runs one AdGuard Home setting write (chunk 17: protection and the
-    /// three switches). `validateBefore` fences it against a lease that's
+    /// Runs one AdGuard Home setting write. `validateBefore` fences it against a lease that's
     /// already stale or mid-switch; `validateAfter` fences the result. If
     /// `validateAfter` throws `.stale`, the write may still have reached
     /// AdGuard Home — the caller must treat the outcome as unknown and

@@ -1,6 +1,6 @@
 import Foundation
 
-/// Joins AdGuard Home data onto the router's client list (decision 9): by
+/// Joins AdGuard Home data onto the router's client list: by
 /// MAC when AdGuard knows one, else by IP. An IP join happens only when one
 /// router client clearly owns that IP, because stale offline entries can
 /// share an address with a current device `[verified live]`.

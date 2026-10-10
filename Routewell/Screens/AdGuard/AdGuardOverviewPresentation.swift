@@ -1,7 +1,7 @@
 import Foundation
 import RoutewellKit
 
-/// Text for AdGuard Home › Overview (design/adguard-home.md, chunk 17).
+/// Text for AdGuard Home › Overview.
 extension AdGuardPresentation {
     // MARK: Banner
 

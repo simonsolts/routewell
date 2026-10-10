@@ -1,8 +1,8 @@
 import Foundation
 
 /// `GET control/querylog`: `{"oldest": ISO-8601, "data": [...]}`, newest
-/// first. The entry fields are `[verified live]` on AdGuard Home v1.0.0-b.1
-/// (chunk 18 recording). Entries that are not objects are skipped; missing
+/// first. The entry fields are `[verified live]` on AdGuard Home v1.0.0-b.1.
+/// Entries that are not objects are skipped; missing
 /// fields stay unknown.
 public enum QueryLogParser {
     /// `nil` when the payload has no `data` array (a malformed reply). A

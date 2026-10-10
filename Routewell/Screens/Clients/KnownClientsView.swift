@@ -165,7 +165,7 @@ struct KnownClientsView: View {
     }
 
     /// Add, Import…, and Export… stay disabled: Routewell learns devices
-    /// from the router, and backup arrives with chunk 33.
+    /// from the router.
     private func actionBar(selected: KnownClientRow?) -> some View {
         let forget = selected.map { ClientDetailsFormat.forgetState(entry(for: $0), inventoryLoaded: model.clientInventory != nil) }
         return HStack(spacing: 8) {

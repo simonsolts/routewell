@@ -2,13 +2,13 @@ import Foundation
 
 public enum DataArea: String, CaseIterable, Sendable, Hashable, Codable {
     case router, internet, adGuard, clients, queryLog, network, maintenance, vpn, plugins, telemetry, publicIP, schedules
-    /// Router screen reads beyond the Overview areas: Wi-Fi and SQM (chunk 14).
+    /// Router screen reads beyond the Overview areas: Wi-Fi and SQM.
     case routerDetail
     /// SSH-backed Router reads: Ports, Storage, Logs, and the AdGuard
-    /// process ID (chunk 15).
+    /// process ID.
     case ssh
     /// AdGuard Home › Overview: stats for the range, the switches, the
-    /// blocklists (chunk 17). Read only while AdGuard Home runs.
+    /// blocklists. Read only while AdGuard Home runs.
     case adGuardOverview
 }
 
@@ -53,7 +53,7 @@ public struct OverviewRefreshResult: Sendable {
     public var adGuard: AreaRefreshResult<AdGuardStatus>
     public var clients: AreaRefreshResult<ClientStatus>
     /// The router's AdGuard Home setting and whether AdGuard Home answered
-    /// (chunk 16). `nil` when the backend did not read it.
+    ///. `nil` when the backend did not read it.
     public var adGuardService: AdGuardServiceReading?
 
     public init(

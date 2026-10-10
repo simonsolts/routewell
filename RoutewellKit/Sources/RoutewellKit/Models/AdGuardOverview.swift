@@ -1,6 +1,6 @@
 import Foundation
 
-/// The Activity range pop-up (chunk 17). AdGuard Home reads a range with
+/// The Activity range pop-up. AdGuard Home reads a range with
 /// `GET control/stats?recent=<ms>`; a range longer than the stats retention
 /// is not offered.
 public enum AdGuardStatsRange: String, CaseIterable, Sendable, Codable {
@@ -131,7 +131,7 @@ public struct AdGuardStats: Sendable, Equatable, Codable {
         }
     }
 
-    /// "Threats blocked" `[decision]`: Safe Browsing plus Parental
+    /// "Threats blocked": Safe Browsing plus Parental
     /// replacements. Unknown when either is missing.
     public var threatsBlocked: Int? {
         guard let replacedSafeBrowsing, let replacedParental else { return nil }
@@ -284,8 +284,7 @@ public struct AdGuardFilterList: Sendable, Equatable, Codable {
     }
 }
 
-/// `GET control/filtering/status`. Chunk 17 shows only the Blocklists row;
-/// chunk 19 edits the lists and adds the custom rules.
+/// `GET control/filtering/status`.
 public struct AdGuardFilteringStatus: Sendable, Equatable, Codable {
     public var enabled: Bool?
     /// Update check interval, in hours.
@@ -365,9 +364,8 @@ public struct AdGuardOverviewReading: Sendable, Equatable {
     }
 }
 
-/// The banner's Pause menu (design): 30 seconds, 1 minute, 10 minutes,
-/// 1 hour, then until tomorrow at 08:00 local time `[decision]`. The Router
-/// menu uses the same items.
+/// The banner's Pause menu: 30 seconds, 1 minute, 10 minutes, 1 hour, then
+/// until tomorrow at 08:00 local time. The Router menu uses the same items.
 public enum ProtectionPauseChoice: String, CaseIterable, Sendable {
     case thirtySeconds, oneMinute, tenMinutes, oneHour, untilTomorrow
 

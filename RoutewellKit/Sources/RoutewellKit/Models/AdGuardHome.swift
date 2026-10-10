@@ -58,7 +58,7 @@ public enum AdGuardProblem: Sendable, Equatable {
     case notConfigured
 }
 
-/// The AdGuard Home screen's state (architecture 03). Off comes only from
+/// The AdGuard Home screen's state. Off comes only from
 /// `get_config` `enabled` false; a failed call is never read as off.
 public enum AdGuardAvailability: Sendable, Equatable {
     /// Not read yet in this session.

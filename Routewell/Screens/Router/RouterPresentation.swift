@@ -6,7 +6,7 @@ enum RouterSegment: String, CaseIterable {
     case overview = "Overview", ports = "Ports", wifi = "Wi-Fi", multiWAN = "Multi-WAN", dns = "DNS"
     case sqm = "SQM", performance = "Performance", storage = "Storage", firmware = "Firmware", logs = "Logs"
 
-    /// No RPC exists for these; they read over SSH (chunk 15).
+    /// No RPC exists for these; they read over SSH.
     var requiresSSH: Bool { self == .ports || self == .storage || self == .logs }
 }
 
@@ -68,7 +68,7 @@ enum RouterFormat {
     }
 
     /// Display guidance from the Performance footnote, not a health verdict:
-    /// Routewell does not score temperature (architecture 03).
+    /// Routewell does not score temperature.
     static func temperatureGuidance(_ celsius: Double?) -> String {
         guard let celsius else { return "Not reported by the router" }
         if celsius < 65 { return "Normal · below 65 °C" }
@@ -516,7 +516,7 @@ struct RouterMultiWANModel: Equatable {
 // MARK: - SQM
 
 struct RouterSQMModel: Equatable {
-    /// SQM writes arrive in chunk 27. Until then every control is read-only.
+    /// Every SQM control is read-only.
     static let writesAvailable = false
     static let queueDisciplines = ["cake", "fq_codel"]
 

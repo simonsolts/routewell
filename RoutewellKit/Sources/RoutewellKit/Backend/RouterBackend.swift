@@ -13,17 +13,17 @@ public protocol RouterBackend: Sendable {
     /// The Router screen's own reads. `nil` shows the RPC segments from the
     /// Overview areas only.
     var router: (any RouterService)? { get }
-    /// SSH reads (chunk 15). `nil` means SSH is not set up for this profile:
+    /// SSH reads. `nil` means SSH is not set up for this profile:
     /// SSH-only segments show `SSHRequiredView` and nothing attempts SSH.
     var ssh: (any SSHService)? { get }
-    /// Turn On, Stop, Handle DNS, and Restart for AdGuard Home (chunk 16).
+    /// Turn On, Stop, Handle DNS, and Restart for AdGuard Home.
     /// `nil` when the profile has no AdGuard Home connection.
     var adGuardService: (any AdGuardServiceControl)? { get }
     /// Protection on, off, and paused, and the three Protection switches
-    /// (chunk 17). `nil` when the profile has no AdGuard Home connection:
+    ///. `nil` when the profile has no AdGuard Home connection:
     /// the capability is unavailable, not a transient failure.
     var adGuardSettings: (any AdGuardSettingControl)? { get }
-    /// AdGuard Home › Overview's reads (chunk 17). `nil` without an AdGuard
+    /// AdGuard Home › Overview's reads. `nil` without an AdGuard
     /// Home connection.
     var adGuardOverview: (any AdGuardOverviewService)? { get }
     /// Back Up Now and Restore… for AdGuard Home's config.

@@ -1,6 +1,6 @@
 import Foundation
 
-// MARK: - Wi-Fi (chunk 14)
+// MARK: - Wi-Fi
 
 public enum WirelessBand: String, Sendable, Equatable, Hashable, Codable, CaseIterable, Comparable {
     case ghz2_4 = "2g", ghz5 = "5g", ghz6 = "6g"
@@ -93,7 +93,7 @@ public struct WirelessStatus: Sendable, Equatable {
     }
 }
 
-// MARK: - SQM (chunk 14 read, chunk 27 write)
+// MARK: - SQM
 
 /// `sqm get_config`: `enable`, `qdisc`, `upload`, `download` `[verified live]`
 /// keys. On 4.9.1 `upload` and `download` are strings, empty when unset;
@@ -112,7 +112,7 @@ public struct SQMConfiguration: Sendable, Equatable {
     }
 }
 
-// MARK: - Firmware (chunk 14)
+// MARK: - Firmware
 
 public enum FirmwareCheckFailure: Sendable, Equatable {
     /// `-32601`: this firmware has no online check.
@@ -148,7 +148,7 @@ public struct FirmwareCheck: Sendable, Equatable {
     }
 }
 
-// MARK: - Multi-WAN (chunk 14)
+// MARK: - Multi-WAN
 
 public enum WANConnectionType: Sendable, Equatable {
     /// The interface `cable get_status` describes (`wan`).
@@ -211,7 +211,7 @@ public struct WANPathTracker: Sendable, Equatable {
     }
 }
 
-// MARK: - DNS (chunk 14)
+// MARK: - DNS
 
 /// Where client DNS goes, from what the router and AdGuard Home report.
 /// Mode and encrypted DNS are not reported over RPC and stay unknown.

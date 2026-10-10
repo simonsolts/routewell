@@ -1,12 +1,9 @@
 import Foundation
 
-/// The saved copy of AdGuard Home's data for one router (architecture 05).
-/// One section per read, each with the date it was saved. Chunk 16 saves the
-/// service status and the router config; chunk 17 adds the Overview's stats
-/// (per range), stats config, switches, and blocklists, and the DNS
-/// settings. A section is replaced only by a newer successful read while
-/// AdGuard Home runs. New sections are optional, so a chunk 16 file still
-/// loads.
+/// The saved copy of AdGuard Home's data for one router. One section per
+/// read, each with the date it was saved. A section is replaced only by a
+/// newer successful read while AdGuard Home runs. Sections are optional, so
+/// an older file still loads.
 public struct AdGuardArchive: Sendable, Equatable, Codable {
     public struct Section<Value: Sendable & Equatable & Codable>: Sendable, Equatable, Codable {
         public var savedAt: Date

@@ -5,7 +5,7 @@ import RoutewellKit
 import RoutewellMock
 @testable import Routewell
 
-/// Chunk 18: AdGuard Home › Query Log in the app.
+/// AdGuard Home › Query Log in the app.
 
 @MainActor
 private func eventually(timeout: Duration = .seconds(10), _ predicate: () async -> Bool) async {

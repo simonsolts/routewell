@@ -51,7 +51,7 @@ private actor StubSessionProvider: RouterSessionTokenProvider {
         #expect(status.dnsPort == 3053)
     }
 
-    /// Chunk 17: the recorder sends a plan query as URL query items, and
+    /// The recorder sends a plan query as URL query items, and
     /// refuses any other characters.
     @Test func recordReadSendsPlanQuery() async throws {
         let transport = StubHTTPTransport { request in
@@ -66,7 +66,7 @@ private actor StubSessionProvider: RouterSessionTokenProvider {
         #expect(urls == ["http://192.168.8.1:3000/control/stats?recent=86400000"])
     }
 
-    /// Chunk 18: a time sends `+` as `%2B`, which AdGuard Home would
+    /// A time sends `+` as `%2B`, which AdGuard Home would
     /// otherwise read as a space.
     @Test func recordReadEncodesPlusInATime() async throws {
         let transport = StubHTTPTransport { request in

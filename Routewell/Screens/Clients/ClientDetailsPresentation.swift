@@ -128,8 +128,8 @@ enum ClientDetailsFormat {
 
     // MARK: VPN routing
 
-    /// Client-specific routing is read in chunk 28; until then every value
-    /// is unknown rather than a guessed "None".
+    /// Client-specific routing is not read, so every value is unknown
+    /// rather than a guessed "None".
     static let vpnClientRows = [
         DetailRowModel(label: "Route", value: ClientsFormat.unknown, tone: .unknown),
         DetailRowModel(label: "Policy source", value: ClientsFormat.unknown),

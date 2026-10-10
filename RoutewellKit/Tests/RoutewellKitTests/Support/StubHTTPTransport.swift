@@ -1,7 +1,7 @@
 import Foundation
 @testable import RoutewellKit
 
-/// A scriptable `HTTPTransport` for tests. Shared with chunk 09.
+/// A scriptable `HTTPTransport` for tests.
 actor StubHTTPTransport: HTTPTransport {
     struct Recorded: Sendable {
         let request: URLRequest

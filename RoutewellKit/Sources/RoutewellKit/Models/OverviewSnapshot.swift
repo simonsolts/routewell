@@ -27,7 +27,7 @@ public struct RouterStatus: Sendable, Equatable {
     public var memoryTotalBytes: Int64?
     public var memoryHistory: [Double] = []
     public var temperatureCelsius: Observed<Double> = .unknown
-    /// Chunk 14, from the same two reads. `board_info.kernel_version` and
+    /// From the same two reads. `board_info.kernel_version` and
     /// `board_info.architecture` `[verified live]`.
     public var kernelVersion: String?
     public var architecture: String?

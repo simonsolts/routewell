@@ -1,6 +1,6 @@
 import Foundation
 
-/// The Query Log tab's loaded entries (chunk 18), newest first, in memory
+/// The Query Log tab's loaded entries, newest first, in memory
 /// only. Page one, then Load More pages read with `older_than`, at most
 /// `QueryLogLimits.loadedCap` entries. A new search or status starts again.
 public struct QueryLogBrowser: Sendable, Equatable {
@@ -102,7 +102,7 @@ public struct QueryLogBrowser: Sendable, Equatable {
     }
 }
 
-/// The Query Log's dates (chunk 18). Rows show the time for today and the
+/// The Query Log's dates. Rows show the time for today and the
 /// date and time for older entries; the inspector shows the full date.
 public enum QueryLogTimeFormat {
     /// "21:14:05" today, "Yesterday 21:14", "6 Oct 21:14" this year, else
@@ -134,7 +134,7 @@ public enum QueryLogTimeFormat {
     }
 }
 
-/// Block Domain and Unblock Domain (chunk 18): one custom rule each.
+/// Block Domain and Unblock Domain: one custom rule each.
 public enum DomainRuleAction: String, Sendable, Equatable {
     case block, unblock
 

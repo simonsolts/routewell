@@ -27,7 +27,7 @@ public enum LocalStoreLoad: Sendable, Equatable {
 
 public typealias DeviceRegistryLoad = LocalStoreLoad
 
-/// Owns `devices.json` (decision 8). New-device rule: the first non-empty
+/// Owns `devices.json`. New-device rule: the first non-empty
 /// client list is recorded as the baseline with no events; after that, each
 /// never-seen MAC produces exactly one event, and the registry is saved
 /// before that event is returned (RouterPilot's crash-safe ordering).

@@ -1,6 +1,6 @@
 import Foundation
 
-/// A change to the AdGuard Home service on the router (architecture 04).
+/// A change to the AdGuard Home service on the router.
 public enum AdGuardServiceIntent: Sendable, Equatable {
     /// Turn On, from the empty state (with the radio choice) or the
     /// read-only strip (with the last saved Handle DNS setting).

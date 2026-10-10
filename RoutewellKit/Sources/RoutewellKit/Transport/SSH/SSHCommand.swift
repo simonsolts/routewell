@@ -61,25 +61,25 @@ public enum SSHCommand: Sendable, Hashable {
     /// RouterPilot's Wake-on-LAN: `etherwake` on `br-lan`, else `wol`, else a
     /// marker saying no tool is installed (`RouterManager.Operations.cs:64-105`).
     case wakeClient(MACAddress)
-    /// Chunk 15: the SSH capability probe (`RouterInfoService.cs:38-97`).
+    /// The SSH capability probe (`RouterInfoService.cs:38-97`).
     case systemBoard
-    /// Chunk 15: the router log tail, always the last 250 lines
+    /// The router log tail, always the last 250 lines
     /// (`RouterManager.RouterLogs.cs:5-6`).
     case logTail
-    /// Chunk 15: the root filesystem in human units (`RouterInfoService.cs:344-479`).
+    /// The root filesystem in human units (`RouterInfoService.cs:344-479`).
     case rootFilesystem
-    /// Chunk 15: the kernel mount table, for external storage types.
+    /// The kernel mount table, for external storage types.
     case mountTable
-    /// Chunk 15: Samba share names and flags only. The filter runs on the
+    /// Samba share names and flags only. The filter runs on the
     /// router, so share paths, users, and passwords never leave it.
     case sambaShares
-    /// Chunk 15: one line per `/sys/class/net` entry: name, `type`, and
+    /// One line per `/sys/class/net` entry: name, `type`, and
     /// whether it has a device, is wireless, or is a bridge.
     case networkInterfaces
-    /// Chunk 15: the fixed per-interface reads for names that came from
+    /// The fixed per-interface reads for names that came from
     /// `networkInterfaces` (`RouterPortTelemetryService.cs:24-25`).
     case interfaceTelemetry([NetworkInterfaceName])
-    /// Chunk 15: the AdGuard Home process ID. Only the first field is used.
+    /// The AdGuard Home process ID. Only the first field is used.
     case adGuardProcess
     /// Resident memory of each AdGuard Home process (`VmRSS`).
     case adGuardMemory

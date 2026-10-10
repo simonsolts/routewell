@@ -78,7 +78,7 @@ private struct FixtureBackend: RouterBackend, FixtureRecordableBackend {
     }
 }
 
-/// Chunk 18: the older page and both searches take their values from the
+/// The older page and both searches take their values from the
 /// first Query Log page, and only checked values are sent.
 @Test func fixturePlanFillsQueryLogValuesFromTheFirstPage() async throws {
     let page: JSONValue = .object([

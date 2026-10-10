@@ -8,7 +8,7 @@ public enum CapabilityEvidence: Sendable, Equatable, Codable {
     case successfulResponse
     case methodNotFound(method: String)
     case mockScenario(String)
-    /// Chunk 15: the SSH probe failed for this reason (an `SSHFailure` name).
+    /// The SSH probe failed for this reason (an `SSHFailure` name).
     case sshProbeFailed(String)
 }
 
@@ -31,15 +31,15 @@ public protocol FeatureService: Sendable {
     func probe() async -> Capability
 }
 
-/// The Clients area (chunk 12). `inventory()` reads the router's client list
+/// The Clients area. `inventory()` reads the router's client list
 /// and joins AdGuard Home data. It throws only `CancellationError`; every
 /// other failure is a per-area result, and only a failed router list fails
 /// the area.
 public protocol ClientsService: FeatureService {
     func inventory() async throws -> ClientInventoryResult
 }
-/// The AdGuard Home query log (chunk 13 reads it per client; chunk 18 adds
-/// the Query Log tab). One bounded page per call, never persisted.
+/// The AdGuard Home query log, per client and for the Query Log tab. One
+/// bounded page per call, never persisted.
 public protocol QueryLogService: FeatureService {
     /// One page for the Query Log tab. Throws only `CancellationError`.
     func page(_ query: QueryLogQuery) async throws -> AreaRefreshResult<QueryLogPage>
@@ -52,7 +52,7 @@ public extension QueryLogService {
     }
 }
 
-/// AdGuard Home › Overview's reads (chunk 17), behind
+/// AdGuard Home › Overview's reads, behind
 /// `RouterBackend.adGuardOverview`. `nil` without an AdGuard Home connection.
 public protocol AdGuardOverviewService: Sendable {
     /// Stats for `range`, the stats retention, the three switches, the
@@ -69,7 +69,7 @@ public extension AdGuardOverviewService {
     func versionCheck() async throws -> Result<AdGuardVersionCheck, RefreshFailureCategory> { .failure(.unavailable) }
 }
 
-/// The Router screen's RPC reads beyond the Overview areas (chunk 14).
+/// The Router screen's RPC reads beyond the Overview areas.
 /// Both calls throw only `CancellationError`; every other failure is a result.
 public protocol RouterService: FeatureService {
     /// Wi-Fi radios and SSIDs, and the native SQM configuration.
@@ -93,7 +93,7 @@ public struct RouterDetailsResult: Sendable {
     }
 }
 
-/// SSH to the router (chunk 15), behind `RouterBackend.ssh`. The backend
+/// SSH to the router, behind `RouterBackend.ssh`. The backend
 /// has one only when the profile has SSH set up and its host key trusted.
 /// Every call throws only `CancellationError`; every other failure is a
 /// result. The app reads nothing until `check()` has reported supported.

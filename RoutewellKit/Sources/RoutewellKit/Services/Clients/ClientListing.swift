@@ -21,7 +21,7 @@ public struct ResolvedClientName: Sendable, Equatable {
     }
 }
 
-/// Automatic naming order (architecture 03): user name, router client name,
+/// Automatic naming order: user name, router client name,
 /// DHCP hostname, AdGuard client name, then none.
 public enum ClientNaming {
     public static func automatic(client: Client?, record: DeviceRecord?) -> ResolvedClientName {
@@ -37,7 +37,7 @@ public enum ClientNaming {
     }
 
     /// The automatic name for an address AdGuard Home saw (Overview › Top
-    /// devices, chunk 17): the router client that holds the IP now, else
+    /// devices): the router client that holds the IP now, else
     /// the remembered device last seen with it. `nil` shows the IP with
     /// "Unnamed".
     public static func automatic(ip: String, clients: [Client], records: [MACAddress: DeviceRecord]) -> String? {

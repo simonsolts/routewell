@@ -1,7 +1,7 @@
 import Foundation
 
 /// A client's identity: the MAC address normalized to uppercase hex with no
-/// separators (architecture 03). IPs churn under DHCP and are never identity.
+/// separators. IPs churn under DHCP and are never identity.
 public struct MACAddress: Sendable, Hashable, Comparable, Codable, CustomStringConvertible {
     public let normalized: String
 

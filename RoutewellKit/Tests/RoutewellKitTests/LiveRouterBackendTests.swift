@@ -228,7 +228,7 @@ private actor SpyTrustPromptHandler: TrustPromptHandler {
     #expect(clients.activeCount == .value(1))
 }
 
-// MARK: - The AdGuard Home service reading (chunk 16)
+// MARK: - The AdGuard Home service reading
 
 private func serviceReading(config: MethodOutcome, status: AdGuardOutcome?, adGuardSettings: AdGuardSettings? = AdGuardSettings(port: 3000, useRouterCredentials: true)) async throws -> AdGuardServiceReading? {
     var adGuard: [String: @Sendable (Int) -> AdGuardOutcome] = ["stats": { _ in .fixture("control-stats") }]

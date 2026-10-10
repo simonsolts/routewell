@@ -1,10 +1,8 @@
 import Foundation
 
 /// What a live profile needs to reach the router and, optionally, an AdGuard
-/// Home instance behind it. `adGuardBaseURL` is derived by the caller (same
-/// host as the router, `adGuard.port`, and whatever scheme the person chose)
-/// rather than assembled here, since the scheme/username fields it depends on
-/// live on `AdGuardSettings` only from chunk 08 onward.
+/// Home instance behind it. The caller derives `adGuardBaseURL`: the
+/// router's host, `adGuard.port`, and the chosen scheme.
 public struct LiveBackendConfiguration: Sendable {
     public var routerEndpoint: RouterEndpoint
     /// `nil` means no AdGuard Home instance is configured for this profile;
@@ -78,7 +76,7 @@ public actor LiveRouterBackend: RouterBackend, FixtureRecordableBackend, AdGuard
     public nonisolated let ssh: (any SSHService)?
     /// Wi-Fi, SQM, and the firmware check for the Router screen.
     public nonisolated let router: (any RouterService)?
-    /// Turn On, Stop, Handle DNS, Restart (chunk 16), under the same gate as
+    /// Turn On, Stop, Handle DNS, Restart, under the same gate as
     /// Protection and Wake. Without an AdGuard Home connection, writes are
     /// verified with the router's setting only.
     public nonisolated let adGuardService: (any AdGuardServiceControl)?

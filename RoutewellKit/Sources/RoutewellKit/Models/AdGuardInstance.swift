@@ -41,7 +41,7 @@ public struct AdGuardVersionCheck: Sendable, Equatable, Codable {
     }
 }
 
-/// `GET control/querylog/config` `[verified live]` (chunk 18 recording):
+/// `GET control/querylog/config` `[verified live]`:
 /// `enabled`, `interval` (ms), `anonymize_client_ip`, `ignored`,
 /// `ignored_enabled`.
 public struct AdGuardQueryLogConfig: Sendable, Equatable, Codable {

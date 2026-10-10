@@ -1,6 +1,6 @@
 import Foundation
 
-// MARK: - System board (chunk 15 SSH probe)
+// MARK: - System board
 
 /// `ubus call system board`: `model`, `hostname`, `board_name`,
 /// `release.version/kernel/target` `[verified in source: RouterInfoService.cs:38-97]`.
@@ -23,7 +23,7 @@ public struct SystemBoard: Sendable, Equatable {
     }
 }
 
-// MARK: - Ports (chunk 15)
+// MARK: - Ports
 
 public enum LinkState: Sendable, Equatable, Hashable {
     case up, down, unknown
@@ -128,7 +128,7 @@ public struct LinkChangeLog: Sendable, Equatable {
     }
 }
 
-// MARK: - Storage (chunk 15)
+// MARK: - Storage
 
 /// `df -h /`, verbatim human sizes (`7.2G`) as the router prints them.
 public struct RootFilesystem: Sendable, Equatable {
@@ -210,7 +210,7 @@ public struct StorageStatus: Sendable, Equatable {
     }
 }
 
-// MARK: - Logs (chunk 15)
+// MARK: - Logs
 
 /// Syslog priorities, most severe first.
 public enum RouterLogSeverity: Int, Sendable, Equatable, Comparable, CaseIterable {
@@ -281,7 +281,7 @@ public enum RouterLogSeverityFilter: String, Sendable, Equatable, CaseIterable {
 }
 
 /// One `logread` line. `line` is the raw text after the timestamp, shown
-/// as-is on screen; redaction applies only on export (a later chunk).
+/// as-is on screen.
 public struct RouterLogEntry: Sendable, Equatable, Identifiable {
     /// Position in the tail, newest first, so it is unique within one read.
     public var id: Int

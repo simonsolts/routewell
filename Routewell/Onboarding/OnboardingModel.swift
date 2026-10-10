@@ -48,7 +48,7 @@ final class OnboardingModel {
     /// The host key scan failed, so SSH Try Again scans again instead of probing.
     @ObservationIgnored private var hostKeyFailed = false
     /// How long "Sign-in paused" keeps Sign In disabled. `[assumed]`: the
-    /// router does not say; "a few minutes" in the design.
+    /// router does not say.
     @ObservationIgnored var pauseDuration: Duration = .seconds(60)
 
     init(services: any OnboardingServices) {
@@ -87,7 +87,7 @@ final class OnboardingModel {
     var displayAddress: String { router.map { Self.shortAddress($0.endpoint) } ?? address }
 
     /// "192.168.8.1", or "host:port" when the port is not 443. Onboarding
-    /// always uses HTTPS, so the scheme is left out, as in the design.
+    /// always uses HTTPS, so the scheme is left out.
     static func shortAddress(_ endpoint: RouterEndpoint) -> String {
         let host = endpoint.host.contains(":") ? "[\(endpoint.host)]" : endpoint.host
         return endpoint.port == 443 ? host : "\(host):\(endpoint.port)"

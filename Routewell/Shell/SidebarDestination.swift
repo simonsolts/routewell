@@ -63,7 +63,7 @@ enum SidebarDestination: String, CaseIterable, Identifiable {
     var showsSubtitle: Bool { self != .clients && self != .router }
 }
 
-/// The AdGuard Home screen's tabs (design/adguard-home.md).
+/// The AdGuard Home screen's tabs.
 enum AdGuardTab: String, CaseIterable {
     case overview = "Overview"
     case queryLog = "Query Log"

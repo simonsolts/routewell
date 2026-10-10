@@ -1,7 +1,7 @@
 import Foundation
 
 // SSH output formats, first built from RouterPilot's source and the OpenWrt
-// tools, then checked against the 4.9.1 recording (chunk 15): the board JSON
+// tools, then checked against the 4.9.1 recording: the board JSON
 // keys, `logread` lines, `df -h /`, `df -k`, `/proc/mounts`, the Samba
 // filter, the interface enumeration, and `pgrep -a` are `[verified live]`.
 // The `/sys/class/net` telemetry values stay `[assumed]`. Each parser skips

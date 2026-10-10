@@ -1,7 +1,7 @@
 import SwiftUI
 import RoutewellKit
 
-/// App settings only. The rest of this tab is chunk 34.
+/// App settings only.
 struct GeneralSettingsTab: View {
     @Environment(AppModel.self) private var model
 

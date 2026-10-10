@@ -215,7 +215,7 @@ private func loadOverview(_ environment: AppEnvironment) async {
     #expect(environment.adGuard.archive == nil)
 }
 
-// MARK: - Overview (chunk 17)
+// MARK: - Overview
 
 @Test func bannerHasTheFourDesignVariants() throws {
     var calendar = Calendar(identifier: .gregorian)
@@ -249,7 +249,7 @@ private func loadOverview(_ environment: AppEnvironment) async {
     #expect(cached == .init(tone: .readOnly, title: "AdGuard Home is off",
                             message: "These numbers are from \(AdGuardPresentation.savedDate(savedAt)), when it was last running.", actions: []))
 
-    // Not in the design: protection turned off, and not answering.
+    // Protection turned off, and not answering.
     let off = AdGuardPresentation.banner(.running, protection: .disabled, handlesDNS: true, stats: stats, filtering: filtering,
                                          savedAt: nil, now: now, calendar: calendar)
     #expect(off.title == "Protection is off")
@@ -503,7 +503,7 @@ private func loadOverview(_ environment: AppEnvironment) async {
         environment.model.subpages[.adGuard] = AdGuardTab.instance.rawValue
         write("instance-\(name)", environment)
     }
-    // Chunk 17: the Overview's banner variants.
+    // The Overview's banner variants.
     for (name, scenario) in [("running", MockAdGuardScenario.running), ("paused", .paused), ("no-dns", .runningWithoutDNS),
                              ("cached", .cached), ("unreachable", .unreachable)] {
         let environment = await mockEnvironment(scenario)
@@ -516,7 +516,7 @@ private func loadOverview(_ environment: AppEnvironment) async {
     off2.adGuard.runSetting(.protection(.disable))
     await eventually { off2.adGuard.settingInFlight == nil }
     write("overview-protection-off", off2)
-    // Chunk 18: the Query Log, live with a blocked row selected, and read-only.
+    // The Query Log, live with a blocked row selected, and read-only.
     let log = await mockEnvironment(.running)
     log.model.subpages[.adGuard] = AdGuardTab.queryLog.rawValue
     await log.queryLog.loadFirstPage()

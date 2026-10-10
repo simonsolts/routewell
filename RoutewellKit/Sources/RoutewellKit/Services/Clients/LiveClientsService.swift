@@ -2,7 +2,7 @@ import Foundation
 
 /// Live Clients service: RPC `clients get_list` is the primary source; AdGuard
 /// Home `control/clients` and `control/stats` are read at the same time and
-/// joined. The area fails only when the router list fails (decision 9).
+/// joined. The area fails only when the router list fails.
 public actor LiveClientsService: ClientsService {
     private let rpc: GLiNetRPCClient
     private let adGuard: AdGuardClient?

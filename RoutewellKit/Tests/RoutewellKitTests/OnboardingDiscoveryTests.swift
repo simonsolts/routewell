@@ -2,7 +2,7 @@ import Foundation
 import Testing
 @testable import RoutewellKit
 
-/// Chunk 15A: finding the router without a password. Neutral values only:
+/// Finding the router without a password. Neutral values only:
 /// documentation addresses and generated fingerprints.
 private enum Discovery {
     static let gateway = "192.0.2.1"

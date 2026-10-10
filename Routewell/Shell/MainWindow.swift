@@ -105,13 +105,12 @@ struct MainWindow: View {
         .accessibilityElement(children: .combine)
     }
 
-    /// No status dot on AdGuard Home (user, chunk 18).
+    /// No status dot on AdGuard Home.
     private func sidebarRow(_ destination: SidebarDestination) -> some View {
         Label(destination.title, systemImage: destination.symbol)
     }
 
-    /// Clients counts devices awaiting review. Notifications keeps its mock
-    /// count until the event centre exists (chunk 24).
+    /// Clients counts devices awaiting review. Notifications has a mock count only.
     private func badge(for destination: SidebarDestination) -> Int {
         switch destination {
         case .clients: model.newDeviceCount
@@ -120,11 +119,10 @@ struct MainWindow: View {
         }
     }
 
-    /// Clients and Router have no toolbar subtitle (architecture 06; Router
-    /// has ten segments, design/router-screen.md).
+    /// Clients and Router have no toolbar subtitle.
     private var subtitle: String {
         if !model.selection.showsSubtitle { return "" }
-        // AdGuard Home's subtitle is the router model (design).
+        // AdGuard Home's subtitle is the router model.
         if model.selection == .adGuard { return model.snapshot?.router.model ?? "" }
         return model.mode == .mock ? (model.session.expectedToken?.profileID ?? "Sample router") : "Not connected"
     }

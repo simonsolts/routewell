@@ -19,7 +19,7 @@ final class AppModel {
     var mockScenarioID = "healthy"
     private(set) var hasLiveEndpoint = false
     /// `.live` mode with no finished live profile selected. Onboarding runs
-    /// in its own window and the main window stays closed (chunk 15A).
+    /// in its own window and the main window stays closed.
     var needsSetup: Bool { mode == .live && !hasLiveEndpoint }
     func setHasLiveEndpoint(_ value: Bool) { hasLiveEndpoint = value }
     var showInMenuBar = true { didSet { refreshSettingsChanged?(); persistenceSettingsChanged?() } }
@@ -45,7 +45,7 @@ final class AppModel {
         return settings
     }
 
-    // MARK: Clients (chunk 12)
+    // MARK: Clients
 
     /// The last successful inventory in this session. A failed refresh keeps
     /// it; a session switch clears it.
@@ -84,7 +84,7 @@ final class AppModel {
         deviceRegistryIssue = issue
     }
 
-    // MARK: Client details (chunk 13)
+    // MARK: Client details
 
     /// The All Clients table selection. Kept here so Known Clients, the
     /// review sheet, and the context menu can open a device in the pane.
@@ -145,7 +145,7 @@ final class AppModel {
         clientsDetailsVisible = true
         clientsDetailsSection = section.rawValue
     }
-    // MARK: Router (chunk 14)
+    // MARK: Router
 
     /// The last successful Wi-Fi and SQM reads in this session. A failed
     /// refresh keeps them; a session switch clears them.
@@ -172,7 +172,7 @@ final class AppModel {
         sqmCapability = result.sqmCapability
     }
 
-    // MARK: SSH (chunk 15)
+    // MARK: SSH
 
     /// The probe result for this session; `nil` until the probe finishes.
     private(set) var sshProbe: SSHProbeResult?

@@ -1,8 +1,8 @@
 import SwiftUI
 import RoutewellKit
 
-/// Router: ten segments in the toolbar (design/router-screen.md). Every
-/// segment is read-only; Ports, Storage, and Logs read over SSH (chunk 15).
+/// Router: ten segments in the toolbar. Every
+/// segment is read-only; Ports, Storage, and Logs read over SSH.
 struct RouterScreen: View {
     @Environment(AppModel.self) private var model
 

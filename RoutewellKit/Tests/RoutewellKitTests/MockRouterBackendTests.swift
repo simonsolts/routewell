@@ -28,7 +28,7 @@ import RoutewellMock
     #expect(observedAt == date.addingTimeInterval(-65 * 60))
 }
 
-/// Chunk 17: protection runs through the real executor against the mock
+/// Protection runs through the real executor against the mock
 /// AdGuard Home, and the overview shows the result.
 @Test func mockPauseAndResumeRunThroughTheExecutor() async throws {
     let backend = MockRouterBackend()

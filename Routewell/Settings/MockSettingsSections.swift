@@ -3,8 +3,8 @@ import SwiftUI
 import RoutewellKit
 import RoutewellMock
 
-/// The "Mock" disclosure at the bottom of the Router tab: every mock control
-/// that Settings had before chunk 15B, and the Router tab's own scenarios.
+/// The "Mock" disclosure at the bottom of the Router tab: the app's mock
+/// controls and the Router tab's own scenarios.
 struct MockSettingsSections: View {
     let environment: AppEnvironment
     @Bindable var services: MockRouterSettingsServices

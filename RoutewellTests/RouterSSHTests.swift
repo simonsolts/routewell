@@ -6,7 +6,7 @@ import RoutewellKit
 import RoutewellMock
 @testable import Routewell
 
-// Chunk 15. No test starts `ssh` or `ssh-keyscan`: the mock backend and
+// No test starts `ssh` or `ssh-keyscan`: the mock backend and
 // fakes for the scanner and the process runner stand in for both.
 
 private let british = Locale(identifier: "en_GB")

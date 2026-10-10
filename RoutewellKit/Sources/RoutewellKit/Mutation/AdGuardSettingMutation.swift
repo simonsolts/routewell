@@ -40,7 +40,7 @@ public enum ProtectionIntent: Sendable, Equatable {
     }
 }
 
-/// A change to a setting inside AdGuard Home (architecture 04): protection
+/// A change to a setting inside AdGuard Home: protection
 /// on, off, or paused, "Filter requests", the three Protection switches,
 /// lists and rules, and DNS settings.
 public enum AdGuardSettingIntent: Sendable, Equatable {
@@ -48,7 +48,7 @@ public enum AdGuardSettingIntent: Sendable, Equatable {
     /// AdGuard Home's "Filter requests": blocklists, allowlists, and rules.
     case filtering(enabled: Bool)
     case feature(AdGuardFeature, enabled: Bool)
-    /// Block Domain or Unblock Domain from the Query Log (chunk 18): one
+    /// Block Domain or Unblock Domain from the Query Log: one
     /// rule in the custom rules.
     case domainRule(DomainRuleAction, domain: String)
     // Lists are found by URL.
@@ -190,8 +190,7 @@ public struct AdGuardSettingVerifyPolicy: Sendable, Equatable {
 /// Gate → availability check → before-state (a fresh read of only the
 /// setting) → dispatch once → bounded verify. Every setting write is
 /// `resync`: a mismatch reports what AdGuard Home says and nothing is sent
-/// again. Generalised from chunk 10's `ProtectionMutationExecutor`, which
-/// sent the old state back after a mismatch.
+/// again.
 public struct AdGuardSettingExecutor: AdGuardSettingControl {
     private let transport: any AdGuardSettingTransport
     private let gate: MutationGate

@@ -126,9 +126,8 @@ public struct QueryLogPage: Sendable, Equatable {
 public enum QueryLogStatusFilter: String, Sendable, Equatable, CaseIterable {
     case all, blocked, processed, allowed, rewritten
 
-    /// `blocked` is `[verified live]` (chunk 18 recording: only
-    /// `FilteredBlackList` and `FilteredBlockedService`); the others are
-    /// `[assumed]`.
+    /// `blocked` is `[verified live]` (only `FilteredBlackList` and
+    /// `FilteredBlockedService`); the others are `[assumed]`.
     public var responseStatus: String {
         switch self {
         case .all: "all"
