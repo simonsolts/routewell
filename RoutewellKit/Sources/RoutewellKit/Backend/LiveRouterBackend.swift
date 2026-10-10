@@ -289,14 +289,14 @@ public actor LiveRouterBackend: RouterBackend, FixtureRecordableBackend, AdGuard
         do {
             configResult = .success(try await rpc.call(.init(object: "adguardhome", method: "get_config", params: .object([:]))))
         } catch let error as GLiNetRPCError {
-            try Self.rethrowIfCancelled(error)
+            try FailureMapping.rethrowIfCancelled(error)
             configResult = .failure(error)
         }
 
         switch configResult {
         case .failure(let error):
-            let reading = AdGuardServiceReading(config: .failure(Self.category(for: error)), observedAt: attemptedAt)
-            return (.failure(Self.category(for: error), attemptedAt: attemptedAt), Self.untrustedSignal(for: error, host: adGuardHostPort.host, port: adGuardHostPort.port), reading)
+            let reading = AdGuardServiceReading(config: .failure(FailureMapping.category(for: error)), observedAt: attemptedAt)
+            return (.failure(FailureMapping.category(for: error), attemptedAt: attemptedAt), Self.untrustedSignal(for: error, host: adGuardHostPort.host, port: adGuardHostPort.port), reading)
         case .success(let configJSON):
             let config = AdGuardRouterConfig.parse(configJSON)
             var reading = AdGuardServiceReading(config: .success(config), observedAt: attemptedAt)
@@ -317,14 +317,14 @@ public actor LiveRouterBackend: RouterBackend, FixtureRecordableBackend, AdGuard
                 do {
                     stats = try await adGuardClient.stats()
                 } catch let error as AdGuardClientError {
-                    try Self.rethrowIfCancelled(error)
+                    try FailureMapping.rethrowIfCancelled(error)
                     switch error {
                     case .unauthorized, .credentialUnavailable:
                         // Unlike a missing stats window, a stats auth failure means
                         // the whole AdGuard session is bad: fail the area instead of
                         // reporting a misleadingly successful, counter-less status.
-                        reading.answer = .failed(Self.category(for: error))
-                        return (.failure(Self.category(for: error), attemptedAt: attemptedAt), Self.untrustedSignal(for: error, host: adGuardHostPort.host, port: adGuardHostPort.port), reading)
+                        reading.answer = .failed(FailureMapping.category(for: error))
+                        return (.failure(FailureMapping.category(for: error), attemptedAt: attemptedAt), Self.untrustedSignal(for: error, host: adGuardHostPort.host, port: adGuardHostPort.port), reading)
                     case .transport, .httpStatus, .malformedResponse:
                         stats = nil // best-effort: a missing stats window never fails the area
                     }
@@ -333,9 +333,9 @@ public actor LiveRouterBackend: RouterBackend, FixtureRecordableBackend, AdGuard
                 mapped.handlesClientRequests = config.handlesDNS.map(Observed.value) ?? .unknown
                 return (.success(mapped, observedAt: attemptedAt, source: .adGuardAPI), nil, reading)
             } catch let error as AdGuardClientError {
-                try Self.rethrowIfCancelled(error)
-                reading.answer = .failed(Self.category(for: error))
-                return (.failure(Self.category(for: error), attemptedAt: attemptedAt), Self.untrustedSignal(for: error, host: adGuardHostPort.host, port: adGuardHostPort.port), reading)
+                try FailureMapping.rethrowIfCancelled(error)
+                reading.answer = .failed(FailureMapping.category(for: error))
+                return (.failure(FailureMapping.category(for: error), attemptedAt: attemptedAt), Self.untrustedSignal(for: error, host: adGuardHostPort.host, port: adGuardHostPort.port), reading)
             }
         }
     }
@@ -349,7 +349,7 @@ public actor LiveRouterBackend: RouterBackend, FixtureRecordableBackend, AdGuard
     ) -> (result: AreaRefreshResult<RouterStatus>, untrusted: UntrustedSignal?) {
         switch status {
         case .failure(let error):
-            return (.failure(Self.category(for: error), attemptedAt: attemptedAt), Self.untrustedSignal(for: error, host: configuration.routerEndpoint.host, port: configuration.routerEndpoint.port))
+            return (.failure(FailureMapping.category(for: error), attemptedAt: attemptedAt), Self.untrustedSignal(for: error, host: configuration.routerEndpoint.host, port: configuration.routerEndpoint.port))
         case .success(let statusJSON):
             let infoJSON: JSONValue?
             var untrusted: UntrustedSignal?
@@ -372,7 +372,7 @@ public actor LiveRouterBackend: RouterBackend, FixtureRecordableBackend, AdGuard
     ) -> (result: AreaRefreshResult<InternetStatus>, untrusted: UntrustedSignal?) {
         switch status {
         case .failure(let error):
-            return (.failure(Self.category(for: error), attemptedAt: attemptedAt), Self.untrustedSignal(for: error, host: configuration.routerEndpoint.host, port: configuration.routerEndpoint.port))
+            return (.failure(FailureMapping.category(for: error), attemptedAt: attemptedAt), Self.untrustedSignal(for: error, host: configuration.routerEndpoint.host, port: configuration.routerEndpoint.port))
         case .success(let statusJSON):
             let cableJSON: JSONValue?
             var untrusted: UntrustedSignal?
@@ -407,7 +407,7 @@ public actor LiveRouterBackend: RouterBackend, FixtureRecordableBackend, AdGuard
             case .failure(let statusError):
                 let untrusted = Self.untrustedSignal(for: clientListError, host: configuration.routerEndpoint.host, port: configuration.routerEndpoint.port)
                     ?? Self.untrustedSignal(for: statusError, host: configuration.routerEndpoint.host, port: configuration.routerEndpoint.port)
-                return (.failure(Self.category(for: clientListError), attemptedAt: attemptedAt), untrusted)
+                return (.failure(FailureMapping.category(for: clientListError), attemptedAt: attemptedAt), untrusted)
             }
         }
     }
@@ -421,90 +421,7 @@ public actor LiveRouterBackend: RouterBackend, FixtureRecordableBackend, AdGuard
         return (configuration.routerEndpoint.host, configuration.adGuard?.port ?? 3000)
     }
 
-    // MARK: Error → category mapping
-
-    static func category(for error: GLiNetRPCError) -> RefreshFailureCategory {
-        switch error {
-        case .transport(let transportError):
-            return category(for: transportError)
-        case .httpStatus, .malformedResponse, .invalidParameters, .rpcError, .unsupportedAlgorithm, .unsupportedHashMethod:
-            return .malformedResponse
-        case .accessDenied, .loginPaused, .credentialUnavailable:
-            return .authentication
-        case .methodNotFound:
-            return .unavailable
-        }
-    }
-
-    static func category(for error: AdGuardClientError) -> RefreshFailureCategory {
-        switch error {
-        case .transport(let transportError):
-            return category(for: transportError)
-        case .unauthorized:
-            return .authentication
-        case .httpStatus, .malformedResponse:
-            return .malformedResponse
-        case .credentialUnavailable:
-            return .authentication
-        }
-    }
-
-    static func category(for error: TransportError) -> RefreshFailureCategory {
-        switch error {
-        case .timedOut:
-            return .timeout
-        case .unreachable, .redirectRefused, .tlsFailure, .localNetworkDenied:
-            return .network
-        case .cancelled:
-            // Defensive only: every call site checks `rethrowIfCancelled` first
-            // and throws `CancellationError` instead of reaching this mapping.
-            return .network
-        case .untrustedServer:
-            // Only reached after a refused trust prompt; an approved one is
-            // resolved by retrying the whole overview instead of mapping here.
-            return .network
-        case .responseTooLarge, .invalidResponse:
-            return .malformedResponse
-        }
-    }
-
-    /// Real task cancellation through `URLSessionTransport` surfaces as
-    /// `TransportError.cancelled`, not Swift's `CancellationError` — without
-    /// this, a cancelled refresh would be reported as a `.network` failure
-    /// instead of the cancellation propagating out of `overview()`/`probe()`.
-    /// `Task.isCancelled` is checked too, in case cancellation ever surfaces
-    /// as some other error instead.
-    static func rethrowIfCancelled(_ error: GLiNetRPCError) throws {
-        if isCancelled(error) || Task.isCancelled { throw CancellationError() }
-    }
-
-    static func rethrowIfCancelled(_ error: AdGuardClientError) throws {
-        if isCancelled(error) || Task.isCancelled { throw CancellationError() }
-    }
-
-    /// One AdGuard Home read as a result. Cancellation propagates.
-    static func adGuardResult<Value: Sendable>(_ read: @Sendable () async throws -> Value) async throws -> Result<Value, RefreshFailureCategory> {
-        do {
-            return .success(try await read())
-        } catch let error as AdGuardClientError {
-            try rethrowIfCancelled(error)
-            return .failure(category(for: error))
-        } catch is CancellationError {
-            throw CancellationError()
-        } catch {
-            return .failure(.unavailable)
-        }
-    }
-
-    private static func isCancelled(_ error: GLiNetRPCError) -> Bool {
-        if case .transport(.cancelled) = error { return true }
-        return false
-    }
-
-    private static func isCancelled(_ error: AdGuardClientError) -> Bool {
-        if case .transport(.cancelled) = error { return true }
-        return false
-    }
+    // MARK: Trust prompt
 
     private static func untrustedSignal(for error: GLiNetRPCError, host: String, port: Int) -> UntrustedSignal? {
         guard case .transport(.untrustedServer(let decision)) = error else { return nil }
@@ -514,18 +431,6 @@ public actor LiveRouterBackend: RouterBackend, FixtureRecordableBackend, AdGuard
     private static func untrustedSignal(for error: AdGuardClientError, host: String, port: Int) -> UntrustedSignal? {
         guard case .transport(.untrustedServer(let decision)) = error else { return nil }
         return UntrustedSignal(host: host, port: port, decision: decision)
-    }
-}
-
-extension GLiNetRPCClient {
-    /// One call as a result. Cancellation propagates.
-    func checkedCall(_ call: GLiNetRPCCall) async throws -> Result<JSONValue, GLiNetRPCError> {
-        do {
-            return .success(try await self.call(call))
-        } catch let error as GLiNetRPCError {
-            try LiveRouterBackend.rethrowIfCancelled(error)
-            return .failure(error)
-        }
     }
 }
 

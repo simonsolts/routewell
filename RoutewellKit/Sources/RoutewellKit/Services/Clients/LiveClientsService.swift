@@ -42,7 +42,7 @@ public actor LiveClientsService: ClientsService {
                 capability: Capability(.unsupported, evidence: .methodNotFound(method: "clients.get_list"), observedAt: attemptedAt)
             )
         case .failure(let error):
-            return ClientInventoryResult(area: .failure(LiveRouterBackend.category(for: error), attemptedAt: attemptedAt), capability: Capability())
+            return ClientInventoryResult(area: .failure(FailureMapping.category(for: error), attemptedAt: attemptedAt), capability: Capability())
         case .success(let json):
             listJSON = json
         }
@@ -84,6 +84,6 @@ public actor LiveClientsService: ClientsService {
     /// `nil` when no AdGuard Home instance is configured for the profile.
     private func fetchAdGuard(_ path: AdGuardReadPath) async throws -> Result<JSONValue, RefreshFailureCategory>? {
         guard let adGuard else { return nil }
-        return try await LiveRouterBackend.adGuardResult { try await adGuard.read(path) }
+        return try await FailureMapping.adGuardResult { try await adGuard.read(path) }
     }
 }

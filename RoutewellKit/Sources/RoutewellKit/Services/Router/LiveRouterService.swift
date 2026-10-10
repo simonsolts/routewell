@@ -45,7 +45,7 @@ public actor LiveRouterService: RouterService {
                 wireless = .failure(.malformedResponse, attemptedAt: attemptedAt)
             }
         case .failure(let error):
-            wireless = .failure(LiveRouterBackend.category(for: error), attemptedAt: attemptedAt)
+            wireless = .failure(FailureMapping.category(for: error), attemptedAt: attemptedAt)
         }
 
         let sqmArea: AreaRefreshResult<SQMConfiguration>
@@ -63,7 +63,7 @@ public actor LiveRouterService: RouterService {
             sqmArea = .failure(.unavailable, attemptedAt: attemptedAt)
             capability = Capability(.unsupported, evidence: .methodNotFound(method: "sqm.get_config"), observedAt: attemptedAt)
         case .failure(let error):
-            sqmArea = .failure(LiveRouterBackend.category(for: error), attemptedAt: attemptedAt)
+            sqmArea = .failure(FailureMapping.category(for: error), attemptedAt: attemptedAt)
             capability = Capability()
         }
         return RouterDetailsResult(wireless: wireless, sqm: sqmArea, sqmCapability: capability)
@@ -78,7 +78,7 @@ public actor LiveRouterService: RouterService {
         case .failure(.methodNotFound):
             return FirmwareCheck(status: .unableToCheck(.notSupported), checkedAt: now)
         case .failure(let error):
-            return FirmwareCheck(status: .unableToCheck(.failed(LiveRouterBackend.category(for: error))), checkedAt: now)
+            return FirmwareCheck(status: .unableToCheck(.failed(FailureMapping.category(for: error))), checkedAt: now)
         }
     }
 }

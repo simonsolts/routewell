@@ -103,7 +103,7 @@ public struct AdGuardBackupExecutor: AdGuardBackupControl {
             guard let file = AdGuardConfigFile(try await files.readConfigFile()) else { return .failure(.notConfigFile) }
             return .success(file)
         } catch {
-            return .failure(.unreadable(Self.category(for: error)))
+            return .failure(.unreadable(FailureMapping.category(for: error)))
         }
     }
 
@@ -143,7 +143,7 @@ public struct AdGuardBackupExecutor: AdGuardBackupControl {
         do {
             before = try await service.readConfig()
         } catch {
-            return (.rejected(.preconditionFailed("The router did not say whether AdGuard Home is on.")), false, Self.category(for: error))
+            return (.rejected(.preconditionFailed("The router did not say whether AdGuard Home is on.")), false, FailureMapping.category(for: error))
         }
         guard before.enabled == true else { return (.rejected(.preconditionFailed("AdGuard Home is off.")), false, nil) }
         let expected = AdGuardRestoreState(written: true, answering: true, dnsMatches: true)
@@ -213,16 +213,6 @@ public struct AdGuardBackupExecutor: AdGuardBackupControl {
 
     static let notBackedUp = "Routewell could not read the current settings, so nothing was restored."
     static let notSaved = "Routewell could not save a backup of the current settings, so nothing was restored."
-
-    static func category(for error: Error) -> RefreshFailureCategory {
-        switch error {
-        case let failure as SSHFailure: failure.category
-        case ProcessRunnerError.timedOut: .timeout
-        case let error as GLiNetRPCError: LiveRouterBackend.category(for: error)
-        case let error as AdGuardClientError: LiveRouterBackend.category(for: error)
-        default: .unavailable
-        }
-    }
 
     private static func seconds(_ duration: Duration) -> TimeInterval {
         let components = duration.components

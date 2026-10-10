@@ -266,7 +266,7 @@ public struct AdGuardSettingExecutor: AdGuardSettingControl {
         do {
             before = try await transport.readStatus()
         } catch {
-            return (.rejected(.preconditionFailed("status unavailable")), false, Self.category(for: error))
+            return (.rejected(.preconditionFailed("status unavailable")), false, FailureMapping.category(for: error))
         }
         let beforeState = Self.protectionState(from: before, now: clock())
 
@@ -296,7 +296,7 @@ public struct AdGuardSettingExecutor: AdGuardSettingControl {
         do {
             before = try await transport.readFeature(feature)
         } catch {
-            return (.rejected(.preconditionFailed("status unavailable")), false, Self.category(for: error))
+            return (.rejected(.preconditionFailed("status unavailable")), false, FailureMapping.category(for: error))
         }
         if before["enabled"]?.bool == enabled { return (.verifiedSuccess(.feature(enabled)), false, nil) }
 
@@ -326,7 +326,7 @@ public struct AdGuardSettingExecutor: AdGuardSettingControl {
         do {
             before = try await transport.readFiltering()
         } catch {
-            return (.rejected(.preconditionFailed("status unavailable")), false, Self.category(for: error))
+            return (.rejected(.preconditionFailed("status unavailable")), false, FailureMapping.category(for: error))
         }
         if before.enabled == enabled { return (.verifiedSuccess(.feature(enabled)), false, nil) }
         // The update interval goes back as read; without it nothing is sent.
@@ -350,7 +350,7 @@ public struct AdGuardSettingExecutor: AdGuardSettingControl {
         do {
             before = try await transport.readUserRules()
         } catch {
-            return (.rejected(.preconditionFailed("rules unavailable")), false, Self.category(for: error))
+            return (.rejected(.preconditionFailed("rules unavailable")), false, FailureMapping.category(for: error))
         }
         if action.isApplied(in: before, domain: domain) { return (.verifiedSuccess(.rule(applied: true)), false, nil) }
         guard let rules = action.apply(to: before, domain: domain) else {
@@ -377,7 +377,7 @@ public struct AdGuardSettingExecutor: AdGuardSettingControl {
         do {
             return .read(try await transport.readFiltering())
         } catch {
-            return .stop((.rejected(.preconditionFailed("status unavailable")), false, Self.category(for: error)))
+            return .stop((.rejected(.preconditionFailed("status unavailable")), false, FailureMapping.category(for: error)))
         }
     }
 
@@ -478,7 +478,7 @@ public struct AdGuardSettingExecutor: AdGuardSettingControl {
         } catch AdGuardClientError.unauthorized {
             return (.rejected(.preconditionFailed("AdGuard Home refused the login")), true, .authentication)
         } catch {
-            return (.unknownAfterDispatch, true, Self.category(for: error))
+            return (.unknownAfterDispatch, true, FailureMapping.category(for: error))
         }
         let after = try? await transport.readFiltering()
         return (.verifiedSuccess(.listsUpdated(updated, after)), true, nil)
@@ -489,7 +489,7 @@ public struct AdGuardSettingExecutor: AdGuardSettingControl {
         do {
             before = try await transport.readUserRules()
         } catch {
-            return (.rejected(.preconditionFailed("rules unavailable")), false, Self.category(for: error))
+            return (.rejected(.preconditionFailed("rules unavailable")), false, FailureMapping.category(for: error))
         }
         if before == rules { return (.verifiedSuccess(.rules(rules)), false, nil) }
         // Someone changed the rules after the editor loaded them: stop
@@ -513,7 +513,7 @@ public struct AdGuardSettingExecutor: AdGuardSettingControl {
         do {
             before = try await transport.readDNS()
         } catch {
-            return (.rejected(.preconditionFailed("DNS settings unavailable")), false, Self.category(for: error))
+            return (.rejected(.preconditionFailed("DNS settings unavailable")), false, FailureMapping.category(for: error))
         }
         if before.contains(changes) { return (.verifiedSuccess(.dns(before)), false, nil) }
         if let stop = await dispatch(.dnsConfig(changes)) { return stop }
@@ -530,7 +530,7 @@ public struct AdGuardSettingExecutor: AdGuardSettingControl {
         do {
             before = try await transport.readDataConfig(kind)
         } catch {
-            return (.rejected(.preconditionFailed("settings unavailable")), false, Self.category(for: error))
+            return (.rejected(.preconditionFailed("settings unavailable")), false, FailureMapping.category(for: error))
         }
         guard var config = before.object else {
             return (.rejected(.preconditionFailed("AdGuard Home did not send its settings.")), false, .malformedResponse)
@@ -556,7 +556,7 @@ public struct AdGuardSettingExecutor: AdGuardSettingControl {
         } catch AdGuardClientError.unauthorized {
             return (.rejected(.preconditionFailed("AdGuard Home refused the login")), true, .authentication)
         } catch {
-            return (.unknownAfterDispatch, true, Self.category(for: error))
+            return (.unknownAfterDispatch, true, FailureMapping.category(for: error))
         }
     }
 
@@ -565,7 +565,7 @@ public struct AdGuardSettingExecutor: AdGuardSettingControl {
         do {
             return .success(UpstreamTestResult.parse(try await transport.testUpstreams(request)))
         } catch {
-            return .failure(Self.category(for: error))
+            return .failure(FailureMapping.category(for: error))
         }
     }
 
@@ -613,7 +613,7 @@ public struct AdGuardSettingExecutor: AdGuardSettingControl {
                 lastFailure = nil
                 if matches(value) { return (value, value, nil) }
             } catch {
-                lastFailure = Self.category(for: error)
+                lastFailure = FailureMapping.category(for: error)
             }
             // `try?`: a cancelled sleep must not stop verification of an
             // already-dispatched write. We simply loop again immediately.
@@ -670,14 +670,6 @@ public struct AdGuardSettingExecutor: AdGuardSettingControl {
             let requestedMs = ProtectionIntent.milliseconds(from: duration)
             let toleranceMs = ProtectionIntent.milliseconds(from: policy.pauseTolerance)
             return observedMs <= requestedMs && observedMs >= requestedMs - toleranceMs
-        }
-    }
-
-    static func category(for error: Error) -> RefreshFailureCategory {
-        switch error {
-        case let error as AdGuardClientError: LiveRouterBackend.category(for: error)
-        case let error as TransportError: LiveRouterBackend.category(for: error)
-        default: .unavailable
         }
     }
 

@@ -148,7 +148,7 @@ public struct AdGuardServiceExecutor: AdGuardServiceControl {
         do {
             before = try await transport.readConfig()
         } catch {
-            return (.rejected(.preconditionFailed("The router did not say whether AdGuard Home is on.")), false, Self.category(for: error))
+            return (.rejected(.preconditionFailed("The router did not say whether AdGuard Home is on.")), false, FailureMapping.category(for: error))
         }
 
         switch intent {
@@ -168,7 +168,7 @@ public struct AdGuardServiceExecutor: AdGuardServiceControl {
             var answer: AdGuardServiceReading.Answer = .notConfigured
             if transport.canReadStatus {
                 do { answer = .answered(try await transport.readStatus()) }
-                catch { answer = .failed(Self.category(for: error)) }
+                catch { answer = .failed(FailureMapping.category(for: error)) }
             }
             await beforeDispatch(AdGuardServiceReading(config: .success(before), answer: answer, observedAt: clock()))
             let expected = AdGuardServiceState(enabled: false, handlesDNS: before.handlesDNS)
@@ -259,7 +259,7 @@ public struct AdGuardServiceExecutor: AdGuardServiceControl {
                 state.answering = true
                 return (.verifiedSuccess(state), true, nil)
             } catch {
-                lastFailure = Self.category(for: error)
+                lastFailure = FailureMapping.category(for: error)
             }
             guard clock() < deadline else { break }
             try? await sleep(policy.pollInterval)
@@ -280,7 +280,7 @@ public struct AdGuardServiceExecutor: AdGuardServiceControl {
                 lastFailure = nil
                 if matches(config) { return (.verifiedSuccess(AdGuardServiceState(config)), true, nil) }
             } catch {
-                lastFailure = Self.category(for: error)
+                lastFailure = FailureMapping.category(for: error)
             }
             guard clock() < deadline else { break }
             // `try?`: a cancelled sleep must not stop verifying a sent write.
@@ -293,15 +293,6 @@ public struct AdGuardServiceExecutor: AdGuardServiceControl {
     // MARK: Mapping
 
     public static let otherDNSMessage = "The router says another DNS setting is on. Turn it off in the router's settings, then try again."
-
-    static func category(for error: Error) -> RefreshFailureCategory {
-        switch error {
-        case let error as GLiNetRPCError: LiveRouterBackend.category(for: error)
-        case let error as AdGuardClientError: LiveRouterBackend.category(for: error)
-        case let error as TransportError: LiveRouterBackend.category(for: error)
-        default: .unavailable
-        }
-    }
 
     private static func seconds(_ duration: Duration) -> TimeInterval {
         let components = duration.components

@@ -25,7 +25,7 @@ public actor LiveQueryLogService: QueryLogService {
         let attemptedAt = clock()
         let adGuard = adGuard
         let json: JSONValue
-        switch try await LiveRouterBackend.adGuardResult({ try await adGuard.queryLog(query) }) {
+        switch try await FailureMapping.adGuardResult({ try await adGuard.queryLog(query) }) {
         case .success(let value): json = value
         case .failure(let category): return .failure(category, attemptedAt: attemptedAt)
         }
