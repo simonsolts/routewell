@@ -27,6 +27,10 @@ the upstream path and revision, Routewell destination, adaptation date, and
 description of changes. Preserve applicable upstream copyright and license
 notices in those files.
 
+## AdGuard HostlistsRegistry
+
+`RoutewellKit/Sources/RoutewellKit/Resources/adguard-filters.json` is an unmodified copy of `assets/filters.json` from [HostlistsRegistry](https://github.com/AdguardTeam/HostlistsRegistry) by AdGuard and contributors, licensed under GPL-3.0.
+
 The GPLv3 text is included in [LICENSE](LICENSE). These credits supplement,
 rather than replace, applicable license notices and source-distribution
 requirements.

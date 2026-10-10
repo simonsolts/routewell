@@ -257,6 +257,17 @@ public struct AdGuardFilterList: Sendable, Equatable, Codable {
         self.lastUpdated = lastUpdated
     }
 
+    /// The host of `url`, for the Source column. `nil` when it has none.
+    public var host: String? {
+        url.flatMap { URL(string: $0)?.host() }
+    }
+
+    public var lastUpdatedDate: Date? {
+        guard let lastUpdated else { return nil }
+        if let date = try? Date(lastUpdated, strategy: .iso8601) { return date }
+        return try? Date(lastUpdated, strategy: Date.ISO8601FormatStyle(includingFractionalSeconds: true))
+    }
+
     static func parse(_ json: JSONValue) -> AdGuardFilterList {
         AdGuardFilterList(id: json["id"]?.int, name: json["name"]?.string, url: json["url"]?.string,
                           enabled: json["enabled"]?.bool, rulesCount: json["rules_count"]?.int,
@@ -273,8 +284,19 @@ public struct AdGuardFilteringStatus: Sendable, Equatable, Codable {
     public var blocklists: [AdGuardFilterList] = []
     /// `whitelist_filters`; `null` on 4.9.1 when there are none `[verified live]`.
     public var allowlists: [AdGuardFilterList] = []
+    /// `null` is an empty list, `nil` when the field is missing.
+    public var userRules: [String]?
 
     public init() {}
+
+    public func lists(_ kind: FilterListKind) -> [AdGuardFilterList] {
+        kind == .blocklist ? blocklists : allowlists
+    }
+
+    /// The list with this URL, compared as `FilterListURL.matches` does.
+    public func list(_ kind: FilterListKind, url: String) -> AdGuardFilterList? {
+        lists(kind).first { $0.url.map { FilterListURL.matches($0, url) } ?? false }
+    }
 
     public static func parse(_ json: JSONValue) -> AdGuardFilteringStatus {
         var status = AdGuardFilteringStatus()
@@ -282,6 +304,11 @@ public struct AdGuardFilteringStatus: Sendable, Equatable, Codable {
         status.intervalHours = json["interval"]?.int
         status.blocklists = json["filters"]?.array?.map(AdGuardFilterList.parse) ?? []
         status.allowlists = json["whitelist_filters"]?.array?.map(AdGuardFilterList.parse) ?? []
+        switch json["user_rules"] {
+        case .array(let rules)?: status.userRules = rules.compactMap(\.string)
+        case .null?: status.userRules = []
+        default: status.userRules = nil
+        }
         return status
     }
 

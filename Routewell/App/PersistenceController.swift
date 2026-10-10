@@ -4,7 +4,10 @@ import RoutewellKit
 
 @MainActor @Observable
 final class PersistenceController {
-    private(set) var profiles: ProfileSettings
+    private(set) var profiles: ProfileSettings {
+        didSet { if profiles.selectedID != oldValue.selectedID { onSelectionChange?() } }
+    }
+    @ObservationIgnored var onSelectionChange: (() -> Void)?
     private(set) var isLoading = true
     private(set) var isSaving = false
     private(set) var errors: [StoreFile: String] = [:]

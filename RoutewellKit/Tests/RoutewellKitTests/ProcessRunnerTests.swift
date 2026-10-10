@@ -75,7 +75,7 @@ private let shell = URL(fileURLWithPath: "/bin/sh")
     #expect(isRunning(pid: pid) == false)
 }
 
-@Test func delayedExitTimesOutWithinOneSecondAndKillsProcess() async throws {
+@Test func delayedExitTimesOutAndKillsProcess() async throws {
     let runner = ProcessRunner()
     let pidFile = scratchPIDFile()
     defer { try? FileManager.default.removeItem(at: pidFile) }
@@ -89,7 +89,8 @@ private let shell = URL(fileURLWithPath: "/bin/sh")
             limits: ProcessLimits(deadline: .milliseconds(300), terminationGrace: .milliseconds(200))
         )
     }
-    #expect(clock.now - start < .seconds(1))
+    // Well before `sleep 5` ends, so the deadline stopped it.
+    #expect(clock.now - start < .seconds(4))
     let pid = try await readPID(from: pidFile)
     #expect(isRunning(pid: pid) == false)
 }

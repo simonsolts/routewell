@@ -96,6 +96,15 @@ public enum AdGuardWrite: Sendable, Equatable {
     /// `POST control/filtering/set_rules {"rules": [...]}`: the whole custom
     /// rules list (chunk 18, Block or Unblock Domain) `[assumed]`.
     case setRules([String])
+    /// `POST control/filtering/add_url {"name", "url", "whitelist"}`.
+    case addList(name: String, url: String, whitelist: Bool)
+    /// `POST control/filtering/set_url {"url", "whitelist", "data": {"name",
+    /// "url", "enabled"}}`: name and URL go back as read.
+    case setList(url: String, whitelist: Bool, name: String, enabled: Bool)
+    /// `POST control/filtering/remove_url {"url", "whitelist"}`.
+    case removeList(url: String, whitelist: Bool)
+    /// `POST control/filtering/refresh {"whitelist"}` → `{"updated": n}`.
+    case refreshLists(whitelist: Bool)
 
     var httpMethod: String {
         if case .safeSearchSettings = self { return "PUT" }
@@ -114,6 +123,10 @@ public enum AdGuardWrite: Sendable, Equatable {
         case .safeSearchSettings: "control/safesearch/settings"
         case .filteringConfig: "control/filtering/config"
         case .setRules: "control/filtering/set_rules"
+        case .addList: "control/filtering/add_url"
+        case .setList: "control/filtering/set_url"
+        case .removeList: "control/filtering/remove_url"
+        case .refreshLists: "control/filtering/refresh"
         }
     }
 
@@ -127,6 +140,15 @@ public enum AdGuardWrite: Sendable, Equatable {
             .object(["enabled": .bool(enabled), "interval": .number(Double(interval))])
         case .setRules(let rules):
             .object(["rules": .array(rules.map(JSONValue.string))])
+        case .addList(let name, let url, let whitelist):
+            .object(["name": .string(name), "url": .string(url), "whitelist": .bool(whitelist)])
+        case .setList(let url, let whitelist, let name, let enabled):
+            .object(["url": .string(url), "whitelist": .bool(whitelist),
+                     "data": .object(["name": .string(name), "url": .string(url), "enabled": .bool(enabled)])])
+        case .removeList(let url, let whitelist):
+            .object(["url": .string(url), "whitelist": .bool(whitelist)])
+        case .refreshLists(let whitelist):
+            .object(["whitelist": .bool(whitelist)])
         }
     }
 
@@ -137,6 +159,10 @@ public enum AdGuardWrite: Sendable, Equatable {
         case .safeSearchSettings: "set safeSearch"
         case .filteringConfig: "set filtering"
         case .setRules: "set rules"
+        case .addList: "add list"
+        case .setList: "set list"
+        case .removeList: "remove list"
+        case .refreshLists: "refresh lists"
         }
     }
 }
@@ -256,8 +282,13 @@ public actor AdGuardClient {
     /// non-2xx after the retry — is surfaced as a thrown error; the caller
     /// (the mutation executor) treats that as "dispatched, outcome
     /// unknown" rather than replaying the write.
-    public func write(_ write: AdGuardWrite) async throws {
-        try await send(write, previousUnauthorizedStatus: nil)
+    /// Returns the reply's JSON when it has one (`refresh` sends
+    /// `{"updated": n}`), else `nil`.
+    @discardableResult
+    public func write(_ write: AdGuardWrite) async throws -> JSONValue? {
+        let data = try await send(write, previousUnauthorizedStatus: nil)
+        guard !data.isEmpty else { return nil }
+        return try? JSONDecoder().decode(JSONValue.self, from: data)
     }
 
     /// `previousUnauthorizedStatus` is non-nil only on the single retry
@@ -267,7 +298,7 @@ public actor AdGuardClient {
     /// same as "nothing was ever sent" — surface `.unauthorized` (the
     /// original rejection status) rather than `.credentialUnavailable`, so
     /// callers know a dispatch already happened.
-    private func send(_ write: AdGuardWrite, previousUnauthorizedStatus: Int?) async throws {
+    private func send(_ write: AdGuardWrite, previousUnauthorizedStatus: Int?) async throws -> Data {
         let name = write.logName
         let headers: [String: String]
         do {
@@ -294,8 +325,9 @@ public actor AdGuardClient {
         }
 
         let response: HTTPURLResponse
+        let data: Data
         do {
-            (_, response) = try await transport.send(request, limits: limits)
+            (data, response) = try await transport.send(request, limits: limits)
         } catch let error as TransportError {
             await log?.record(LogEvent(level: .warning, kind: .refresh, message: "adguard \(name) failed transport"))
             throw AdGuardClientError.transport(error)
@@ -314,6 +346,7 @@ public actor AdGuardClient {
         }
 
         await log?.record(LogEvent(level: .info, kind: .refresh, message: "adguard \(name) ok"))
+        return data
     }
 
     public func stats() async throws -> AdGuardStatsResponse {

@@ -9,7 +9,7 @@ let package = Package(
         .library(name: "RoutewellMock", targets: ["RoutewellMock"]),
     ],
     targets: [
-        .target(name: "RoutewellKit"),
+        .target(name: "RoutewellKit", resources: [.copy("Resources/adguard-filters.json")]),
         .target(name: "RoutewellMock", dependencies: ["RoutewellKit"]),
         .testTarget(
             name: "RoutewellKitTests",

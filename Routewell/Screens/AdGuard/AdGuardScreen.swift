@@ -36,6 +36,7 @@ struct AdGuardScreen: View {
         switch AdGuardTab(rawValue: model.subpages[.adGuard] ?? "") ?? .overview {
         case .overview: AdGuardOverviewView()
         case .instance: AdGuardInstanceView()
+        case .filters: AdGuardFiltersView()
         case .queryLog:
             // Read live only; there is no saved copy of the log.
             if environment.adGuard.availability == .running {
@@ -102,7 +103,7 @@ struct AdGuardUnreachableView: View {
     }
 }
 
-/// A tab whose chunk has not landed yet (19, 19A).
+/// A tab that is not built yet.
 struct AdGuardPlaceholderTab: View {
     let tab: AdGuardTab
 

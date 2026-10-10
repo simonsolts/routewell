@@ -247,10 +247,23 @@ extension AdGuardPresentation {
             case .filtering: return "AdGuard Home did not change “\(filteringTitle)”."
             case .domainRule(.block, let domain): return "AdGuard Home did not add the rule to block \(domain)."
             case .domainRule(.unblock, let domain): return "AdGuard Home did not add the rule to unblock \(domain)."
+            case .listEnabled(_, _, true): return "AdGuard Home did not turn the list on."
+            case .listEnabled(_, _, false): return "AdGuard Home did not turn the list off."
+            case .addList: return "AdGuard Home did not add the list. Check the URL, and that the router can download it."
+            case .removeList: return "AdGuard Home did not remove the list."
+            case .updateInterval: return "AdGuard Home did not change how often it checks the lists."
+            case .updateLists: return "AdGuard Home did not update the lists."
+            case .saveRules: return "AdGuard Home did not save the custom rules."
             }
         case .conflictingExternalEdit:
-            if case .domainRule = intent { return "The custom rules changed from somewhere else. Refresh to check." }
-            return "Protection changed from somewhere else. Refresh to check."
+            switch intent {
+            case .domainRule: return "The custom rules changed from somewhere else. Refresh to check."
+            // The Filters tab shows an alert for this.
+            case .saveRules: return nil
+            case .listEnabled, .addList, .removeList, .updateInterval, .updateLists:
+                return "The lists changed from somewhere else. Refresh to check."
+            case .protection, .filtering, .feature: return "Protection changed from somewhere else. Refresh to check."
+            }
         case .recoveryFailed, .unknownAfterDispatch:
             return "AdGuard Home did not answer in time. The change may have applied. Refresh to check."
         case .rejected(let rejection):

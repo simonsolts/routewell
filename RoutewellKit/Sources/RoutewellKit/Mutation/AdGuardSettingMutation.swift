@@ -50,6 +50,18 @@ public enum AdGuardSettingIntent: Sendable, Equatable {
     /// Block Domain or Unblock Domain from the Query Log (chunk 18): one
     /// rule in the custom rules.
     case domainRule(DomainRuleAction, domain: String)
+    // Lists are found by URL.
+    /// Turn one list on or off (`set_url`, name and URL as read).
+    case listEnabled(FilterListKind, url: String, enabled: Bool)
+    case addList(FilterListKind, name: String, url: String)
+    case removeList(FilterListKind, url: String)
+    /// "Check every", in hours; `enabled` goes back as read.
+    case updateInterval(hours: Int)
+    /// Update Now for one list kind.
+    case updateLists(FilterListKind)
+    /// Save the custom rules. `loaded` is what the editor started from:
+    /// when AdGuard Home's rules are no longer that, nothing is sent.
+    case saveRules([String], loaded: [String])
 
     /// Writes run only while AdGuard Home runs; the read-only UI is not the
     /// only guard.
@@ -59,7 +71,12 @@ public enum AdGuardSettingIntent: Sendable, Equatable {
         case .protection(let intent): return intent.validate()
         case .domainRule(let action, let domain):
             return action.rule(for: domain) == nil ? .invalidIntent("Not a domain name") : nil
-        case .filtering, .feature: return nil
+        case .addList(_, let name, let url):
+            if name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { return .invalidIntent("Enter a name for the list.") }
+            return FilterListURL.validated(url) == nil ? .invalidIntent("Enter a URL that starts with http:// or https://.") : nil
+        case .updateInterval(let hours):
+            return FilterUpdateInterval.isValid(hours) ? nil : .invalidIntent("Not a check interval")
+        case .filtering, .feature, .listEnabled, .removeList, .updateLists, .saveRules: return nil
         }
     }
 }
@@ -71,6 +88,12 @@ public enum AdGuardSettingState: Sendable, Equatable {
     case feature(Bool?)
     /// The domain rule is in the custom rules, and its opposite is not.
     case rule(applied: Bool)
+    case filters(AdGuardFilteringStatus)
+    /// Update Now: AdGuard Home's `updated` count (`nil` when it sent
+    /// none), and the lists after it.
+    case listsUpdated(Int?, AdGuardFilteringStatus?)
+    /// The custom rules AdGuard Home reported.
+    case rules([String])
 }
 
 /// The calls a setting write needs. Live: AdGuard Home's own API.
@@ -84,6 +107,16 @@ public protocol AdGuardSettingTransport: Sendable {
     /// `control/filtering/status` `user_rules`, as sent.
     func readUserRules() async throws -> [String]
     func write(_ write: AdGuardWrite) async throws
+    /// `POST control/filtering/refresh`: the `updated` count, or `nil`
+    /// when the reply has none.
+    func refreshLists(_ kind: FilterListKind) async throws -> Int?
+}
+
+public extension AdGuardSettingTransport {
+    func refreshLists(_ kind: FilterListKind) async throws -> Int? {
+        try await write(.refreshLists(whitelist: kind.isAllowlist))
+        return nil
+    }
 }
 
 /// Runs one setting write. `nil` from `RouterBackend.adGuardSettings` means
@@ -158,6 +191,12 @@ public struct AdGuardSettingExecutor: AdGuardSettingControl {
         case .filtering(let enabled): step = await performFiltering(enabled: enabled)
         case .feature(let feature, let enabled): step = await performFeature(feature, enabled: enabled)
         case .domainRule(let action, let domain): step = await performDomainRule(action, domain: domain)
+        case .listEnabled(let kind, let url, let enabled): step = await performListEnabled(kind, url: url, enabled: enabled)
+        case .addList(let kind, let name, let url): step = await performAddList(kind, name: name, url: url)
+        case .removeList(let kind, let url): step = await performRemoveList(kind, url: url)
+        case .updateInterval(let hours): step = await performInterval(hours: hours)
+        case .updateLists(let kind): step = await performUpdateLists(kind)
+        case .saveRules(let rules, let loaded): step = await performSaveRules(rules, loaded: loaded)
         }
         await gate.release(token)
         await log?.record(LogEvent(
@@ -274,6 +313,149 @@ public struct AdGuardSettingExecutor: AdGuardSettingControl {
             return (.conflictingExternalEdit(actual: .rule(applied: false)), true, nil)
         }
         return (.verifiedMismatch(expected: .rule(applied: true), actual: .rule(applied: false)), true, nil)
+    }
+
+    // MARK: Filters (gate held)
+
+    /// One fresh `filtering/status` read before a list or interval write.
+    private enum Before { case read(AdGuardFilteringStatus), stop(Step) }
+
+    private func readFilteringBefore() async -> Before {
+        do {
+            return .read(try await transport.readFiltering())
+        } catch {
+            return .stop((.rejected(.preconditionFailed("status unavailable")), false, Self.category(for: error)))
+        }
+    }
+
+    /// Dispatch once, then poll `filtering/status` until `matches`. A
+    /// mismatch reports what AdGuard Home has (`resync`).
+    private func writeFiltering(_ write: AdGuardWrite, expected: AdGuardFilteringStatus,
+                                matches: (AdGuardFilteringStatus) -> Bool) async -> Step {
+        if let stop = await dispatch(write) { return stop }
+        let poll = await poll { try await transport.readFiltering() } matches: { matches($0) }
+        if let matched = poll.matched { return (.verifiedSuccess(.filters(matched)), true, nil) }
+        guard let last = poll.last else { return (.unknownAfterDispatch, true, poll.failure) }
+        return (.verifiedMismatch(expected: .filters(expected), actual: .filters(last)), true, nil)
+    }
+
+    private func performListEnabled(_ kind: FilterListKind, url: String, enabled: Bool) async -> Step {
+        let before: AdGuardFilteringStatus
+        switch await readFilteringBefore() {
+        case .read(let value): before = value
+        case .stop(let stop): return stop
+        }
+        guard let list = before.list(kind, url: url), let listURL = list.url else {
+            return (.rejected(.preconditionFailed("AdGuard Home no longer has this list. Refresh to check.")), false, nil)
+        }
+        if list.enabled == enabled { return (.verifiedSuccess(.filters(before)), false, nil) }
+        // `set_url` replaces name and URL too, so both go back as read.
+        guard let name = list.name else {
+            return (.rejected(.preconditionFailed("AdGuard Home did not send the list's name.")), false, .malformedResponse)
+        }
+        var expected = before
+        Self.setEnabled(enabled, url: listURL, kind: kind, in: &expected)
+        return await writeFiltering(.setList(url: listURL, whitelist: kind.isAllowlist, name: name, enabled: enabled),
+                                    expected: expected) { $0.list(kind, url: listURL)?.enabled == enabled }
+    }
+
+    private func performAddList(_ kind: FilterListKind, name: String, url: String) async -> Step {
+        guard let url = FilterListURL.validated(url) else {
+            return (.rejected(.invalidIntent("Enter a URL that starts with http:// or https://.")), false, nil)
+        }
+        let name = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        let before: AdGuardFilteringStatus
+        switch await readFilteringBefore() {
+        case .read(let value): before = value
+        case .stop(let stop): return stop
+        }
+        if before.list(kind, url: url) != nil {
+            return (.rejected(.preconditionFailed("AdGuard Home already has a list with this URL.")), false, nil)
+        }
+        var expected = before
+        let added = AdGuardFilterList(name: name, url: url, enabled: true)
+        if kind == .blocklist { expected.blocklists.append(added) } else { expected.allowlists.append(added) }
+        return await writeFiltering(.addList(name: name, url: url, whitelist: kind.isAllowlist), expected: expected) {
+            $0.list(kind, url: url) != nil
+        }
+    }
+
+    private func performRemoveList(_ kind: FilterListKind, url: String) async -> Step {
+        let before: AdGuardFilteringStatus
+        switch await readFilteringBefore() {
+        case .read(let value): before = value
+        case .stop(let stop): return stop
+        }
+        // Already gone: nothing to send.
+        guard let listURL = before.list(kind, url: url)?.url else { return (.verifiedSuccess(.filters(before)), false, nil) }
+        var expected = before
+        expected.blocklists.removeAll { kind == .blocklist && $0.url == listURL }
+        expected.allowlists.removeAll { kind == .allowlist && $0.url == listURL }
+        return await writeFiltering(.removeList(url: listURL, whitelist: kind.isAllowlist), expected: expected) {
+            $0.list(kind, url: listURL) == nil
+        }
+    }
+
+    private func performInterval(hours: Int) async -> Step {
+        let before: AdGuardFilteringStatus
+        switch await readFilteringBefore() {
+        case .read(let value): before = value
+        case .stop(let stop): return stop
+        }
+        if before.intervalHours == hours { return (.verifiedSuccess(.filters(before)), false, nil) }
+        // "Filter requests" goes back as read; without it nothing is sent.
+        guard let enabled = before.enabled else {
+            return (.rejected(.preconditionFailed("AdGuard Home did not send whether it filters requests.")), false, .malformedResponse)
+        }
+        var expected = before
+        expected.intervalHours = hours
+        return await writeFiltering(.filteringConfig(enabled: enabled, intervalHours: hours), expected: expected) {
+            $0.intervalHours == hours
+        }
+    }
+
+    /// Recovery class `none`: the count comes from the reply; the read
+    /// after it only refreshes the lists.
+    private func performUpdateLists(_ kind: FilterListKind) async -> Step {
+        let updated: Int?
+        do {
+            updated = try await transport.refreshLists(kind)
+        } catch AdGuardClientError.credentialUnavailable {
+            return (.rejected(.preconditionFailed("credential unavailable")), false, .authentication)
+        } catch AdGuardClientError.unauthorized {
+            return (.rejected(.preconditionFailed("AdGuard Home refused the login")), true, .authentication)
+        } catch {
+            return (.unknownAfterDispatch, true, Self.category(for: error))
+        }
+        let after = try? await transport.readFiltering()
+        return (.verifiedSuccess(.listsUpdated(updated, after)), true, nil)
+    }
+
+    private func performSaveRules(_ rules: [String], loaded: [String]) async -> Step {
+        let before: [String]
+        do {
+            before = try await transport.readUserRules()
+        } catch {
+            return (.rejected(.preconditionFailed("rules unavailable")), false, Self.category(for: error))
+        }
+        if before == rules { return (.verifiedSuccess(.rules(rules)), false, nil) }
+        // Someone changed the rules after the editor loaded them: stop
+        // rather than overwrite their change.
+        if before != loaded { return (.conflictingExternalEdit(actual: .rules(before)), false, nil) }
+        if let stop = await dispatch(.setRules(rules)) { return stop }
+
+        let poll = await poll { try await transport.readUserRules() } matches: { $0 == rules }
+        if poll.matched != nil { return (.verifiedSuccess(.rules(rules)), true, nil) }
+        guard let last = poll.last else { return (.unknownAfterDispatch, true, poll.failure) }
+        if last != before { return (.conflictingExternalEdit(actual: .rules(last)), true, nil) }
+        return (.verifiedMismatch(expected: .rules(rules), actual: .rules(last)), true, nil)
+    }
+
+    private static func setEnabled(_ enabled: Bool, url: String, kind: FilterListKind, in status: inout AdGuardFilteringStatus) {
+        func update(_ lists: inout [AdGuardFilterList]) {
+            for index in lists.indices where lists[index].url == url { lists[index].enabled = enabled }
+        }
+        if kind == .blocklist { update(&status.blocklists) } else { update(&status.allowlists) }
     }
 
     // MARK: Dispatch and verify
@@ -426,4 +608,7 @@ public struct LiveAdGuardSettingTransport: AdGuardSettingTransport {
         return rules.compactMap(\.string)
     }
     public func write(_ write: AdGuardWrite) async throws { try await adGuard.write(write) }
+    public func refreshLists(_ kind: FilterListKind) async throws -> Int? {
+        try await adGuard.write(.refreshLists(whitelist: kind.isAllowlist))?["updated"]?.int
+    }
 }

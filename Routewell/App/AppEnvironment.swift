@@ -14,6 +14,7 @@ final class AppEnvironment {
     let logging: LoggingController
     let trust: TrustController
     let adGuard: AdGuardController
+    let filters: AdGuardFiltersController
     let clients: ClientsController
     let clientDNS: ClientDNSController
     let queryLog: QueryLogController
@@ -94,11 +95,13 @@ final class AppEnvironment {
         // Mock copies stay in memory; live ones use `adguard/<profile>/archive.json`.
         self.adGuard = AdGuardController(model: model, refresh: refresh,
                                          store: AdGuardArchiveStore(root: model.mode == .live ? dataDirectory : nil))
+        self.filters = AdGuardFiltersController(adGuard: adGuard)
         #if DEBUG
         mockBackend = backend as? MockRouterBackend
         #endif
         sshSetup.save = { [weak self] settings in self?.updateSSHSettings(settings) }
         adGuard.profileID = { [weak self] in self?.persistence.selectedProfile?.id }
+        persistence.onSelectionChange = { [weak self] in self?.filters.reset() }
         refresh.onAdGuardReading = { [weak self] reading, token in await self?.adGuard.observe(reading, token: token) }
         refresh.onAdGuardOverview = { [weak self] lease in try await self?.adGuard.refreshOverview(using: lease) }
         onboarding.environment = self
