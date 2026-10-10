@@ -52,47 +52,40 @@ private func fingerprint(_ byte: UInt8) -> CertificateFingerprint {
     #expect(decision == .untrustedChanged(expected: fingerprint(1), actual: fingerprint(2)))
 }
 
-@Test func inMemoryStoreApproveReplacesAndRevokeRemoves() async throws {
-    let store = InMemoryEndpointTrustStore()
+enum TrustStoreKind: CaseIterable, Sendable {
+    case inMemory, persistent
+}
+
+/// `reopen` reads a persistent store's file again.
+private func trustStore(_ kind: TrustStoreKind) async throws -> (store: any EndpointTrustStore, reopen: () async throws -> any EndpointTrustStore, directory: URL?) {
+    switch kind {
+    case .inMemory:
+        let store = InMemoryEndpointTrustStore()
+        return (store, { store }, nil)
+    case .persistent:
+        let directory = try temporaryDirectory()
+        let open = { try await PersistentEndpointTrustStore(store: AtomicJSONStore(directory: directory)) as any EndpointTrustStore }
+        return (try await open(), open, directory)
+    }
+}
+
+@Test(arguments: TrustStoreKind.allCases)
+func storeApprovesReplacesAndRevokes(kind: TrustStoreKind) async throws {
+    let (store, reopen, directory) = try await trustStore(kind)
+    defer { if let directory { try? FileManager.default.removeItem(at: directory) } }
     let entry = TrustedEndpoint(host: "router.lan", port: 443, fingerprint: fingerprint(1), approvedAt: Date())
     #expect(await store.trusted(host: "router.lan", port: 443) == nil)
     try await store.approve(entry)
-    #expect(await store.trusted(host: "router.lan", port: 443) == entry)
+    #expect(try await reopen().trusted(host: "router.lan", port: 443) == entry)
 
     let replacement = TrustedEndpoint(host: "router.lan", port: 443, fingerprint: fingerprint(2), approvedAt: Date())
     try await store.approve(replacement)
     #expect(await store.all() == [replacement])
+    #expect(try await reopen().all() == [replacement])
 
     try await store.revoke(host: "router.lan", port: 443)
     #expect(await store.trusted(host: "router.lan", port: 443) == nil)
-    #expect(await store.all().isEmpty)
-}
-
-@Test func persistentStoreRoundTripsAcrossInstances() async throws {
-    let directory = try temporaryDirectory()
-    defer { try? FileManager.default.removeItem(at: directory) }
-    let entry = TrustedEndpoint(host: "router.lan", port: 443, fingerprint: fingerprint(1), approvedAt: Date())
-
-    let first = try await PersistentEndpointTrustStore(store: AtomicJSONStore(directory: directory))
-    try await first.approve(entry)
-
-    let second = try await PersistentEndpointTrustStore(store: AtomicJSONStore(directory: directory))
-    #expect(await second.trusted(host: "router.lan", port: 443) == entry)
-}
-
-@Test func persistentStoreApproveReplacesExistingEntry() async throws {
-    let directory = try temporaryDirectory()
-    defer { try? FileManager.default.removeItem(at: directory) }
-    let store = try await PersistentEndpointTrustStore(store: AtomicJSONStore(directory: directory))
-    let entry = TrustedEndpoint(host: "router.lan", port: 443, fingerprint: fingerprint(1), approvedAt: Date())
-    try await store.approve(entry)
-
-    let replacement = TrustedEndpoint(host: "router.lan", port: 443, fingerprint: fingerprint(2), approvedAt: Date())
-    try await store.approve(replacement)
-    #expect(await store.all() == [replacement])
-
-    let reloaded = try await PersistentEndpointTrustStore(store: AtomicJSONStore(directory: directory))
-    #expect(await reloaded.all() == [replacement])
+    #expect(try await reopen().all().isEmpty)
 }
 
 @Test func persistentStoreApproveKeepsOldValueWhenSaveFails() async throws {
@@ -126,16 +119,4 @@ private func fingerprint(_ byte: UInt8) -> CertificateFingerprint {
 
     await #expect(throws: StoreError.writeFailed) { try await store.revoke(host: "router.lan", port: 443) }
     #expect(await store.trusted(host: "router.lan", port: 443) == original)
-}
-
-@Test func persistentStoreRevokePersists() async throws {
-    let directory = try temporaryDirectory()
-    defer { try? FileManager.default.removeItem(at: directory) }
-    let store = try await PersistentEndpointTrustStore(store: AtomicJSONStore(directory: directory))
-    let entry = TrustedEndpoint(host: "router.lan", port: 443, fingerprint: fingerprint(1), approvedAt: Date())
-    try await store.approve(entry)
-    try await store.revoke(host: "router.lan", port: 443)
-
-    let reloaded = try await PersistentEndpointTrustStore(store: AtomicJSONStore(directory: directory))
-    #expect(await reloaded.all().isEmpty)
 }

@@ -250,7 +250,7 @@ import Testing
     }
 
     /// A chunk 16 file has no Overview sections and still loads.
-    @Test func chunk16ArchiveStillDecodes() throws {
+    @Test func olderArchiveStillDecodes() throws {
         let old = #"{"status":{"savedAt":0,"value":{"dnsAddresses":[],"version":"0.107.73"}},"config":{"savedAt":0,"value":{"enabled":true}}}"#
         let archive = try JSONDecoder().decode(AdGuardArchive.self, from: Data(old.utf8))
         #expect(archive.status?.value.version == "0.107.73")

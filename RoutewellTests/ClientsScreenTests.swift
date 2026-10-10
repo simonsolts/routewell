@@ -71,7 +71,7 @@ private func mac(_ raw: String) -> MACAddress { MACAddress(raw)! }
     #expect(ClientsPaneContent.resolve(selection: [mac("AA:00:00:00:00:09")], entries: entries) == .none)
 }
 
-@Test func overviewShowsUnknownForLaterChunks() {
+@Test func overviewShowsUnknownForUnreadValues() {
     let client = Client(mac: mac("66:29:ea:33:fb:78"), ip: "192.168.8.192", hostname: "iPhone", online: .value(true),
                         connection: ClientConnection(medium: .value(.wifi), band: "2.4 GHz", ssid: "Homewifi", interface: "rai0"),
                         signal: .value(-66), dnsQueries: .value(12_550), dnsBlocked: .value(107))

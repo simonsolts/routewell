@@ -96,42 +96,6 @@ private func temporaryDirectory() throws -> URL {
     }
 }
 
-// MARK: - SSHHostKeyStore
-
-@Test func hostKeyStoreApproveReplaceAndRevokeRoundTrip() async throws {
-    let directory = try temporaryDirectory()
-    defer { try? FileManager.default.removeItem(at: directory) }
-    let store = SSHHostKeyStore(directory: directory)
-
-    #expect(try await store.storedKeyLine(host: "router.lan", port: 22) == nil)
-
-    try await store.approve(host: "router.lan", port: 22, keyLine: "router.lan ssh-ed25519 AAAA")
-    #expect(try await store.storedKeyLine(host: "router.lan", port: 22) == "router.lan ssh-ed25519 AAAA")
-
-    try await store.approve(host: "router.lan", port: 22, keyLine: "router.lan ssh-ed25519 BBBB")
-    #expect(try await store.storedKeyLine(host: "router.lan", port: 22) == "router.lan ssh-ed25519 BBBB")
-
-    let attributes = try FileManager.default.attributesOfItem(atPath: store.knownHostsFile.path)
-    #expect((attributes[.posixPermissions] as? NSNumber)?.uint16Value == 0o600)
-
-    try await store.revoke(host: "router.lan", port: 22)
-    #expect(try await store.storedKeyLine(host: "router.lan", port: 22) == nil)
-}
-
-@Test func hostKeyStoreDistinguishesNonDefaultPort() async throws {
-    let directory = try temporaryDirectory()
-    defer { try? FileManager.default.removeItem(at: directory) }
-    let store = SSHHostKeyStore(directory: directory)
-
-    try await store.approve(host: "router.lan", port: 2222, keyLine: "[router.lan]:2222 ssh-ed25519 AAAA")
-    #expect(try await store.storedKeyLine(host: "router.lan", port: 2222) == "[router.lan]:2222 ssh-ed25519 AAAA")
-    #expect(try await store.storedKeyLine(host: "router.lan", port: 22) == nil)
-
-    try await store.approve(host: "router.lan", port: 22, keyLine: "router.lan ssh-ed25519 BBBB")
-    #expect(try await store.storedKeyLine(host: "router.lan", port: 2222) == "[router.lan]:2222 ssh-ed25519 AAAA")
-    #expect(try await store.storedKeyLine(host: "router.lan", port: 22) == "router.lan ssh-ed25519 BBBB")
-}
-
 // MARK: - SSHHostKeyScanner
 
 @Test func scannerPlanBuildsExpectedArgv() {

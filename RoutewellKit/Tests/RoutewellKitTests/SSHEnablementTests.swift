@@ -107,45 +107,81 @@ private func keyscanOutput(ed25519: String = keyA) -> Data {
     #expect(Set(keys) == ["enabled", "port", "user", "useAgent"])
 }
 
-// MARK: - Host-key trust
+// MARK: - Host keys
 
-@Test func hostKeyNewKeyIsStoredOnlyWhenAccepted() async throws {
-    let directory = try temporaryDirectory()
-    defer { try? FileManager.default.removeItem(at: directory) }
-    let store = SSHHostKeyStore(directory: directory)
-    let candidates = SSHHostKeyScanner.parse(keyscanOutput(), host: "192.0.2.1", port: 22)
-    #expect(candidates.count == 2)
+struct SSHHostKeyStoreTests {
+    @Test func hostKeyStoreApproveReplaceAndRevokeRoundTrip() async throws {
+        let directory = try temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let store = SSHHostKeyStore(directory: directory)
 
-    let evaluation = try #require(SSHHostKeyTrust.evaluate(candidates, trustedKeyLine: nil))
-    guard case .new(let candidate) = evaluation else { Issue.record("expected a new key"); return }
-    #expect(candidate.algorithm == "ssh-ed25519")
-    #expect(candidate.fingerprintSHA256.hasPrefix("SHA256:"))
+        #expect(try await store.storedKeyLine(host: "router.lan", port: 22) == nil)
 
-    // Reject: nothing is stored.
-    #expect(SSHHostKeyTrust.decide(evaluation, approved: false) == .rejected)
-    #expect(try await store.storedKeyLine(host: "192.0.2.1", port: 22) == nil)
+        try await store.approve(host: "router.lan", port: 22, keyLine: "router.lan ssh-ed25519 AAAA")
+        #expect(try await store.storedKeyLine(host: "router.lan", port: 22) == "router.lan ssh-ed25519 AAAA")
 
-    // Accept: the exact key is stored with the host field ssh looks up.
-    #expect(SSHHostKeyTrust.decide(evaluation, approved: true) == .trusted)
-    try await SSHHostKeyTrust.store(candidate, host: "192.0.2.1", port: 22, in: store)
-    #expect(try await store.storedKeyLine(host: "192.0.2.1", port: 22) == "192.0.2.1 ssh-ed25519 \(keyA)")
-    #expect(candidate.normalized(host: "router.lan", port: 2222) == "[router.lan]:2222 ssh-ed25519 \(keyA)")
+        try await store.approve(host: "router.lan", port: 22, keyLine: "router.lan ssh-ed25519 BBBB")
+        #expect(try await store.storedKeyLine(host: "router.lan", port: 22) == "router.lan ssh-ed25519 BBBB")
 
-    let again = SSHHostKeyTrust.evaluate(candidates, trustedKeyLine: "192.0.2.1 ssh-ed25519 \(keyA)")
-    #expect(again == .matches(candidate))
-    #expect(SSHHostKeyTrust.decide(again!, approved: false) == .trusted)
-}
+        let attributes = try FileManager.default.attributesOfItem(atPath: store.knownHostsFile.path)
+        #expect((attributes[.posixPermissions] as? NSNumber)?.uint16Value == 0o600)
 
-@Test func hostKeyMismatchAlwaysRejectsWhateverTheAnswer() throws {
-    let trusted = "192.0.2.1 ssh-ed25519 \(keyA)"
-    let changed = SSHHostKeyScanner.parse(keyscanOutput(ed25519: keyB), host: "192.0.2.1", port: 22)
-    let evaluation = try #require(SSHHostKeyTrust.evaluate(changed, trustedKeyLine: trusted))
-    guard case .changed(let old, let presented) = evaluation else { Issue.record("expected a changed key"); return }
-    #expect(old == SSHHostKeyCandidate(keyLine: trusted)?.fingerprintSHA256)
-    #expect(presented.key == keyB)
-    #expect(old != presented.fingerprintSHA256)
-    #expect(SSHHostKeyTrust.decide(evaluation, approved: true) == .rejected)
-    #expect(SSHHostKeyTrust.decide(evaluation, approved: false) == .rejected)
+        try await store.revoke(host: "router.lan", port: 22)
+        #expect(try await store.storedKeyLine(host: "router.lan", port: 22) == nil)
+    }
+
+    @Test func hostKeyStoreDistinguishesNonDefaultPort() async throws {
+        let directory = try temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let store = SSHHostKeyStore(directory: directory)
+
+        try await store.approve(host: "router.lan", port: 2222, keyLine: "[router.lan]:2222 ssh-ed25519 AAAA")
+        #expect(try await store.storedKeyLine(host: "router.lan", port: 2222) == "[router.lan]:2222 ssh-ed25519 AAAA")
+        #expect(try await store.storedKeyLine(host: "router.lan", port: 22) == nil)
+
+        try await store.approve(host: "router.lan", port: 22, keyLine: "router.lan ssh-ed25519 BBBB")
+        #expect(try await store.storedKeyLine(host: "router.lan", port: 2222) == "[router.lan]:2222 ssh-ed25519 AAAA")
+        #expect(try await store.storedKeyLine(host: "router.lan", port: 22) == "router.lan ssh-ed25519 BBBB")
+    }
+
+    @Test func hostKeyNewKeyIsStoredOnlyWhenAccepted() async throws {
+        let directory = try temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let store = SSHHostKeyStore(directory: directory)
+        let candidates = SSHHostKeyScanner.parse(keyscanOutput(), host: "192.0.2.1", port: 22)
+        #expect(candidates.count == 2)
+
+        let evaluation = try #require(SSHHostKeyTrust.evaluate(candidates, trustedKeyLine: nil))
+        guard case .new(let candidate) = evaluation else { Issue.record("expected a new key"); return }
+        #expect(candidate.algorithm == "ssh-ed25519")
+        #expect(candidate.fingerprintSHA256.hasPrefix("SHA256:"))
+
+        // Reject: nothing is stored.
+        #expect(SSHHostKeyTrust.decide(evaluation, approved: false) == .rejected)
+        #expect(try await store.storedKeyLine(host: "192.0.2.1", port: 22) == nil)
+
+        // Accept: the exact key is stored with the host field ssh looks up.
+        #expect(SSHHostKeyTrust.decide(evaluation, approved: true) == .trusted)
+        try await SSHHostKeyTrust.store(candidate, host: "192.0.2.1", port: 22, in: store)
+        #expect(try await store.storedKeyLine(host: "192.0.2.1", port: 22) == "192.0.2.1 ssh-ed25519 \(keyA)")
+        #expect(candidate.normalized(host: "router.lan", port: 2222) == "[router.lan]:2222 ssh-ed25519 \(keyA)")
+
+        let again = SSHHostKeyTrust.evaluate(candidates, trustedKeyLine: "192.0.2.1 ssh-ed25519 \(keyA)")
+        #expect(again == .matches(candidate))
+        #expect(SSHHostKeyTrust.decide(again!, approved: false) == .trusted)
+    }
+
+    @Test func hostKeyMismatchAlwaysRejectsWhateverTheAnswer() throws {
+        let trusted = "192.0.2.1 ssh-ed25519 \(keyA)"
+        let changed = SSHHostKeyScanner.parse(keyscanOutput(ed25519: keyB), host: "192.0.2.1", port: 22)
+        let evaluation = try #require(SSHHostKeyTrust.evaluate(changed, trustedKeyLine: trusted))
+        guard case .changed(let old, let presented) = evaluation else { Issue.record("expected a changed key"); return }
+        #expect(old == SSHHostKeyCandidate(keyLine: trusted)?.fingerprintSHA256)
+        #expect(presented.key == keyB)
+        #expect(old != presented.fingerprintSHA256)
+        #expect(SSHHostKeyTrust.decide(evaluation, approved: true) == .rejected)
+        #expect(SSHHostKeyTrust.decide(evaluation, approved: false) == .rejected)
+    }
 }
 
 @Test func liveScannerRunsKeyscanWithoutCredentialsAndMapsFailures() async throws {
