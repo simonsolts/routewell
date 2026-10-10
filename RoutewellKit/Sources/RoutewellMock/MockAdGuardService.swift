@@ -103,7 +103,7 @@ public actor MockAdGuardTransport: AdGuardServiceTransport {
     /// A `dns_config` field AdGuard Home accepts but does not change.
     var ignoredDNSField: String?
     var failsUpstreamTest = false
-    // Chunk 19B: the Instance tab.
+    // The Instance tab.
     var statsRetention = MockAdGuardTransport.retentionMilliseconds
     var queryLogRetention = MockAdGuardTransport.queryLogRetention
     /// `config.yaml` on the router; `nil` builds it from the settings.
@@ -111,6 +111,8 @@ public actor MockAdGuardTransport: AdGuardServiceTransport {
     /// A restored file AdGuard Home cannot start with ("Restore fails").
     var failsRestore = false
     var brokenConfig = false
+    /// How often `version.json` was read, for tests.
+    public internal(set) var versionChecks = 0
     /// Safe Search's engine flags, sent back unchanged by the switch.
     var safeSearchEngines: [String: JSONValue] = ["bing": .bool(true), "duckduckgo": .bool(true), "ecosia": .bool(true),
         "google": .bool(true), "pixabay": .bool(true), "yandex": .bool(true), "youtube": .bool(true)]

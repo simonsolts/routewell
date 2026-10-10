@@ -354,12 +354,11 @@ struct AdGuardBackupStoreTests {
         let profile = UUID()
         var reading = AdGuardOverviewReading(range: .day, stats: .failure(.timeout), statsConfig: .failure(.timeout),
                                              protection: .failure(.timeout), filtering: .failure(.timeout), observedAt: Date(timeIntervalSince1970: 0))
-        reading.version = .success(AdGuardVersionCheck(disabled: false))
         reading.queryLog = .success(AdGuardQueryLogConfig(enabled: true, intervalMilliseconds: 86_400_000))
         await store.save(reading, for: profile)
-        reading.observedAt = Date(timeIntervalSince1970: 120)
+        await store.save(version: AdGuardVersionCheck(disabled: true), at: Date(timeIntervalSince1970: 10), for: profile)
+        reading.observedAt = Date(timeIntervalSince1970: 200)
         reading.queryLog = .failure(.timeout)
-        reading.version = .success(AdGuardVersionCheck(disabled: true))
         await store.save(reading, for: profile)
         let saved = try #require(await store.archive(for: profile)?.instance)
         #expect(saved.value == AdGuardInstanceInfo(version: AdGuardVersionCheck(disabled: true),

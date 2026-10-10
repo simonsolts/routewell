@@ -190,7 +190,6 @@ public struct AdGuardStats: Sendable, Equatable, Codable {
 }
 
 /// `GET control/stats/config` (`GetStatsConfigResponse`) `[assumed]`.
-/// `ignored` is kept so chunk 19B can send the config back unchanged.
 public struct AdGuardStatsConfig: Sendable, Equatable, Codable {
     public var enabled: Bool?
     /// Retention in milliseconds.
@@ -354,8 +353,7 @@ public struct AdGuardOverviewReading: Sendable, Equatable {
     public var filtering: Result<AdGuardFilteringStatus, RefreshFailureCategory>
     /// `control/dns_info`, for the DNS tab.
     public var dns: Result<AdGuardDNSSettings, RefreshFailureCategory>
-    /// The Instance tab: `version.json` and `querylog/config`.
-    public var version: Result<AdGuardVersionCheck, RefreshFailureCategory> = .failure(.unavailable)
+    /// The Instance tab: `querylog/config`.
     public var queryLog: Result<AdGuardQueryLogConfig, RefreshFailureCategory> = .failure(.unavailable)
     public var observedAt: Date
 

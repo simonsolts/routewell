@@ -51,9 +51,8 @@ import RoutewellMock
     let analytics = ScreenRefreshPlan.resolve(destination: "analytics", segment: "Overview")
     #expect(Set(analytics.map(\.area)).isSuperset(of: ScreenRefreshPlan.overviewAreas))
     #expect(analytics.first(where: { $0.area == .telemetry })?.interval == .seconds(2))
-    // Chunk 16: AdGuard Home reads only the Overview areas; its tabs add theirs later.
     let adGuard = ScreenRefreshPlan.resolve(destination: "adGuard", segment: "Instance")
-    #expect(Set(adGuard.map(\.area)) == ScreenRefreshPlan.overviewAreas)
+    #expect(Set(adGuard.map(\.area)) == ScreenRefreshPlan.overviewAreas.union([.adGuardOverview, .ssh]))
     let network = ScreenRefreshPlan.resolve(destination: "network", segment: "Overview")
     #expect(network.first(where: { $0.area == .publicIP })?.interval == .seconds(600))
     #expect(network.first(where: { $0.area == .network })?.interval == .seconds(30))

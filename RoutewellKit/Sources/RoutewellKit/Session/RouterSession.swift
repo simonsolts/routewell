@@ -241,6 +241,13 @@ public actor RouterSession {
         return try await fenced(lease) { await settings.testUpstreams(request, availability: availability) }
     }
 
+    /// The update check, fenced like the reads. `nil` without an AdGuard
+    /// Home connection.
+    public func adGuardVersionCheck(using lease: SessionLease) async throws -> Result<AdGuardVersionCheck, RefreshFailureCategory>? {
+        guard let service = lease.backend.adGuardOverview else { try validateBefore(lease); return nil }
+        return try await fenced(lease) { try await service.versionCheck() }
+    }
+
     /// Back Up Now's read of `config.yaml`, fenced like the reads.
     public func readAdGuardConfig(using lease: SessionLease, availability: AdGuardAvailability)
         async throws -> Result<AdGuardConfigFile, AdGuardBackupFailure> {

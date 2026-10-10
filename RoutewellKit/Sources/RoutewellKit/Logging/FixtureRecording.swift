@@ -60,7 +60,7 @@ public enum FixtureRecordingPlan {
         .init(.adGuard, method: "control/querylog?limit=500&search={newest_domain}", fileName: "adguard-querylog-search-domain.json"),
         .init(.adGuard, method: "control/querylog?limit=500&response_status=blocked", fileName: "adguard-querylog-status-blocked.json"),
         .init(.adGuard, method: "control/dns_info", fileName: "adguard-dns-info.json"),
-        // Chunk 19B: the Instance tab. `version.json` is a POST that only reads.
+        // The Instance tab. `version.json` is a POST that only reads.
         .init(.adGuard, method: "control/version.json", fileName: "adguard-version.json"),
         .init(.adGuard, method: "control/querylog/config", fileName: "adguard-querylog-config.json"),
         // Chunk 15: the SSH reads. Recorded only when SSH is set up for the

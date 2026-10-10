@@ -77,7 +77,14 @@ extension MockAdGuardTransport: AdGuardSettingTransport, AdGuardOverviewService 
 
     static func timestamp(_ date: Date) -> String { date.formatted(.iso8601) }
 
-    func versionCheck() -> AdGuardVersionCheck {
+    public func versionCheck() async throws -> Result<AdGuardVersionCheck, RefreshFailureCategory> {
+        try Task.checkCancellation()
+        guard currentStatus() != nil else { return .failure(.timeout) }
+        versionChecks += 1
+        return .success(currentVersionCheck())
+    }
+
+    func currentVersionCheck() -> AdGuardVersionCheck {
         switch scenario {
         case .updateAvailable: AdGuardVersionCheck(disabled: false, newVersion: "v\(Self.newVersion)",
                                                    announcement: "AdGuard Home v\(Self.newVersion) is now available!")
@@ -174,7 +181,6 @@ extension MockAdGuardTransport: AdGuardSettingTransport, AdGuardOverviewService 
         reading.dns = .success(dns)
         reading.statsConfig = .success(AdGuardStatsConfig(enabled: true, intervalMilliseconds: statsRetention))
         if !range.isAvailable(retentionMilliseconds: statsRetention) { reading.stats = .failure(.unavailable) }
-        reading.version = .success(versionCheck())
         reading.queryLog = .success(AdGuardQueryLogConfig(enabled: true, intervalMilliseconds: queryLogRetention, anonymizeClientIP: false))
         return reading
     }
@@ -294,7 +300,7 @@ extension AdGuardSettingVerifyPolicy {
     }
 }
 
-/// Chunk 19B: `config.yaml` in memory. A written file's DNS values become
+/// `config.yaml` in memory. A written file's DNS values become
 /// AdGuard Home's when it starts again. In "Restore fails" the first file
 /// written stops AdGuard Home from answering.
 extension MockAdGuardTransport: AdGuardConfigFileTransport {

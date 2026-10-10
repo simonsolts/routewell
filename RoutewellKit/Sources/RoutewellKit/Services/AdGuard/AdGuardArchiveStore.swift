@@ -171,14 +171,20 @@ public actor AdGuardArchiveStore {
             next.dns = .init(savedAt: at, value: dns)
             changed = true
         }
-        let version = try? overview.version.get(), queryLog = try? overview.queryLog.get()
-        if version != nil || queryLog != nil, force || Self.isDue(next.instance?.savedAt, at: at) {
-            // A part whose read failed keeps its saved value.
-            next.instance = .init(savedAt: at, value: AdGuardInstanceInfo(version: version ?? next.instance?.value.version,
-                                                                         queryLog: queryLog ?? next.instance?.value.queryLog))
+        if case .success(let queryLog) = overview.queryLog, force || Self.isDue(next.instance?.savedAt, at: at) {
+            next.instance = .init(savedAt: at, value: AdGuardInstanceInfo(version: next.instance?.value.version, queryLog: queryLog))
             changed = true
         }
         guard changed else { return nil }
+        return await commit(next, for: profile, generation: generation)
+    }
+
+    /// Saves the update check, read once per session.
+    @discardableResult
+    public func save(version: AdGuardVersionCheck, at date: Date, for profile: UUID) async -> StoreError? {
+        let generation = generations[profile, default: 0]
+        var next = await archive(for: profile) ?? AdGuardArchive()
+        next.instance = .init(savedAt: date, value: AdGuardInstanceInfo(version: version, queryLog: next.instance?.value.queryLog))
         return await commit(next, for: profile, generation: generation)
     }
 

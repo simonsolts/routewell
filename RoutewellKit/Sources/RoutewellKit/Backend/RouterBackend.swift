@@ -26,7 +26,7 @@ public protocol RouterBackend: Sendable {
     /// AdGuard Home › Overview's reads (chunk 17). `nil` without an AdGuard
     /// Home connection.
     var adGuardOverview: (any AdGuardOverviewService)? { get }
-    /// Back Up Now and Restore… for AdGuard Home's config (chunk 19B).
+    /// Back Up Now and Restore… for AdGuard Home's config.
     /// `nil` without SSH or without an AdGuard Home connection.
     var adGuardBackups: (any AdGuardBackupControl)? { get }
 }

@@ -48,6 +48,10 @@ final class AdGuardController {
     private var verifiedFiltering: (value: Bool, at: Date)?
     private var verifiedFilters: (status: AdGuardFilteringStatus, at: Date)?
     private var verifiedDNS: (settings: AdGuardDNSSettings, at: Date)?
+    private var verifiedRetention: [AdGuardDataKind: (milliseconds: Int, at: Date)] = [:]
+    /// The update check, read once per session.
+    private var version: (token: SessionToken, check: AdGuardVersionCheck)?
+    private var versionReading: SessionToken?
     @ObservationIgnored private var pauseEndTask: Task<Void, Never>?
 
     init(model: AppModel, refresh: RefreshController, store: AdGuardArchiveStore) {
@@ -122,8 +126,38 @@ final class AdGuardController {
     }
 
     var statsConfig: AdGuardStatsConfig? {
-        if availability == .running { return try? liveOverview?.statsConfig.get() }
-        return archive?.statsConfig?.value
+        guard availability == .running else { return archive?.statsConfig?.value }
+        guard let live = liveOverview, var config = try? live.statsConfig.get() else { return nil }
+        if let verified = verifiedRetention[.stats], live.observedAt < verified.at { config.intervalMilliseconds = verified.milliseconds }
+        return config
+    }
+
+    var queryLogConfig: AdGuardQueryLogConfig? {
+        guard availability == .running else { return archive?.instance?.value.queryLog }
+        guard let live = liveOverview, var config = try? live.queryLog.get() else { return nil }
+        if let verified = verifiedRetention[.queryLog], live.observedAt < verified.at { config.intervalMilliseconds = verified.milliseconds }
+        return config
+    }
+
+    /// The update check: this session's while running, else the saved one.
+    var versionCheck: AdGuardVersionCheck? {
+        guard availability == .running else { return archive?.instance?.value.version }
+        guard let version, version.token == model.session.expectedToken else { return nil }
+        return version.check
+    }
+
+    /// Reads `version.json` once per session while AdGuard Home runs. Each
+    /// read can make AdGuard Home ask the internet, so refreshes skip it.
+    func loadVersionCheck() async {
+        guard availability == .running, let lease = model.session.lease, let profile = profileID(),
+              version?.token != lease.token, versionReading != lease.token else { return }
+        versionReading = lease.token
+        defer { if versionReading == lease.token { versionReading = nil } }
+        guard case .success(let check)?? = try? await model.session.routerSession.adGuardVersionCheck(using: lease),
+              lease.token == model.session.expectedToken else { return }
+        version = (lease.token, check)
+        await store.save(version: check, at: Date(), for: profile)
+        if profile == profileID() { archive = await store.archive(for: profile) }
     }
 
     var protectionOptions: ProtectionOptions? {
@@ -350,6 +384,8 @@ final class AdGuardController {
                     self.verifiedFilters = (status, report.finishedAt)
                 case (_, .dns(let settings)):
                     self.verifiedDNS = (settings, report.finishedAt)
+                case (_, .retention(let kind, let milliseconds?)):
+                    self.verifiedRetention[kind] = (milliseconds, report.finishedAt)
                 case (_, .rules(let rules)):
                     if var status = self.filtering {
                         status.userRules = rules

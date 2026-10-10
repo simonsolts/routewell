@@ -4,10 +4,17 @@ import Foundation
 /// `RouterBackend.adGuardOverview`. `nil` without an AdGuard Home connection.
 public protocol AdGuardOverviewService: Sendable {
     /// Stats for `range`, the stats retention, the three switches, the
-    /// blocklists, the DNS settings, the update check, and the query log
-    /// retention. Throws only `CancellationError`; every other failure is
+    /// blocklists, the DNS settings, and the query log retention. Throws only `CancellationError`; every other failure is
     /// a part of the reading.
     func overview(range: AdGuardStatsRange) async throws -> AdGuardOverviewReading
+    /// `version.json` with `recheck_now` false. It can make AdGuard Home
+    /// ask the internet, so the app reads it once per session, not on
+    /// every refresh. Throws only `CancellationError`.
+    func versionCheck() async throws -> Result<AdGuardVersionCheck, RefreshFailureCategory>
+}
+
+public extension AdGuardOverviewService {
+    func versionCheck() async throws -> Result<AdGuardVersionCheck, RefreshFailureCategory> { .failure(.unavailable) }
 }
 
 /// Reads the retention first, because `recent` must not exceed it, then the
@@ -33,7 +40,6 @@ public struct LiveAdGuardOverviewService: AdGuardOverviewService {
             guard let settings = AdGuardDNSSettings.parse(try await adGuard.read(.dnsInfo)) else { throw AdGuardClientError.malformedResponse }
             return settings
         }
-        async let version = Self.part { AdGuardVersionCheck.parse(try await adGuard.versionCheck()) }
         async let queryLog = Self.part { AdGuardQueryLogConfig.parse(try await adGuard.read(.queryLogConfig)) }
 
         let statsConfig = try await config
@@ -50,9 +56,13 @@ public struct LiveAdGuardOverviewService: AdGuardOverviewService {
         }
         var reading = AdGuardOverviewReading(range: range, stats: stats, rangeHonoured: honoured, statsConfig: statsConfig,
                                              protection: protection, filtering: try await filtering, dns: try await dns, observedAt: observedAt)
-        reading.version = try await version
         reading.queryLog = try await queryLog
         return reading
+    }
+
+    public func versionCheck() async throws -> Result<AdGuardVersionCheck, RefreshFailureCategory> {
+        let adGuard = adGuard
+        return try await Self.part { AdGuardVersionCheck.parse(try await adGuard.versionCheck()) }
     }
 
     /// The stats for `range`, and whether the reply honoured `recent`.
