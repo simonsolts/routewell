@@ -10,6 +10,9 @@ public actor AdGuardBackupStore {
 
     private let root: URL?
     private var memory: [UUID: [(record: AdGuardBackup, data: Data)]] = [:]
+    /// A save that waited on the router while it was removed must not bring
+    /// the folder back.
+    private var removed: Set<UUID> = []
 
     public init(root: URL?) {
         self.root = root
@@ -39,6 +42,7 @@ public actor AdGuardBackupStore {
     /// its file.
     public func save(_ file: AdGuardConfigFile, kind: AdGuardBackup.Kind, version: String?, for profile: UUID,
                      at date: Date = Date()) throws(Failure) -> AdGuardBackup {
+        guard !removed.contains(profile) else { throw .writeFailed }
         let record = AdGuardBackup(createdAt: date, kind: kind, size: file.data.count, version: version)
         guard let root else {
             memory[profile, default: []].append((record, file.data))
@@ -80,6 +84,7 @@ public actor AdGuardBackupStore {
 
     /// Profile removal deletes the folder with the archive; this clears memory.
     public func remove(profile: UUID) {
+        removed.insert(profile)
         memory[profile] = nil
         guard let root else { return }
         try? FileManager.default.removeItem(at: Self.folder(root: root, profile: profile))

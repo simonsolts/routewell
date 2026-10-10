@@ -83,6 +83,10 @@ public actor AdGuardArchiveStore {
     /// Bumped by `remove`, so a save that was waiting on the file when the
     /// router was removed does not bring its copy back.
     private var generations: [UUID: Int] = [:]
+    /// One read-and-save at a time per router, so a save never builds on a
+    /// copy that another save is about to replace.
+    private var saving: Set<UUID> = []
+    private var waiting: [UUID: [CheckedContinuation<Void, Never>]] = [:]
 
     /// `beforeCommit` is for tests: it runs inside each file write.
     public init(root: URL?, beforeCommit: @escaping @Sendable () throws -> Void = {}) {
@@ -118,6 +122,8 @@ public actor AdGuardArchiveStore {
         guard case .success(let config) = reading.config, config.enabled == true,
               let status = reading.status else { return nil }
         let generation = generations[profile, default: 0]
+        await lock(profile)
+        defer { unlock(profile) }
         var next = await archive(for: profile) ?? AdGuardArchive()
         let at = reading.observedAt
         var changed = false
@@ -140,6 +146,8 @@ public actor AdGuardArchiveStore {
     @discardableResult
     public func save(_ overview: AdGuardOverviewReading, for profile: UUID, force: Bool = false) async -> StoreError? {
         let generation = generations[profile, default: 0]
+        await lock(profile)
+        defer { unlock(profile) }
         var next = await archive(for: profile) ?? AdGuardArchive()
         let at = overview.observedAt
         var changed = false
@@ -183,6 +191,8 @@ public actor AdGuardArchiveStore {
     @discardableResult
     public func save(version: AdGuardVersionCheck, at date: Date, for profile: UUID) async -> StoreError? {
         let generation = generations[profile, default: 0]
+        await lock(profile)
+        defer { unlock(profile) }
         var next = await archive(for: profile) ?? AdGuardArchive()
         next.instance = .init(savedAt: date, value: AdGuardInstanceInfo(version: version, queryLog: next.instance?.value.queryLog))
         return await commit(next, for: profile, generation: generation)
@@ -193,8 +203,11 @@ public actor AdGuardArchiveStore {
     @discardableResult
     public func replace(_ archive: AdGuardArchive?, for profile: UUID) async -> StoreError? {
         guard let archive, !archive.isEmpty else { await remove(profile: profile); return nil }
+        let generation = generations[profile, default: 0]
+        await lock(profile)
+        defer { unlock(profile) }
         loaded.insert(profile)
-        return await commit(archive, for: profile, generation: generations[profile, default: 0])
+        return await commit(archive, for: profile, generation: generation)
     }
 
     /// Start Setup Again and profile removal: the whole folder goes.
@@ -210,6 +223,21 @@ public actor AdGuardArchiveStore {
     private static func isDue(_ savedAt: Date?, at date: Date) -> Bool {
         guard let savedAt else { return true }
         return date.timeIntervalSince(savedAt) >= minimumInterval
+    }
+
+    private func lock(_ profile: UUID) async {
+        guard saving.contains(profile) else { saving.insert(profile); return }
+        await withCheckedContinuation { waiting[profile, default: []].append($0) }
+    }
+
+    private func unlock(_ profile: UUID) {
+        if var queue = waiting[profile], !queue.isEmpty {
+            let next = queue.removeFirst()
+            waiting[profile] = queue.isEmpty ? nil : queue
+            next.resume()
+        } else {
+            saving.remove(profile)
+        }
     }
 
     private func store(for profile: UUID) -> AtomicJSONStore? {

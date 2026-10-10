@@ -536,7 +536,7 @@ public struct AdGuardSettingExecutor: AdGuardSettingControl {
         guard var config = before.object else {
             return (.rejected(.preconditionFailed("AdGuard Home did not send its settings.")), false, .malformedResponse)
         }
-        let interval: (JSONValue) -> Int? = { $0["interval"]?.double.map { Int($0.rounded()) } }
+        let interval: (JSONValue) -> Int? = { $0["interval"]?.int }
         if interval(before) == milliseconds { return (.verifiedSuccess(.retention(kind, milliseconds)), false, nil) }
         config["interval"] = .number(Double(milliseconds))
         if let stop = await dispatch(kind.configWrite(.object(config))) { return stop }

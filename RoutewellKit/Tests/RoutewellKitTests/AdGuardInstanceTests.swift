@@ -49,6 +49,8 @@ struct AdGuardInstanceParsingTests {
         let stats = AdGuardStatsConfig.parse(try json(fixture("stats-config", "json", "adguard/overview")))
         #expect(stats.intervalMilliseconds == 86_400_000)
         #expect(AdGuardQueryLogConfig.parse(.object(["interval": .string("long")])).intervalMilliseconds == nil)
+        #expect(AdGuardQueryLogConfig.parse(.object(["interval": .number(1e100)])).intervalMilliseconds == nil)
+        #expect(AdGuardStatsConfig.parse(.object(["interval": .number(-1e100)])).intervalMilliseconds == nil)
         #expect(AdGuardRetention.isValid(6 * AdGuardRetention.hour))
         #expect(!AdGuardRetention.isValid(1_000))
     }
@@ -347,6 +349,18 @@ struct AdGuardBackupStoreTests {
         #expect(await store.backups(for: profile).count == 1)
         await store.remove(profile: profile)
         #expect(await store.backups(for: profile).isEmpty)
+    }
+
+    @Test func noSaveAfterTheRouterIsRemoved() async throws {
+        let root = try temporaryRoot()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let store = AdGuardBackupStore(root: root)
+        let profile = UUID()
+        await store.remove(profile: profile)
+        await #expect(throws: AdGuardBackupStore.Failure.writeFailed) {
+            try await store.save(try #require(AdGuardConfigFile(configYAML())), kind: .beforeRestore, version: nil, for: profile)
+        }
+        #expect(!FileManager.default.fileExists(atPath: AdGuardBackupStore.folder(root: root, profile: profile).path))
     }
 
     @Test func archiveKeepsTheInstanceSection() async throws {

@@ -134,6 +134,28 @@ private func running(_ version: String, at date: Date, handlesDNS: Bool = true) 
     #expect(await AdGuardArchiveStore(root: root).archive(for: profile) == nil)
 }
 
+@Test func overlappingSavesKeepEachOthersFields() async throws {
+    let root = temporaryRoot()
+    defer { try? FileManager.default.removeItem(at: root) }
+    let gate = CommitGate()
+    let store = AdGuardArchiveStore(root: root, beforeCommit: { gate.pass() })
+    let profile = UUID()
+    var reading = AdGuardOverviewReading(range: .day, stats: .failure(.timeout), statsConfig: .failure(.timeout),
+                                         protection: .failure(.timeout), filtering: .failure(.timeout), observedAt: at)
+    reading.queryLog = .success(AdGuardQueryLogConfig(enabled: true, intervalMilliseconds: 86_400_000))
+    let overview = Task { await store.save(reading, for: profile) }
+    await gate.waitUntilEntered()
+    let version = Task { await store.save(version: AdGuardVersionCheck(disabled: true), at: at, for: profile) }
+    try await Task.sleep(for: .milliseconds(50))
+    gate.release()
+    _ = await overview.value
+    _ = await version.value
+    let expected = AdGuardInstanceInfo(version: AdGuardVersionCheck(disabled: true),
+                                       queryLog: AdGuardQueryLogConfig(enabled: true, intervalMilliseconds: 86_400_000))
+    #expect(await store.archive(for: profile)?.instance?.value == expected)
+    #expect(await AdGuardArchiveStore(root: root).archive(for: profile)?.instance?.value == expected)
+}
+
 /// Holds the first file write until the test releases it.
 private final class CommitGate: Sendable {
     private let entered = DispatchSemaphore(value: 0)

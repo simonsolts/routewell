@@ -58,7 +58,7 @@ public struct AdGuardQueryLogConfig: Sendable, Equatable, Codable {
 
     public static func parse(_ json: JSONValue) -> AdGuardQueryLogConfig {
         AdGuardQueryLogConfig(enabled: json["enabled"]?.bool,
-                              intervalMilliseconds: json["interval"]?.double.map { Int($0.rounded()) },
+                              intervalMilliseconds: json["interval"]?.int,
                               anonymizeClientIP: json["anonymize_client_ip"]?.bool)
     }
 }
