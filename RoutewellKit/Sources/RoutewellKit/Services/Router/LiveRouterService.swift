@@ -19,18 +19,18 @@ public actor LiveRouterService: RouterService {
     static let firmwareCheck = GLiNetRPCCall(object: "upgrade", method: "check_firmware_online", params: .object([:]))
 
     public func probe() async -> Capability {
-        switch await read(Self.wifiConfig) {
-        case .success: Capability(.supported, evidence: .successfulResponse, observedAt: clock())
-        case .failure(.methodNotFound): Capability(.unsupported, evidence: .methodNotFound(method: "wifi.get_config"), observedAt: clock())
-        case .failure: Capability()
+        switch try? await rpc.checkedCall(Self.wifiConfig) {
+        case .success?: Capability(.supported, evidence: .successfulResponse, observedAt: clock())
+        case .failure(.methodNotFound)?: Capability(.unsupported, evidence: .methodNotFound(method: "wifi.get_config"), observedAt: clock())
+        default: Capability()
         }
     }
 
     public func details() async throws -> RouterDetailsResult {
         let attemptedAt = clock()
-        async let config = checkedRead(Self.wifiConfig)
-        async let status = checkedRead(Self.wifiStatus)
-        async let sqm = checkedRead(Self.sqmConfig)
+        async let config = rpc.checkedCall(Self.wifiConfig)
+        async let status = rpc.checkedCall(Self.wifiStatus)
+        async let sqm = rpc.checkedCall(Self.sqmConfig)
         let configResult = try await config
         let statusResult = try await status
         let sqmResult = try await sqm
@@ -70,7 +70,7 @@ public actor LiveRouterService: RouterService {
     }
 
     public func checkFirmware() async throws -> FirmwareCheck {
-        let result = try await checkedRead(Self.firmwareCheck)
+        let result = try await rpc.checkedCall(Self.firmwareCheck)
         let now = clock()
         switch result {
         case .success(let json):
@@ -80,21 +80,5 @@ public actor LiveRouterService: RouterService {
         case .failure(let error):
             return FirmwareCheck(status: .unableToCheck(.failed(LiveRouterBackend.category(for: error))), checkedAt: now)
         }
-    }
-
-    /// Cancellation propagates; every RPC error becomes a result.
-    private func checkedRead(_ call: GLiNetRPCCall) async throws -> Result<JSONValue, GLiNetRPCError> {
-        do {
-            return .success(try await rpc.call(call))
-        } catch let error as GLiNetRPCError {
-            try LiveRouterBackend.rethrowIfCancelled(error)
-            return .failure(error)
-        }
-    }
-
-    private func read(_ call: GLiNetRPCCall) async -> Result<JSONValue, GLiNetRPCError> {
-        do { return .success(try await rpc.call(call)) }
-        catch let error as GLiNetRPCError { return .failure(error) }
-        catch { return .failure(.transport(.cancelled)) }
     }
 }

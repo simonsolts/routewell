@@ -68,15 +68,7 @@ final class AppModel {
 
     func acceptClients(_ result: AreaRefreshResult<ClientInventory>, observation: DeviceObservation?, token: SessionToken) {
         guard session.isReady, token == session.expectedToken else { return }
-        switch result {
-        case .success(let inventory, let observedAt, let source):
-            clientInventory = inventory
-            clientsFreshness = Freshness(lastSuccess: observedAt, lastAttempt: observedAt, source: source)
-        case .failure(let category, let attemptedAt):
-            clientsFreshness.lastAttempt = attemptedAt
-            clientsFreshness.failure = category
-        }
-        clientsFreshness.isRefreshing = false
+        if let inventory = apply(result, freshness: &clientsFreshness) { clientInventory = inventory }
         if let observation {
             deviceRegistry = observation.state
             switch observation.saveFailure {
@@ -170,23 +162,12 @@ final class AppModel {
 
     func acceptRouterDetails(_ result: RouterDetailsResult, token: SessionToken) {
         guard session.isReady, token == session.expectedToken else { return }
-        switch result.wireless {
-        case .success(let value, let observedAt, let source):
-            wireless = value
-            wirelessFreshness = Freshness(lastSuccess: observedAt, lastAttempt: observedAt, source: source)
-        case .failure(let category, let attemptedAt):
-            wirelessFreshness.lastAttempt = attemptedAt
-            wirelessFreshness.failure = category
-        }
-        switch result.sqm {
-        case .success(let value, let observedAt, let source):
+        if let value = apply(result.wireless, freshness: &wirelessFreshness) { wireless = value }
+        if let value = apply(result.sqm, freshness: &sqmFreshness) {
             sqm = value
-            sqmFreshness = Freshness(lastSuccess: observedAt, lastAttempt: observedAt, source: source)
-        case .failure(let category, let attemptedAt):
+        } else if result.sqmCapability.state == .unsupported {
             // `-32601` proves the native API is absent: no earlier value stays.
-            if result.sqmCapability.state == .unsupported { sqm = nil }
-            sqmFreshness.lastAttempt = attemptedAt
-            sqmFreshness.failure = category
+            sqm = nil
         }
         sqmCapability = result.sqmCapability
     }
@@ -380,20 +361,24 @@ final class AppModel {
     }
 
     private func apply<Value>(_ result: AreaRefreshResult<Value>, area: DataArea, value: inout Value) {
-        var state = freshness[area] ?? Freshness()
+        if let newValue = apply(result, freshness: &freshness[area, default: Freshness()]) { value = newValue }
+    }
+
+    /// Updates `state` and returns the new value on success.
+    private func apply<Value>(_ result: AreaRefreshResult<Value>, freshness state: inout Freshness) -> Value? {
         state.isRefreshing = false
         switch result {
         case .success(let newValue, let observedAt, let source):
-            value = newValue
             state.lastSuccess = observedAt
             state.lastAttempt = observedAt
             state.failure = nil
             state.source = source
+            return newValue
         case .failure(let category, let attemptedAt):
             state.lastAttempt = attemptedAt
             state.failure = category
+            return nil
         }
-        freshness[area] = state
     }
 }
 

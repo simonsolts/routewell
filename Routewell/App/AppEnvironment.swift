@@ -760,7 +760,7 @@ final class AppEnvironment {
         } catch GLiNetRPCError.transport(.untrustedServer(let decision)) {
             let approved = await trustPromptController.present(TrustPromptRequest(host: host, port: port, decision: decision))
             guard approved else { throw GLiNetRPCError.transport(.untrustedServer(decision)) }
-            await trust.approve(TrustedEndpoint(host: host, port: port, fingerprint: Self.leafFingerprint(decision), approvedAt: Date()))
+            await trust.approve(TrustedEndpoint(host: host, port: port, fingerprint: decision.leafFingerprint, approvedAt: Date()))
             _ = try await rpc.sessionID()
         }
     }
@@ -776,19 +776,8 @@ final class AppEnvironment {
         } catch AdGuardClientError.transport(.untrustedServer(let decision)) {
             let approved = await trustPromptController.present(TrustPromptRequest(host: host, port: port, decision: decision))
             guard approved else { throw AdGuardClientError.transport(.untrustedServer(decision)) }
-            await trust.approve(TrustedEndpoint(host: host, port: port, fingerprint: Self.leafFingerprint(decision), approvedAt: Date()))
+            await trust.approve(TrustedEndpoint(host: host, port: port, fingerprint: decision.leafFingerprint, approvedAt: Date()))
             return try await client.status()
-        }
-    }
-
-    private static func leafFingerprint(_ decision: TrustDecision) -> CertificateFingerprint {
-        switch decision {
-        case .trusted:
-            preconditionFailure("a trusted decision never reaches the trust prompt")
-        case .untrustedNew(let fingerprint):
-            return fingerprint
-        case .untrustedChanged(_, let actual):
-            return actual
         }
     }
 

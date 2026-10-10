@@ -27,12 +27,11 @@ public actor LiveQueryLogService: QueryLogService {
 
     public func page(_ query: QueryLogQuery) async throws -> AreaRefreshResult<QueryLogPage> {
         let attemptedAt = clock()
+        let adGuard = adGuard
         let json: JSONValue
-        do {
-            json = try await adGuard.queryLog(query)
-        } catch let error as AdGuardClientError {
-            try LiveRouterBackend.rethrowIfCancelled(error)
-            return .failure(LiveRouterBackend.category(for: error), attemptedAt: attemptedAt)
+        switch try await LiveRouterBackend.adGuardResult({ try await adGuard.queryLog(query) }) {
+        case .success(let value): json = value
+        case .failure(let category): return .failure(category, attemptedAt: attemptedAt)
         }
         guard let page = QueryLogParser.parse(json, limit: query.limit) else {
             return .failure(.malformedResponse, attemptedAt: attemptedAt)

@@ -199,7 +199,7 @@ public actor LiveRouterBackend: RouterBackend, FixtureRecordableBackend, AdGuard
 
         do {
             try await trustStore.approve(
-                TrustedEndpoint(host: signal.host, port: signal.port, fingerprint: Self.leafFingerprint(signal.decision), approvedAt: clock())
+                TrustedEndpoint(host: signal.host, port: signal.port, fingerprint: signal.decision.leafFingerprint, approvedAt: clock())
             )
         } catch {
             await log?.record(LogEvent(level: .warning, kind: .transport, message: "trust approval not saved \(signal.host)"))
@@ -219,7 +219,7 @@ public actor LiveRouterBackend: RouterBackend, FixtureRecordableBackend, AdGuard
             let approved = await trustPrompt.requestTrust(host: configuration.routerEndpoint.host, port: configuration.routerEndpoint.port, decision: decision)
             guard approved else { throw error }
             try await trustStore.approve(
-                TrustedEndpoint(host: configuration.routerEndpoint.host, port: configuration.routerEndpoint.port, fingerprint: Self.leafFingerprint(decision), approvedAt: clock())
+                TrustedEndpoint(host: configuration.routerEndpoint.host, port: configuration.routerEndpoint.port, fingerprint: decision.leafFingerprint, approvedAt: clock())
             )
             return try await performProbe()
         }
@@ -255,10 +255,10 @@ public actor LiveRouterBackend: RouterBackend, FixtureRecordableBackend, AdGuard
     private func runAreas() async throws -> (result: OverviewRefreshResult, untrusted: UntrustedSignal?) {
         let attemptedAt = clock()
 
-        async let statusOutcome = fetchSharedStatus()
-        async let infoOutcome = fetchInfo()
-        async let cableOutcome = fetchCable()
-        async let clientListOutcome = fetchClientList()
+        async let statusOutcome = rpc.checkedCall(.init(object: "system", method: "get_status", params: .object([:])))
+        async let infoOutcome = rpc.checkedCall(.init(object: "system", method: "get_info", params: .object([:])))
+        async let cableOutcome = rpc.checkedCall(.init(object: "cable", method: "get_status", params: .object([:])))
+        async let clientListOutcome = rpc.checkedCall(.clientList)
         async let adGuardOutcome = fetchAdGuardArea(attemptedAt: attemptedAt)
 
         let status = try await statusOutcome
@@ -281,45 +281,6 @@ public actor LiveRouterBackend: RouterBackend, FixtureRecordableBackend, AdGuard
             adGuardService: adGuard.reading
         )
         return (result, signal)
-    }
-
-    // MARK: Shared and per-area fetches (each catches only its own RPC/AdGuard error type;
-    // cancellation and any other error propagate to the caller unmodified)
-
-    private func fetchSharedStatus() async throws -> Result<JSONValue, GLiNetRPCError> {
-        do {
-            return .success(try await rpc.call(.init(object: "system", method: "get_status", params: .object([:]))))
-        } catch let error as GLiNetRPCError {
-            try Self.rethrowIfCancelled(error)
-            return .failure(error)
-        }
-    }
-
-    private func fetchInfo() async throws -> Result<JSONValue, GLiNetRPCError> {
-        do {
-            return .success(try await rpc.call(.init(object: "system", method: "get_info", params: .object([:]))))
-        } catch let error as GLiNetRPCError {
-            try Self.rethrowIfCancelled(error)
-            return .failure(error)
-        }
-    }
-
-    private func fetchCable() async throws -> Result<JSONValue, GLiNetRPCError> {
-        do {
-            return .success(try await rpc.call(.init(object: "cable", method: "get_status", params: .object([:]))))
-        } catch let error as GLiNetRPCError {
-            try Self.rethrowIfCancelled(error)
-            return .failure(error)
-        }
-    }
-
-    private func fetchClientList() async throws -> Result<JSONValue, GLiNetRPCError> {
-        do {
-            return .success(try await rpc.call(.init(object: "clients", method: "get_list", params: .object([:]))))
-        } catch let error as GLiNetRPCError {
-            try Self.rethrowIfCancelled(error)
-            return .failure(error)
-        }
     }
 
     /// The AdGuard area, and the service reading the AdGuard Home screen
@@ -523,6 +484,20 @@ public actor LiveRouterBackend: RouterBackend, FixtureRecordableBackend, AdGuard
         if isCancelled(error) || Task.isCancelled { throw CancellationError() }
     }
 
+    /// One AdGuard Home read as a result. Cancellation propagates.
+    static func adGuardResult<Value: Sendable>(_ read: @Sendable () async throws -> Value) async throws -> Result<Value, RefreshFailureCategory> {
+        do {
+            return .success(try await read())
+        } catch let error as AdGuardClientError {
+            try rethrowIfCancelled(error)
+            return .failure(category(for: error))
+        } catch is CancellationError {
+            throw CancellationError()
+        } catch {
+            return .failure(.unavailable)
+        }
+    }
+
     private static func isCancelled(_ error: GLiNetRPCError) -> Bool {
         if case .transport(.cancelled) = error { return true }
         return false
@@ -542,15 +517,20 @@ public actor LiveRouterBackend: RouterBackend, FixtureRecordableBackend, AdGuard
         guard case .transport(.untrustedServer(let decision)) = error else { return nil }
         return UntrustedSignal(host: host, port: port, decision: decision)
     }
+}
 
-    private static func leafFingerprint(_ decision: TrustDecision) -> CertificateFingerprint {
-        switch decision {
-        case .trusted:
-            preconditionFailure("a trusted decision never reaches the trust prompt")
-        case .untrustedNew(let fingerprint):
-            return fingerprint
-        case .untrustedChanged(_, let actual):
-            return actual
+extension GLiNetRPCClient {
+    /// One call as a result. Cancellation propagates.
+    func checkedCall(_ call: GLiNetRPCCall) async throws -> Result<JSONValue, GLiNetRPCError> {
+        do {
+            return .success(try await self.call(call))
+        } catch let error as GLiNetRPCError {
+            try LiveRouterBackend.rethrowIfCancelled(error)
+            return .failure(error)
         }
     }
+}
+
+extension GLiNetRPCCall {
+    static let clientList = GLiNetRPCCall(object: "clients", method: "get_list", params: .object([:]))
 }
