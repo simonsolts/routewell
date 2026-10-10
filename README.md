@@ -16,14 +16,19 @@
 </div>
 
 Routewell shows you what your GL.iNet router is doing, in real time. See the health
-of your network at a glance. Find every device on your network. Pause ad
-blocking with one click.
+of your network at a glance. Find every device on your network. See every DNS
+request, and control AdGuard Home from your Mac.
 
 Routewell talks directly to your router on your local network. It has no
 account and no cloud service.
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/simonsolts/routewell/main/images/overview-screen.png" alt="The Routewell Overview screen, with router, internet, AdGuard Home, and client status" width="900">
+  <a href="https://github.com/simonsolts/routewell/releases"><b>Download the latest alpha</b></a>
+  · macOS 26 or later · tested on the GL.iNet Flint 4 with firmware 4.9.1
+</p>
+
+<p align="center">
+  <img src="https://raw.githubusercontent.com/simonsolts/routewell/main/images/overview.png" alt="The Routewell Overview screen, with router, internet, AdGuard Home, and client status" width="900">
 </p>
 
 ## What you can do
@@ -37,21 +42,29 @@ account and no cloud service.
 - **Look closer at one device.** See when it was online, which domains it asks
   for, and which requests AdGuard blocked. Give it a name, a category, and
   notes. Ping it or wake it.
-- **Control ad blocking.** Turn AdGuard Home protection on or off, or pause it
-  for a short time.
+- **Control AdGuard Home.** See queries, blocks, and the top blocked domains
+  and devices. Turn protection on or off, or pause it. Manage blocklists,
+  allowlists, and custom rules. Set upstream DNS servers and the cache.
+- **Watch every DNS request.** Read the query log live. Search it, filter it by
+  device, and block or unblock a domain from a request.
+- **Keep AdGuard Home safe.** With SSH on, back up and restore its settings.
 - **Check your router.** See performance, DNS, Wi‑Fi, SQM, and firmware
   updates. With SSH on, you can also see ports, storage, and system logs.
 - **Stay in the menu bar.** Check your network status without opening the main
   window.
 
+<p align="center">
+  <img src="https://raw.githubusercontent.com/simonsolts/routewell/main/images/adguard-overview.png" alt="The AdGuard Home screen, with protection status, a 24-hour activity chart, protection switches, and the top blocked domains, queried domains, and devices" width="900">
+</p>
+
 <table>
   <tr>
-    <td width="50%"><img src="https://raw.githubusercontent.com/simonsolts/routewell/main/images/clients-screen-1.png" alt="The Clients screen with a device's overview in the details pane"></td>
-    <td width="50%"><img src="https://raw.githubusercontent.com/simonsolts/routewell/main/images/clients-screen-2.png" alt="The Clients screen with a device's recent DNS requests and top blocked domains"></td>
+    <td width="50%"><img src="https://raw.githubusercontent.com/simonsolts/routewell/main/images/clients-screen.png" alt="The Clients screen with a device's overview in the details pane"></td>
+    <td width="50%"><img src="https://raw.githubusercontent.com/simonsolts/routewell/main/images/adguard-query-log.png" alt="The AdGuard Home Query Log, with one request open in the inspector"></td>
   </tr>
   <tr>
     <td align="center"><sub>Every device on your network, with signal and DNS counts</sub></td>
-    <td align="center"><sub>Recent DNS requests and top blocked domains for one device</sub></td>
+    <td align="center"><sub>Every DNS request, live, with the reason it was blocked or allowed</sub></td>
   </tr>
 </table>
 
@@ -66,11 +79,8 @@ account and no cloud service.
 
 ## Coming next
 
-Routewell is a very early alpha. Next on the list: a live DNS activity log,
-Protection rules and filters, Network settings, notifications, analytics, VPN,
-and applications.
-
-Tested on the GL.iNet Flint 4 (GL-BE14000) with firmware 4.9.1.
+Routewell is a very early alpha. Next on the list: network settings,
+maintenance tasks, notifications, analytics, VPN, and applications.
 
 ## Get Routewell
 
@@ -82,7 +92,14 @@ Tested on the GL.iNet Flint 4 (GL-BE14000) with firmware 4.9.1.
 Download the latest alpha from the
 [Releases page](https://github.com/simonsolts/routewell/releases). The app is
 signed and notarized by Apple. Unzip it and move **Routewell (Alpha)** to your
-Applications folder. Routewell needs macOS 26 or later.
+Applications folder.
+
+Routewell needs macOS 26 or later. It has been tested on the GL.iNet Flint 4
+(GL-BE14000) with firmware 4.9.1.
+
+When you open Routewell for the first time, a setup assistant finds your
+router. Sign in with your router's admin password. AdGuard Home and SSH are
+optional, and you can set up SSH later.
 
 To build Routewell from source, see [Building Routewell](docs/building.md).
 

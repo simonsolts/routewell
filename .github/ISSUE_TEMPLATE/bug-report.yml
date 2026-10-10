@@ -1,0 +1,112 @@
+name: Bug report
+description: Tell me about something in Routewell that does not work.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for the report. Routewell is a personal project, so I cannot
+        promise a fix.
+
+        I tested Routewell only on the GL.iNet Flint 4 (GL-BE14000) with
+        firmware 4.9.1. Reports from other models and firmware versions are
+        welcome.
+
+  - type: dropdown
+    id: component
+    attributes:
+      label: Component
+      description: Which part of Routewell has the problem?
+      options:
+        - Connection and onboarding
+        - Overview
+        - Clients
+        - AdGuard Home
+        - Router (performance, DNS, Wi-Fi, SQM, firmware)
+        - SSH features (ports, storage, system logs, host key)
+        - Menu bar
+        - Settings
+        - Other / not sure
+    validations:
+      required: true
+
+  - type: input
+    id: app-version
+    attributes:
+      label: Routewell version
+      description: Find it in Routewell › About Routewell.
+      placeholder: 0.19.4 (7)
+    validations:
+      required: true
+
+  - type: input
+    id: macos-version
+    attributes:
+      label: macOS version
+      placeholder: "26.0"
+    validations:
+      required: true
+
+  - type: input
+    id: router-model
+    attributes:
+      label: Router model
+      placeholder: Flint 4 (GL-BE14000)
+    validations:
+      required: true
+
+  - type: input
+    id: firmware-version
+    attributes:
+      label: Router firmware version
+      placeholder: 4.9.1
+    validations:
+      required: true
+
+  - type: input
+    id: adguard-version
+    attributes:
+      label: AdGuard Home version
+      description: Optional. Give it if the problem is about AdGuard Home.
+      placeholder: v0.107.0
+
+  - type: dropdown
+    id: ssh
+    attributes:
+      label: SSH
+      description: Optional. Is SSH on in Routewell?
+      options:
+        - "On"
+        - "Off"
+        - Not sure
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Open ...
+        2. Click ...
+        3. ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: What happened
+    validations:
+      required: true
+
+  - type: textarea
+    id: screenshots
+    attributes:
+      label: Screenshots
+      description: Optional. Before you add a screenshot, hide IP addresses, MAC addresses, and device names.

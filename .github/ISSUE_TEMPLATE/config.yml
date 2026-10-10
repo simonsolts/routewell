@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Ideas and feature requests
+    url: https://github.com/simonsolts/routewell/discussions/categories/ideas
+    about: Share an idea in Discussions.
+  - name: Questions
+    url: https://github.com/simonsolts/routewell/discussions/categories/q-a
+    about: Ask a question in Discussions.
+  - name: Security problems
+    url: https://github.com/simonsolts/routewell/security/advisories/new
+    about: Report a security problem privately. Do not open a public issue.
