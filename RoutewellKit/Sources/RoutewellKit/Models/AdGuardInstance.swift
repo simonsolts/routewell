@@ -1,6 +1,6 @@
 import Foundation
 
-/// `POST control/version.json` `[assumed]`: `disabled`, `new_version`,
+/// `POST control/version.json`: `disabled`, `new_version`,
 /// `announcement`, `announcement_url`. With `disabled` true the other
 /// fields are absent.
 public struct AdGuardVersionCheck: Sendable, Equatable, Codable {
@@ -41,7 +41,7 @@ public struct AdGuardVersionCheck: Sendable, Equatable, Codable {
     }
 }
 
-/// `GET control/querylog/config` `[verified live]`:
+/// `GET control/querylog/config`:
 /// `enabled`, `interval` (ms), `anonymize_client_ip`, `ignored`,
 /// `ignored_enabled`.
 public struct AdGuardQueryLogConfig: Sendable, Equatable, Codable {
@@ -150,8 +150,8 @@ public struct AdGuardConfigFile: Sendable, Equatable {
         }
     }
 
-    /// `nil` unless it is UTF-8 text with a top-level `dns:` section
-    /// `[assumed]` and at most `maximumBytes`.
+    /// `nil` unless it is UTF-8 text with a top-level `dns:` section and at
+    /// most `maximumBytes`.
     public init?(_ data: Data) {
         guard !data.isEmpty, data.count <= Self.maximumBytes, let text = String(data: data, encoding: .utf8),
               let dns = Self.dnsSection(text) else { return nil }

@@ -10,7 +10,7 @@ struct RouterFacts: Equatable {
     var uptimeSeconds: Int?
 }
 
-/// The three confirmations on the Router tab, with the design's copy.
+/// The three confirmations on the Router tab.
 enum RouterSettingsAlert: Identifiable, Equatable {
     case startSetupAgain, forgetCertificate, forgetHostKey
 

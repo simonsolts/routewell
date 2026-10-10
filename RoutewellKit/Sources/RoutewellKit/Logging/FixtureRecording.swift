@@ -18,8 +18,8 @@ public struct FixtureCall: Sendable, Equatable {
 }
 
 public enum FixtureRecordingPlan {
-    /// Candidates beyond the calls already used by Overview are assumed until
-    /// a person records them on their router. Errors are useful evidence.
+    /// Calls beyond the ones Overview uses may be missing on a router. Errors
+    /// are useful evidence.
     public static let calls: [FixtureCall] = [
         .init(.rpc, object: "system", method: "get_status", fileName: "system-get_status.json"),
         .init(.rpc, object: "system", method: "get_info", fileName: "system-get_info.json"),

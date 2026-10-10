@@ -281,7 +281,7 @@ struct OnboardingView: View {
 // MARK: - Pieces
 
 private extension View {
-    /// The design's grouped box: tertiary fill, separator border, radius 10.
+    /// A grouped box: tertiary fill, separator border, radius 10.
     func onboardingBox(border: Color = Color(nsColor: .separatorColor)) -> some View {
         background(RoundedRectangle(cornerRadius: 10).fill(Color.primary.opacity(0.045)))
             .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(border, lineWidth: 1))
@@ -556,7 +556,6 @@ private struct SSHFeatureGrid: View {
     }
 }
 
-/// The three notes under the key chooser, verbatim from the design.
 private struct KeyNotes: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {

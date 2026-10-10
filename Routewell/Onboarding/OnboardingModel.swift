@@ -2,7 +2,7 @@ import Foundation
 import Observation
 import RoutewellKit
 
-/// One run of the setup assistant: the current design state, what the
+/// One run of the setup assistant: the current state, what the
 /// person typed or chose, and the async work behind each button. The
 /// primary button on every step leads to a safe, working setup.
 @MainActor @Observable
@@ -47,8 +47,8 @@ final class OnboardingModel {
     @ObservationIgnored private var foundManually = false
     /// The host key scan failed, so SSH Try Again scans again instead of probing.
     @ObservationIgnored private var hostKeyFailed = false
-    /// How long "Sign-in paused" keeps Sign In disabled. `[assumed]`: the
-    /// router does not say.
+    /// How long "Sign-in paused" keeps Sign In disabled. The router does not
+    /// say.
     @ObservationIgnored var pauseDuration: Duration = .seconds(60)
 
     init(services: any OnboardingServices) {

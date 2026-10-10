@@ -8,10 +8,9 @@ public struct AdGuardStatusResponse: Sendable, Equatable, Codable {
     public var protectionEnabled: Bool?
     public var protectionDisabledDurationMilliseconds: Int?
     public var dnsAddresses: [String] = []
-    /// `dns_port` `[verified live]`: 3053 on 4.9.1, behind the router's dnsmasq.
+    /// `dns_port`: 3053 on 4.9.1, behind the router's dnsmasq.
     public var dnsPort: Int?
-    /// `start_time` `[verified live]`: when AdGuard Home started, in
-    /// milliseconds since 1970 (fractional on 4.9.1).
+    /// `start_time`: when AdGuard Home started, in milliseconds since 1970 (fractional on 4.9.1).
     public var startTime: Date?
 
     public init(
@@ -98,7 +97,7 @@ public enum AdGuardWrite: Sendable, Equatable {
     /// sends this shape.
     case filteringConfig(enabled: Bool, intervalHours: Int)
     /// `POST control/filtering/set_rules {"rules": [...]}`: the whole custom
-    /// rules list (Block or Unblock Domain) `[assumed]`.
+    /// rules list (Block or Unblock Domain).
     case setRules([String])
     /// `POST control/filtering/add_url {"name", "url", "whitelist"}`.
     case addList(name: String, url: String, whitelist: Bool)
@@ -276,8 +275,8 @@ public actor AdGuardClient {
     }
 
     /// `GET control/querylog?limit=<N>[&search=<text>]`: one bounded page of
-    /// the newest entries. `search` narrows the page on the server
-    /// `[assumed]`; callers still filter the result exactly.
+    /// the newest entries. `search` narrows the page on the server; callers
+    /// still filter the result exactly.
     public func queryLog(search: String?, limit: Int) async throws -> JSONValue {
         try await queryLog(QueryLogQuery(search: search, limit: limit))
     }

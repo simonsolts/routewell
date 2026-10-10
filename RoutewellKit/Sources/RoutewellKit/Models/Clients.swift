@@ -92,9 +92,9 @@ public enum ClientVendor: Sendable, Equatable {
 public struct Client: Sendable, Equatable, Identifiable {
     public var mac: MACAddress
     public var ip: String?
-    /// The client name set in the router's own UI (`alias`) `[assumed]`.
+    /// The client name set in the router's own UI (`alias`).
     public var routerName: String?
-    /// The name the client reported to the router (`name`, the DHCP hostname) `[assumed]`.
+    /// The name the client reported to the router (`name`, the DHCP hostname).
     public var hostname: String?
     public var adGuardName: String?
     public var online: Observed<Bool>

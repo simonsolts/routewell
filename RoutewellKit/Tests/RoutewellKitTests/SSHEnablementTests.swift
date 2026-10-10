@@ -3,11 +3,9 @@ import Testing
 @testable import RoutewellKit
 import RoutewellMock
 
-// The SSH fixtures under `Fixtures/ssh/router/` follow the formats
-// recorded on firmware 4.9.1 with neutral values: documentation addresses, `02:00:…` MACs, example names, PIDs, and
-// sizes. Log tags the recording did not contain (hostapd, netifd, odhcpd,
-// firewall, AdGuardHome, openvpn, block, procd) and the telemetry values
-// stay `[assumed]`. No test starts `ssh` or `ssh-keyscan`.
+// The SSH fixtures under `Fixtures/ssh/router/` follow the formats recorded
+// on firmware 4.9.1, with neutral values: documentation addresses, `02:00:…`
+// MACs, example names, PIDs, and sizes. No test starts `ssh` or `ssh-keyscan`.
 
 private func sshFixture(_ name: String, subdirectory: String = "Fixtures/ssh/router") throws -> String {
     let url = try #require(Bundle.module.url(forResource: name, withExtension: "txt", subdirectory: subdirectory))
@@ -273,7 +271,7 @@ private func trustedRunner(processes: FakeProcesses, identity: SSHIdentity = .ke
     #expect(try await pingRunner.run(.systemBoard, limits: .init()).exitStatus == 1)
 }
 
-/// The block OpenSSH 10 prints on every connection to the router's Dropbear `[verified live]`.
+/// The block OpenSSH 10 prints on every connection to the router's Dropbear.
 private let postQuantumWarning = """
 ** WARNING: connection is not using a post-quantum key exchange algorithm.
 ** This session may be vulnerable to "store now, decrypt later" attacks.
@@ -439,7 +437,7 @@ private let postQuantumWarning = """
     let entries = InterfaceParser.parseEnumeration(try sshFixture("interfaces", subdirectory: "Fixtures/ssh/router/sys-class-net-sample"))
     #expect(!entries.contains { $0.name.description.contains(";") })
     let ports = entries.filter(\.isEthernetPort).map(\.name.description)
-    // 4.9.1 enumerates these seven Ethernet ports `[verified live]`; the
+    // 4.9.1 enumerates these seven Ethernet ports; the
     // VLAN `eth1.1`, radios, the bridge, `lo`, and `pppoe-wan` are left out.
     #expect(ports == ["eth0", "eth1", "eth2", "lan5", "lan6", "lan7", "lan8"])
 

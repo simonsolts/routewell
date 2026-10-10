@@ -101,7 +101,7 @@ public enum SSHResultClassifier {
 
     /// OpenSSH 10 prints a `** WARNING: connection is not using a
     /// post-quantum key exchange algorithm.` block on every connection to
-    /// the router's Dropbear `[verified live]`. Its `** ` lines are the ssh
+    /// the router's Dropbear. Its `** ` lines are the ssh
     /// client's, not the remote command's, so they never reach a parser.
     public static func clientWarningsRemoved(_ stderr: String) -> String {
         stderr.split(separator: "\n", omittingEmptySubsequences: false)

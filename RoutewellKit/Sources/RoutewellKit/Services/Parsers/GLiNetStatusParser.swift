@@ -1,9 +1,7 @@
 import Foundation
 
 /// Turns raw GL.iNet RPC `result` payloads into the Overview model types.
-///
-/// Every router API fact here is `[assumed]`. A missing or
-/// differently-typed field always yields `nil`/`.unknown`, never a thrown
+/// A missing or differently-typed field always yields `nil`/`.unknown`, never a thrown
 /// error — only a caller who cannot even reach the router (nil inputs) should
 /// see `.unknown` reachability.
 public enum GLiNetStatusParser {
@@ -21,7 +19,7 @@ public enum GLiNetStatusParser {
 
         let system = getStatus?["system"]
         status.lanAddress = system?["lan_ip"]?.string
-        // 4.9.1 reports fractional seconds (`413388.56`) `[verified live]`.
+        // 4.9.1 reports fractional seconds (`413388.56`).
         status.uptimeSeconds = numericDouble(system?["uptime"]).flatMap { $0 >= 0 && $0.isFinite ? Int($0) : nil }
         status.loadAverages = system?["load_average"]?.array?.compactMap(numericDouble) ?? []
 
@@ -33,7 +31,7 @@ public enum GLiNetStatusParser {
             status.memoryFreeBytes = Int64(memoryFree)
             status.memoryBuffersAndCacheBytes = buffersAndCache.map(Int64.init)
             // Buffers and cache are reclaimable, so they do not count as used
-            // when the router reports them (4.9.1 does `[verified live]`).
+            // when the router reports them.
             let used = memoryTotal - memoryFree - (buffersAndCache ?? 0)
             status.memoryUsedBytes = Int64(used >= 0 ? used : memoryTotal - memoryFree)
         }

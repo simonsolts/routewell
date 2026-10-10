@@ -3,7 +3,7 @@ import Foundation
 // MARK: - System board
 
 /// `ubus call system board`: `model`, `hostname`, `board_name`,
-/// `release.version/kernel/target` `[verified in source: RouterInfoService.cs:38-97]`.
+/// `release.version/kernel/target`.
 public struct SystemBoard: Sendable, Equatable {
     public var model: String?
     public var hostname: String?
@@ -49,7 +49,7 @@ public struct NetworkInterfaceEntry: Sendable, Equatable {
     /// A physical Ethernet port: Ethernet type, backed by a device, not a
     /// radio and not a bridge. On 4.9.1 this keeps `eth0`–`eth2` and
     /// `lan5`–`lan8`, and drops the VLAN `eth1.1`, the radios, `br-lan`,
-    /// `lo`, and `pppoe-wan` `[verified live]`.
+    /// `lo`, and `pppoe-wan`.
     public var isEthernetPort: Bool { type == 1 && hasDevice && !isWireless && !isBridge }
 }
 
@@ -106,7 +106,7 @@ public struct LinkChange: Sendable, Equatable {
     }
 }
 
-/// Link changes seen while Routewell runs. Session-only by design: it is
+/// Link changes seen while Routewell runs. Session-only: it is
 /// not `Codable`, and a session switch starts a new one. The first reading
 /// of an interface, and any reading that is unknown, is not a change.
 public struct LinkChangeLog: Sendable, Equatable {
@@ -169,7 +169,7 @@ public struct MountedVolume: Sendable, Equatable {
     }
 
     /// A USB, SD, or NVMe block device mounted under `/mnt` or `/tmp/mountd`
-    /// `[assumed]` for GL.iNet's automount.
+    /// (GL.iNet's automount).
     public var isExternal: Bool {
         let blockDevice = ["/dev/sd", "/dev/mmcblk", "/dev/nvme", "/dev/usb"].contains { device.hasPrefix($0) }
         let mounted = mountPoint.hasPrefix("/mnt/") || mountPoint.hasPrefix("/tmp/mountd/")

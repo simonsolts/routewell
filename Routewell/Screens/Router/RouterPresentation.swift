@@ -428,7 +428,7 @@ struct RouterWiFiModel: Equatable {
         }
         let configured = radio.configuredChannel.map { $0 == 0 ? "Auto" : String($0) }
         let channel = network.enabled == .value(true) ? radio.currentChannel.map(String.init) ?? configured : configured
-        // 4.9.1 reports `htmode` as `auto`, `80`, or `160` `[verified live]`.
+        // 4.9.1 reports `htmode` as `auto`, `80`, or `160`.
         let width = radio.widthMHz.map { "\($0) MHz" } ?? radio.htmode.map { $0.lowercased() == "auto" ? "Auto" : $0 } ?? RouterFormat.unknown
         let clients = WirelessStatus.clients(for: network, on: radio, onlineByBand: onlineByBand).map(String.init) ?? RouterFormat.dash
         return [

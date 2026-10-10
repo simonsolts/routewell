@@ -65,7 +65,7 @@ struct OnboardingArt: View {
     }
 }
 
-/// The two CSS animations of the design, as pure functions of time.
+/// The two animations, as pure functions of time.
 enum OnboardingArtAnimation {
     static let pulseDuration: TimeInterval = 2.4
     static let blinkDuration: TimeInterval = 1.2

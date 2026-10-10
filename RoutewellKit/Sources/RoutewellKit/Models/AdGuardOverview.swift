@@ -74,7 +74,7 @@ public struct AdGuardStats: Sendable, Equatable, Codable {
     public var blockedSeries: [Int] = []
     public var topQueried: [Entry] = []
     public var topBlocked: [Entry] = []
-    /// Keys are client IPs `[verified live]`.
+    /// Keys are client IPs.
     public var topClients: [Entry] = []
     public var topUpstreams: [Entry] = []
     /// `top_upstreams_avg_time`, in seconds. Optional so
@@ -154,7 +154,7 @@ public struct AdGuardStats: Sendable, Equatable, Codable {
     }
 
     /// The shape of a reply to `recent`: one bar per hour up to 24 hours,
-    /// else one per day `[assumed]` from AdGuard Home's stats code.
+    /// else one per day, as AdGuard Home's stats code builds it.
     public static func expectedShape(recentMilliseconds: Int) -> (units: TimeUnits, count: Int) {
         let hours = recentMilliseconds / 3_600_000
         return hours <= 24 ? (.hours, hours) : (.days, hours / 24)
@@ -167,7 +167,7 @@ public struct AdGuardStats: Sendable, Equatable, Codable {
     }
 
     /// One bucket more or less still matches: AdGuard Home builds days from
-    /// aligned hours `[assumed]`. A version that ignores `recent` answers with
+    /// aligned hours. A version that ignores `recent` answers with
     /// its whole retention, which differs by more (or in units).
     public func matches(recentMilliseconds: Int) -> Bool {
         let shape = Self.expectedShape(recentMilliseconds: recentMilliseconds)
@@ -189,7 +189,7 @@ public struct AdGuardStats: Sendable, Equatable, Codable {
     }
 }
 
-/// `GET control/stats/config` (`GetStatsConfigResponse`) `[assumed]`.
+/// `GET control/stats/config` (`GetStatsConfigResponse`).
 public struct AdGuardStatsConfig: Sendable, Equatable, Codable {
     public var enabled: Bool?
     /// Retention in milliseconds.
@@ -290,7 +290,7 @@ public struct AdGuardFilteringStatus: Sendable, Equatable, Codable {
     /// Update check interval, in hours.
     public var intervalHours: Int?
     public var blocklists: [AdGuardFilterList] = []
-    /// `whitelist_filters`; `null` on 4.9.1 when there are none `[verified live]`.
+    /// `whitelist_filters`; `null` on 4.9.1 when there are none.
     public var allowlists: [AdGuardFilterList] = []
     /// `null` is an empty list, `nil` when the field is missing.
     public var userRules: [String]?

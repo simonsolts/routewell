@@ -83,13 +83,13 @@ public enum SSHCommand: Sendable, Hashable {
     case adGuardProcess
     /// Resident memory of each AdGuard Home process (`VmRSS`).
     case adGuardMemory
-    /// The query log files' size in kilobytes. Path `[assumed]`.
+    /// The query log files' size in kilobytes.
     case adGuardQueryLogSize
     /// The AdGuard Home folder listing: names, sizes, and dates only. For
     /// the recorder, to confirm the paths.
     case adGuardFiles
-    /// AdGuard Home's `config.yaml` `[assumed]` path. It holds password
-    /// hashes, so the recorder never runs it.
+    /// Reads AdGuard Home's `config.yaml`. It holds password hashes, so the
+    /// recorder never runs it.
     case readAdGuardConfig
     /// Replaces `config.yaml` with the bytes sent on stdin: a temporary
     /// file in the same folder, then `mv`.

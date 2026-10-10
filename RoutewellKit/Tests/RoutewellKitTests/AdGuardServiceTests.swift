@@ -12,7 +12,7 @@ private func fixtureJSON(_ name: String, _ subdirectory: String) throws -> JSONV
 @Test func getConfigFixtureParsesBothFields() throws {
     // Recorded on 4.9.1: the whole object.
     #expect(AdGuardRouterConfig.parse(try fixtureJSON("adguardhome-get_config", "glinet/adguard")) == AdGuardRouterConfig(enabled: true, handlesDNS: true))
-    // Off is `[assumed]` to keep the same two keys.
+    // Off keeps the same two keys.
     #expect(AdGuardRouterConfig.parse(try fixtureJSON("adguardhome-get_config-off", "glinet/adguard")) == AdGuardRouterConfig(enabled: false, handlesDNS: false))
     #expect(AdGuardRouterConfig.parse(.object(["enabled": .string("1")])) == AdGuardRouterConfig())
 }

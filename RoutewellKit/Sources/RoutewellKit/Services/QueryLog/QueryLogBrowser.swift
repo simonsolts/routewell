@@ -52,7 +52,7 @@ public struct QueryLogBrowser: Sendable, Equatable {
     }
 
     /// Adds an older page. A filtered page can be short while older matches
-    /// exist `[verified live]`, so only an empty page ends the log.
+    /// exist, so only an empty page ends the log.
     public mutating func append(_ page: QueryLogPage) {
         let known = Set(entries.map(\.id))
         let added = page.entries.filter { !known.contains($0.id) }

@@ -5,8 +5,8 @@ import Foundation
 public enum WirelessBand: String, Sendable, Equatable, Hashable, Codable, CaseIterable, Comparable {
     case ghz2_4 = "2g", ghz5 = "5g", ghz6 = "6g"
 
-    /// `wifi get_status` `band` is `2g`, `5g`, or `6g` `[verified live]`;
-    /// `clients get_list` `iface` is `2.4G`, `5G`, or `6G` `[verified live]`.
+    /// `wifi get_status` `band` is `2g`, `5g`, or `6g`;
+    /// `clients get_list` `iface` is `2.4G`, `5G`, or `6G`.
     /// Anything else stays unknown.
     public static func parse(_ token: String?) -> WirelessBand? {
         switch token?.lowercased() {
@@ -23,7 +23,7 @@ public enum WirelessBand: String, Sendable, Equatable, Hashable, Codable, CaseIt
 }
 
 /// One SSID on a radio, from `wifi get_config` `res[].ifaces[]`: `name`,
-/// `ssid`, `enabled`, `guest`, `iot`, `hidden` `[verified live]` keys.
+/// `ssid`, `enabled`, `guest`, `iot`, `hidden` keys.
 public struct WirelessNetwork: Sendable, Equatable {
     public var interface: String?
     public var ssid: String?
@@ -41,18 +41,18 @@ public struct WirelessNetwork: Sendable, Equatable {
 }
 
 /// One radio from `wifi get_config` `res[]` (`device`, `band`, `channel`,
-/// `htmode`, `txpower`, `ifaces` `[verified live]` keys), joined by band
-/// with `wifi get_status` `res[].channel` `[verified live]`.
+/// `htmode`, `txpower`, `ifaces` keys), joined by band
+/// with `wifi get_status` `res[].channel`.
 public struct WirelessRadio: Sendable, Equatable {
     public var device: String?
     public var band: WirelessBand?
-    /// The configured channel; `0` means automatic selection `[assumed]`.
+    /// The configured channel; `0` means automatic selection.
     public var configuredChannel: Int?
     /// The channel `wifi get_status` reports for this band.
     public var currentChannel: Int?
-    /// Verbatim: `auto`, `80`, or `160` on 4.9.1 `[verified live]`.
+    /// Verbatim: `auto`, `80`, or `160` on 4.9.1.
     public var htmode: String?
-    /// Verbatim (`Max` on 4.9.1 `[verified live]`); never converted.
+    /// Verbatim (`Max` on 4.9.1); never converted.
     public var txPower: String?
     public var networks: [WirelessNetwork]
 
@@ -95,9 +95,9 @@ public struct WirelessStatus: Sendable, Equatable {
 
 // MARK: - SQM
 
-/// `sqm get_config`: `enable`, `qdisc`, `upload`, `download` `[verified live]`
+/// `sqm get_config`: `enable`, `qdisc`, `upload`, `download`
 /// keys. On 4.9.1 `upload` and `download` are strings, empty when unset;
-/// they stay verbatim because their unit is `[assumed]`.
+/// they stay verbatim because their unit is not known.
 public struct SQMConfiguration: Sendable, Equatable {
     public var enabled: Observed<Bool>
     public var queueDiscipline: String?
@@ -127,10 +127,9 @@ public enum FirmwareUpdateStatus: Sendable, Equatable {
     case unableToCheck(FirmwareCheckFailure)
 }
 
-/// One `upgrade check_firmware_online` result. `current_version` is
-/// `[verified live]`; `new_firmware_version`, `update_available`, and
-/// `release_note(s)` are `[verified in source]`: 4.9.1 with no update
-/// did not send them.
+/// One `upgrade check_firmware_online` result. 4.9.1 with no update sends
+/// only `current_version`, not `new_firmware_version`, `update_available`,
+/// or `release_note(s)`.
 public struct FirmwareCheck: Sendable, Equatable {
     public var current: Observed<String>
     public var latest: Observed<String>
@@ -158,7 +157,7 @@ public enum WANConnectionType: Sendable, Equatable {
 
 public struct WANInterfaceStatus: Sendable, Equatable {
     public var name: String
-    /// `network[].up`; its meaning is `[assumed]`.
+    /// `network[].up`.
     public var up: Observed<Bool>
     public var connection: WANConnectionType
     public var address: String?

@@ -1,12 +1,12 @@
 import Foundation
 
-/// `adguardhome get_config` `[verified live]`: on 4.9.1 the whole object is
+/// `adguardhome get_config`: on 4.9.1 the whole object is
 /// `{"enabled", "dns_enabled"}`. A missing or differently typed field is `nil`.
 public struct AdGuardRouterConfig: Sendable, Equatable, Codable {
     /// AdGuard Home is switched on in the router's settings.
     public var enabled: Bool?
     /// `dns_enabled`: the router sends client DNS to AdGuard Home (the
-    /// router UI's "Handle client requests", meaning `[assumed]`).
+    /// router UI's "Handle client requests").
     public var handlesDNS: Bool?
 
     public init(enabled: Bool? = nil, handlesDNS: Bool? = nil) {

@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// The five steps shown by the dots, each with the system tint the design uses.
+/// The five steps shown by the dots, each with its system tint.
 enum OnboardingStep: Int, CaseIterable {
     case findRouter, name, signIn, ssh, finish
 
@@ -25,9 +25,8 @@ enum OnboardingStep: Int, CaseIterable {
     }
 }
 
-/// Every state of the Quiet design (`S` keys in `Routewell Onboarding.dc.html`).
-/// The design's `prompt` state is a picture of macOS's own Local Network
-/// dialog, which the system draws over `searching`, so it has no case here.
+/// Every onboarding state. macOS draws its own Local Network dialog over
+/// `searching`, so that dialog has no case here.
 enum OnboardingState: String, CaseIterable {
     case welcome, searching, fallback, found, manual, denied
     case name
@@ -43,7 +42,7 @@ enum OnboardingState: String, CaseIterable {
     var kind: Kind { spec.kind }
 }
 
-/// Copy, artwork, and buttons for one state, verbatim from the design.
+/// Copy, artwork, and buttons for one state.
 struct OnboardingSpec {
     let step: OnboardingStep
     let motif: ArtMotif
@@ -133,7 +132,7 @@ struct OnboardingSpec {
 enum OnboardingRowState: Equatable { case spin, ok, fail, wait }
 
 extension OnboardingState {
-    /// Row states in the order the design lists them.
+    /// Row states in display order.
     var rows: [OnboardingRowState] {
         switch self {
         case .searching: [.spin, .wait]

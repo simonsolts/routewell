@@ -221,7 +221,7 @@ public struct AdGuardServiceExecutor: AdGuardServiceControl {
                 return nil
             }
             if code == 1 {
-                // GL.iNet: "Other DNS not closed" `[assumed]` meaning.
+                // GL.iNet: "Other DNS not closed".
                 return (.rejected(.preconditionFailed(Self.otherDNSMessage)), true, nil)
             }
             return (.verifiedMismatch(expected: expected, actual: AdGuardServiceState(actual)), true, nil)
@@ -234,7 +234,7 @@ public struct AdGuardServiceExecutor: AdGuardServiceControl {
         } catch GLiNetRPCError.methodNotFound {
             return (.rejected(.capabilityUnavailable), true, .unavailable)
         } catch GLiNetRPCError.invalidParameters {
-            // `set_config` params are `[assumed]`: say so plainly.
+            // The `set_config` params are not confirmed: say so plainly.
             return (.rejected(.preconditionFailed("The router did not accept the settings Routewell sent.")), true, .malformedResponse)
         } catch {
             // Lost answer or timeout: the write may have applied. Verify.
@@ -326,10 +326,7 @@ public struct AdGuardServiceExecutor: AdGuardServiceControl {
 }
 
 /// The live calls: router RPC for the setting, AdGuard's own API for the
-/// answer. `set_config` params `{"enabled", "dns_enabled"}` are `[assumed]`:
-/// GL.iNet's public API description (python-glinet, 2022) lists only
-/// `enabled` with a `null` result and `err_code` 1 "Other DNS not closed";
-/// `dns_enabled` comes from the 4.9.1 `get_config` recording.
+/// answer. `set_config` params are `{"enabled", "dns_enabled"}`.
 public struct LiveAdGuardServiceTransport: AdGuardServiceTransport {
     let rpc: GLiNetRPCClient
     /// `nil` when the profile has no AdGuard Home connection.

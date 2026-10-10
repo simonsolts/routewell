@@ -332,7 +332,7 @@ final class AdGuardController {
             self.lastReport = report
             self.inFlight = nil
             if case .turnOn = intent, case .verifiedSuccess = report.outcome {
-                // The design opens Overview once AdGuard Home runs.
+                // Overview opens once AdGuard Home runs.
                 self.model.subpages[.adGuard] = AdGuardTab.overview.rawValue
             }
             self.refresh.refreshNow()

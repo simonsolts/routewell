@@ -243,7 +243,7 @@ public actor LiveRouterBackend: RouterBackend, FixtureRecordableBackend, AdGuard
         }
     }
 
-    /// `enabled` from `adguardhome.get_config` `[verified live]`; Unknown when absent.
+    /// `enabled` from `adguardhome.get_config`; Unknown when absent.
     public static func adGuardHomeEnabled(config: JSONValue) -> Observed<Bool> {
         config["enabled"]?.bool.map(Observed.value) ?? .unknown
     }

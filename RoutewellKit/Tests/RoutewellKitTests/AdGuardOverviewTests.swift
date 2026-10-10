@@ -265,7 +265,7 @@ import Testing
         return try JSONDecoder().decode(JSONValue.self, from: Data(contentsOf: url))
     }
 
-    /// `[verified live]`: 24 hourly buckets, totals, and the top lists.
+    /// 24 hourly buckets, totals, and the top lists.
     @Test func recordedStatsParse() throws {
         let stats = AdGuardStats.parse(try Self.fixture("stats-24h"))
         #expect(stats.timeUnits == .hours)

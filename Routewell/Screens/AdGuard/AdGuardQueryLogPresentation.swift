@@ -37,7 +37,7 @@ enum QueryLogPresentation {
         }
     }
 
-    /// The inspector's pill. The design labels a Processed query "Allowed".
+    /// The inspector's pill. A Processed query shows as "Allowed".
     static func pillText(_ result: QueryResult) -> String {
         result == .processed ? "Allowed" : statusText(result)
     }
@@ -49,7 +49,7 @@ enum QueryLogPresentation {
     }
 
     /// What decided a blocked, allowed, or rewritten query; `nil` otherwise.
-    /// List id 0 is custom rules in AdGuard Home's web UI `[assumed]`.
+    /// List id 0 is custom rules, as in AdGuard Home's web UI.
     static func decidedBy(_ entry: QueryLogEntry, filtering: AdGuardFilteringStatus?) -> String? {
         switch entry.reason {
         case "FilteredBlockedService":
@@ -151,7 +151,7 @@ enum QueryLogPresentation {
     /// At the 5,000 cap.
     static let capNote = "Showing the newest 5,000. Narrow the search to see older queries."
 
-    /// No rows. The filtered line is the design's.
+    /// No rows.
     static func emptyTable(filtered: Bool) -> String {
         filtered ? "No queries match these filters." : "AdGuard Home has no queries in its log."
     }

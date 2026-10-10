@@ -132,7 +132,7 @@ struct AdGuardBanner: View {
     }
 }
 
-/// The Pause menu: the design's four durations, then until tomorrow, then
+/// The Pause menu: four durations, then until tomorrow, then
 /// Turn Off Protection. The Router menu uses it too.
 struct ProtectionMenuItems: View {
     let adGuard: AdGuardController
