@@ -8,6 +8,8 @@ extension MockAdGuardTransport: AdGuardSettingTransport, AdGuardOverviewService 
     static let defaultOptions = ProtectionOptions(safeBrowsing: true, parental: false, safeSearch: false)
     /// Seven days, so "Last 30 days" shows as not available.
     static let retentionMilliseconds = 7 * 86_400_000
+    static let queryLogRetention = 90 * 86_400_000
+    static let newVersion = "0.107.70"
 
     public func readFeature(_ feature: AdGuardFeature) async throws -> JSONValue {
         guard currentStatus() != nil else { throw AdGuardClientError.transport(.timedOut) }
@@ -75,6 +77,35 @@ extension MockAdGuardTransport: AdGuardSettingTransport, AdGuardOverviewService 
 
     static func timestamp(_ date: Date) -> String { date.formatted(.iso8601) }
 
+    public func versionCheck() async throws -> Result<AdGuardVersionCheck, RefreshFailureCategory> {
+        try Task.checkCancellation()
+        guard currentStatus() != nil else { return .failure(.timeout) }
+        versionChecks += 1
+        return .success(currentVersionCheck())
+    }
+
+    func currentVersionCheck() -> AdGuardVersionCheck {
+        switch scenario {
+        case .updateAvailable: AdGuardVersionCheck(disabled: false, newVersion: "v\(Self.newVersion)",
+                                                   announcement: "AdGuard Home v\(Self.newVersion) is now available!")
+        case .updateCheckOff: AdGuardVersionCheck(disabled: true)
+        default: AdGuardVersionCheck(disabled: false)
+        }
+    }
+
+    public func readDataConfig(_ kind: AdGuardDataKind) async throws -> JSONValue {
+        guard currentStatus() != nil else { throw AdGuardClientError.transport(.timedOut) }
+        var config: [String: JSONValue] = ["enabled": .bool(true), "ignored": .array([]), "ignored_enabled": .bool(false)]
+        switch kind {
+        case .queryLog:
+            config["interval"] = .number(Double(queryLogRetention))
+            config["anonymize_client_ip"] = .bool(false)
+        case .stats:
+            config["interval"] = .number(Double(statsRetention))
+        }
+        return .object(config)
+    }
+
     public func readDNS() async throws -> AdGuardDNSSettings {
         guard currentStatus() != nil else { throw AdGuardClientError.transport(.timedOut) }
         return dns
@@ -125,8 +156,12 @@ extension MockAdGuardTransport: AdGuardSettingTransport, AdGuardOverviewService 
             if whitelist { update(&filterLists.allowlists) } else { update(&filterLists.blocklists) }
         case .removeList(let url, let whitelist):
             if whitelist { filterLists.allowlists.removeAll { $0.url == url } } else { filterLists.blocklists.removeAll { $0.url == url } }
-        case .refreshLists, .clearDNSCache, .testUpstreams:
+        case .refreshLists, .clearDNSCache, .testUpstreams, .versionCheck, .clearQueryLog, .resetStats:
             break
+        case .queryLogConfig(let config):
+            if let interval = config["interval"]?.int { queryLogRetention = interval }
+        case .statsConfig(let config):
+            if let interval = config["interval"]?.int { statsRetention = interval }
         case .dnsConfig(let changes):
             dns = dns.applying(changes.filter { $0.key != ignoredDNSField })
         }
@@ -144,6 +179,9 @@ extension MockAdGuardTransport: AdGuardSettingTransport, AdGuardOverviewService 
                                     slowUpstream: slowUpstream)
         reading.filtering = .success(currentFiltering(now: now))
         reading.dns = .success(dns)
+        reading.statsConfig = .success(AdGuardStatsConfig(enabled: true, intervalMilliseconds: statsRetention))
+        if !range.isAvailable(retentionMilliseconds: statsRetention) { reading.stats = .failure(.unavailable) }
+        reading.queryLog = .success(AdGuardQueryLogConfig(enabled: true, intervalMilliseconds: queryLogRetention, anonymizeClientIP: false))
         return reading
     }
 
@@ -258,6 +296,62 @@ extension AdGuardSettingVerifyPolicy {
         var policy = AdGuardSettingVerifyPolicy()
         policy.deadline = .seconds(1)
         policy.pollInterval = .milliseconds(200)
+        return policy
+    }
+}
+
+/// `config.yaml` in memory. A written file's DNS values become
+/// AdGuard Home's when it starts again. In "Restore fails" the first file
+/// written stops AdGuard Home from answering.
+extension MockAdGuardTransport: AdGuardConfigFileTransport {
+    public func readConfigFile() async throws -> Data {
+        try? await Task.sleep(for: .milliseconds(300))
+        return configFile ?? Self.configYAML(dns)
+    }
+
+    public func writeConfigFile(_ data: Data) async throws {
+        try? await Task.sleep(for: .milliseconds(300))
+        configFile = data
+        brokenConfig = failsRestore
+        failsRestore = false
+        guard let file = AdGuardConfigFile(data) else { return }
+        if let upstreams = file.dns.upstreams { dns.upstreams = upstreams }
+        if let mode = file.dns.blockingMode.flatMap(AdGuardBlockingMode.init(rawValue:)) { dns.blockingMode = mode }
+        if let size = file.dns.cacheSize { dns.cacheSize = size }
+        if let limit = file.dns.rateLimit { dns.rateLimit = limit }
+    }
+
+    /// A short config with neutral values. The password hash is a placeholder.
+    static func configYAML(_ dns: AdGuardDNSSettings) -> Data {
+        let upstreams = (dns.upstreams ?? []).map { "    - '\($0.replacingOccurrences(of: "'", with: "''"))'" }.joined(separator: "\n")
+        return Data("""
+        http:
+          address: 0.0.0.0:3000
+        users:
+          - name: admin
+            password: example-placeholder-hash
+        dns:
+          bind_hosts:
+            - 0.0.0.0
+          port: 3053
+          upstream_dns:
+        \(upstreams)
+          blocking_mode: \(dns.blockingMode?.rawValue ?? "default")
+          cache_size: \(dns.cacheSize ?? 4_194_304)
+          ratelimit: \(dns.rateLimit ?? 20)
+        schema_version: 28
+
+        """.utf8)
+    }
+}
+
+extension AdGuardRestorePolicy {
+    static var mock: AdGuardRestorePolicy {
+        var policy = AdGuardRestorePolicy()
+        policy.configDeadline = .seconds(2)
+        policy.answerDeadline = .seconds(4)
+        policy.settingsDeadline = .seconds(1)
+        policy.pollInterval = .milliseconds(250)
         return policy
     }
 }

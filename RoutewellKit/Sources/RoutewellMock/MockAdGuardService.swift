@@ -17,6 +17,9 @@ public enum MockAdGuardScenario: String, CaseIterable, Sendable {
     case slowUpstream
     case dnsApplyMismatch
     case upstreamTestFails
+    case updateAvailable
+    case updateCheckOff
+    case restoreFails
 
     public var title: String {
         switch self {
@@ -34,6 +37,9 @@ public enum MockAdGuardScenario: String, CaseIterable, Sendable {
         case .slowUpstream: "Running, one upstream is slow"
         case .dnsApplyMismatch: "Running, DNS Apply keeps the old cache size"
         case .upstreamTestFails: "Running, Test Upstreams finds a bad server"
+        case .updateAvailable: "Running, an update is available"
+        case .updateCheckOff: "Running, update check not available"
+        case .restoreFails: "Running, Restore fails and rolls back"
         }
     }
 
@@ -52,9 +58,12 @@ public enum MockAdGuardScenario: String, CaseIterable, Sendable {
                                   statsConfig: (try? overview.statsConfig.get()).map { .init(savedAt: savedAt, value: $0) },
                                   protection: (try? overview.protection.get()).map { .init(savedAt: savedAt, value: $0) },
                                   filtering: (try? overview.filtering.get()).map { .init(savedAt: savedAt, value: $0) },
-                                  dns: .init(savedAt: savedAt, value: MockAdGuardTransport.defaultDNS))
+                                  dns: .init(savedAt: savedAt, value: MockAdGuardTransport.defaultDNS),
+                                  instance: .init(savedAt: savedAt, value: AdGuardInstanceInfo(
+                                      version: AdGuardVersionCheck(disabled: false),
+                                      queryLog: AdGuardQueryLogConfig(enabled: true, intervalMilliseconds: MockAdGuardTransport.queryLogRetention))))
         case .off, .running, .paused, .runningWithoutDNS, .turnOnFails, .switchFails, .addListFails, .refreshPartial, .rulesConflict,
-             .slowUpstream, .dnsApplyMismatch, .upstreamTestFails:
+             .slowUpstream, .dnsApplyMismatch, .upstreamTestFails, .updateAvailable, .updateCheckOff, .restoreFails:
             return nil
         }
     }
@@ -94,6 +103,16 @@ public actor MockAdGuardTransport: AdGuardServiceTransport {
     /// A `dns_config` field AdGuard Home accepts but does not change.
     var ignoredDNSField: String?
     var failsUpstreamTest = false
+    // The Instance tab.
+    var statsRetention = MockAdGuardTransport.retentionMilliseconds
+    var queryLogRetention = MockAdGuardTransport.queryLogRetention
+    /// `config.yaml` on the router; `nil` builds it from the settings.
+    var configFile: Data?
+    /// A restored file AdGuard Home cannot start with ("Restore fails").
+    var failsRestore = false
+    var brokenConfig = false
+    /// How often `version.json` was read, for tests.
+    public internal(set) var versionChecks = 0
     /// Safe Search's engine flags, sent back unchanged by the switch.
     var safeSearchEngines: [String: JSONValue] = ["bing": .bool(true), "duckduckgo": .bool(true), "ecosia": .bool(true),
         "google": .bool(true), "pixabay": .bool(true), "yandex": .bool(true), "youtube": .bool(true)]
@@ -126,10 +145,16 @@ public actor MockAdGuardTransport: AdGuardServiceTransport {
         slowUpstream = scenario == .slowUpstream
         ignoredDNSField = scenario == .dnsApplyMismatch ? "cache_size" : nil
         failsUpstreamTest = scenario == .upstreamTestFails
+        statsRetention = Self.retentionMilliseconds
+        queryLogRetention = Self.queryLogRetention
+        configFile = nil
+        failsRestore = scenario == .restoreFails
+        brokenConfig = false
         switch scenario {
         case .off, .cached, .turnOnFails: config = AdGuardRouterConfig(enabled: false, handlesDNS: true)
         case .running, .paused, .unreachable, .switchFails, .addListFails, .refreshPartial, .rulesConflict,
-             .slowUpstream, .dnsApplyMismatch, .upstreamTestFails: config = AdGuardRouterConfig(enabled: true, handlesDNS: true)
+             .slowUpstream, .dnsApplyMismatch, .upstreamTestFails, .updateAvailable, .updateCheckOff, .restoreFails:
+            config = AdGuardRouterConfig(enabled: true, handlesDNS: true)
         case .runningWithoutDNS: config = AdGuardRouterConfig(enabled: true, handlesDNS: false)
         }
     }
@@ -157,7 +182,7 @@ public actor MockAdGuardTransport: AdGuardServiceTransport {
 
     /// What `control/status` answers now, or `nil` when it does not answer.
     func currentStatus(now: Date = Date()) -> AdGuardStatusResponse? {
-        guard config.enabled == true, answers, answersAfter.map({ now >= $0 }) ?? true else { return nil }
+        guard config.enabled == true, answers, !brokenConfig, answersAfter.map({ now >= $0 }) ?? true else { return nil }
         if let until = pausedUntil, until <= now {
             // The pause ended: AdGuard Home turns protection back on.
             pausedUntil = nil

@@ -66,6 +66,10 @@ public enum AdGuardSettingIntent: Sendable, Equatable {
     /// DNS Apply: only the fields that changed (`dns_config`).
     case dns(changes: [String: JSONValue])
     case clearDNSCache
+    /// "Keep … for", in milliseconds; the other fields go back as read.
+    case retention(AdGuardDataKind, milliseconds: Int)
+    /// Clear… for the query log or the statistics.
+    case clearData(AdGuardDataKind)
 
     /// Writes run only while AdGuard Home runs; the read-only UI is not the
     /// only guard.
@@ -82,7 +86,9 @@ public enum AdGuardSettingIntent: Sendable, Equatable {
             return FilterUpdateInterval.isValid(hours) ? nil : .invalidIntent("Not a check interval")
         case .dns(let changes):
             return changes.isEmpty ? .invalidIntent("No DNS changes") : nil
-        case .filtering, .feature, .listEnabled, .removeList, .updateLists, .saveRules, .clearDNSCache: return nil
+        case .retention(_, let milliseconds):
+            return AdGuardRetention.isValid(milliseconds) ? nil : .invalidIntent("Not a retention period")
+        case .filtering, .feature, .listEnabled, .removeList, .updateLists, .saveRules, .clearDNSCache, .clearData: return nil
         }
     }
 }
@@ -102,6 +108,23 @@ public enum AdGuardSettingState: Sendable, Equatable {
     case rules([String])
     case dns(AdGuardDNSSettings)
     case cacheCleared
+    /// The retention AdGuard Home reported, in milliseconds.
+    case retention(AdGuardDataKind, Int?)
+    case dataCleared(AdGuardDataKind)
+}
+
+/// The two kinds of data the Instance tab's Data section manages.
+public enum AdGuardDataKind: String, Sendable, Equatable, CaseIterable {
+    case queryLog
+    case stats
+
+    var configPath: AdGuardReadPath { self == .queryLog ? .queryLogConfig : .statsConfig }
+
+    func configWrite(_ config: JSONValue) -> AdGuardWrite {
+        self == .queryLog ? .queryLogConfig(config) : .statsConfig(config)
+    }
+
+    var clearWrite: AdGuardWrite { self == .queryLog ? .clearQueryLog : .resetStats }
 }
 
 /// The calls a setting write needs. Live: AdGuard Home's own API.
@@ -122,9 +145,12 @@ public protocol AdGuardSettingTransport: Sendable {
     func readDNS() async throws -> AdGuardDNSSettings
     /// `POST control/test_upstream_dns`: the reply as sent.
     func testUpstreams(_ request: UpstreamTestRequest) async throws -> JSONValue?
+    /// `control/querylog/config` or `control/stats/config`, as sent.
+    func readDataConfig(_ kind: AdGuardDataKind) async throws -> JSONValue
 }
 
 public extension AdGuardSettingTransport {
+    func readDataConfig(_ kind: AdGuardDataKind) async throws -> JSONValue { throw AdGuardClientError.malformedResponse }
     func readDNS() async throws -> AdGuardDNSSettings { throw AdGuardClientError.malformedResponse }
     func testUpstreams(_ request: UpstreamTestRequest) async throws -> JSONValue? { throw AdGuardClientError.malformedResponse }
 
@@ -222,7 +248,9 @@ public struct AdGuardSettingExecutor: AdGuardSettingControl {
         case .updateLists(let kind): step = await performUpdateLists(kind)
         case .saveRules(let rules, let loaded): step = await performSaveRules(rules, loaded: loaded)
         case .dns(let changes): step = await performDNS(changes)
-        case .clearDNSCache: step = await performClearCache()
+        case .clearDNSCache: step = await performClear(.clearDNSCache, state: .cacheCleared)
+        case .retention(let kind, let milliseconds): step = await performRetention(kind, milliseconds: milliseconds)
+        case .clearData(let kind): step = await performClear(kind.clearWrite, state: .dataCleared(kind))
         }
         await gate.release(token)
         await log?.record(LogEvent(
@@ -497,11 +525,33 @@ public struct AdGuardSettingExecutor: AdGuardSettingControl {
         return (.verifiedMismatch(expected: .dns(before.applying(changes)), actual: .dns(last)), true, nil)
     }
 
-    /// Recovery class `none`: nothing can be read back.
-    private func performClearCache() async -> Step {
+    /// The whole config goes back as read, with only `interval` changed.
+    private func performRetention(_ kind: AdGuardDataKind, milliseconds: Int) async -> Step {
+        let before: JSONValue
         do {
-            try await transport.write(.clearDNSCache)
-            return (.verifiedSuccess(.cacheCleared), true, nil)
+            before = try await transport.readDataConfig(kind)
+        } catch {
+            return (.rejected(.preconditionFailed("settings unavailable")), false, Self.category(for: error))
+        }
+        guard var config = before.object else {
+            return (.rejected(.preconditionFailed("AdGuard Home did not send its settings.")), false, .malformedResponse)
+        }
+        let interval: (JSONValue) -> Int? = { $0["interval"]?.int }
+        if interval(before) == milliseconds { return (.verifiedSuccess(.retention(kind, milliseconds)), false, nil) }
+        config["interval"] = .number(Double(milliseconds))
+        if let stop = await dispatch(kind.configWrite(.object(config))) { return stop }
+
+        let poll = await poll { try await transport.readDataConfig(kind) } matches: { interval($0) == milliseconds }
+        if poll.matched != nil { return (.verifiedSuccess(.retention(kind, milliseconds)), true, nil) }
+        guard let last = poll.last else { return (.unknownAfterDispatch, true, poll.failure) }
+        return (.verifiedMismatch(expected: .retention(kind, milliseconds), actual: .retention(kind, interval(last))), true, nil)
+    }
+
+    /// Recovery class `none`: nothing can be read back.
+    private func performClear(_ write: AdGuardWrite, state: AdGuardSettingState) async -> Step {
+        do {
+            try await transport.write(write)
+            return (.verifiedSuccess(state), true, nil)
         } catch AdGuardClientError.credentialUnavailable {
             return (.rejected(.preconditionFailed("credential unavailable")), false, .authentication)
         } catch AdGuardClientError.unauthorized {
@@ -686,5 +736,8 @@ public struct LiveAdGuardSettingTransport: AdGuardSettingTransport {
     }
     public func testUpstreams(_ request: UpstreamTestRequest) async throws -> JSONValue? {
         try await adGuard.write(.testUpstreams(request))
+    }
+    public func readDataConfig(_ kind: AdGuardDataKind) async throws -> JSONValue {
+        try await adGuard.read(kind.configPath)
     }
 }

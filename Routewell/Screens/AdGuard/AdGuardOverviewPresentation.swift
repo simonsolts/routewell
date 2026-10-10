@@ -256,6 +256,10 @@ extension AdGuardPresentation {
             case .saveRules: return "AdGuard Home did not save the custom rules."
             case .dns: return "AdGuard Home did not take every DNS change. The tab shows its settings now."
             case .clearDNSCache: return "AdGuard Home did not clear the cache."
+            case .retention(.queryLog, _): return "AdGuard Home did not change how long it keeps the query log."
+            case .retention(.stats, _): return "AdGuard Home did not change how long it keeps statistics."
+            case .clearData(.queryLog): return "AdGuard Home did not clear the query log."
+            case .clearData(.stats): return "AdGuard Home did not clear the statistics."
             }
         case .conflictingExternalEdit:
             switch intent {
@@ -266,6 +270,7 @@ extension AdGuardPresentation {
                 return "The lists changed from somewhere else. Refresh to check."
             case .protection, .filtering, .feature: return "Protection changed from somewhere else. Refresh to check."
             case .dns, .clearDNSCache: return "The DNS settings changed from somewhere else. Refresh to check."
+            case .retention, .clearData: return "AdGuard Home's settings changed from somewhere else. Refresh to check."
             }
         case .recoveryFailed, .unknownAfterDispatch:
             return "AdGuard Home did not answer in time. The change may have applied. Refresh to check."
@@ -275,7 +280,8 @@ extension AdGuardPresentation {
             case .staleSession: return "The router changed during the operation. Refresh to check."
             case .capabilityUnavailable: return "AdGuard Home is not set up in Routewell."
             case .preconditionFailed("AdGuard Home refused the login"): return "AdGuard Home refused the sign-in. Nothing was changed."
-            case .preconditionFailed("status unavailable"), .preconditionFailed("DNS settings unavailable"):
+            case .preconditionFailed("status unavailable"), .preconditionFailed("DNS settings unavailable"),
+                 .preconditionFailed("settings unavailable"):
                 return "AdGuard Home did not answer. Nothing was changed."
             case .preconditionFailed("credential unavailable"): return "The AdGuard Home password is not available. Nothing was changed."
             case .preconditionFailed(let reason), .invalidIntent(let reason): return reason

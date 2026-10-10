@@ -302,7 +302,7 @@ final class RefreshController {
 
     // MARK: SSH (chunk 15)
 
-    enum SSHRead: Hashable { case ports, storage, logs, adGuardProcess }
+    enum SSHRead: Hashable { case ports, storage, logs, adGuardProcess, adGuardResources }
 
     private struct SSHWork {
         let lease: SessionLease
@@ -311,7 +311,11 @@ final class RefreshController {
 
     /// The SSH reads the visible Router segment needs.
     private func visibleSSHReads(includeLogs: Bool) -> Set<SSHRead> {
-        guard windowVisible, model.selection == .router else { return [] }
+        guard windowVisible else { return [] }
+        if model.selection == .adGuard {
+            return model.subpages[.adGuard] == AdGuardTab.instance.rawValue ? [.adGuardResources] : []
+        }
+        guard model.selection == .router else { return [] }
         switch model.subpages[.router] ?? SidebarDestination.router.segments.first {
         case "Overview": return [.adGuardProcess]
         case "Ports": return [.ports]
@@ -357,7 +361,7 @@ final class RefreshController {
                 model.acceptSSHProbe(result, token: token)
             }
             guard model.sshProbe?.capability.state == .supported else { return }
-            for read in [SSHRead.adGuardProcess, .ports, .storage, .logs] where reads.contains(read) {
+            for read in [SSHRead.adGuardProcess, .adGuardResources, .ports, .storage, .logs] where reads.contains(read) {
                 switch read {
                 case .ports:
                     guard let result = try await session.routerPorts(using: lease) else { return }
@@ -375,6 +379,10 @@ final class RefreshController {
                     guard let result = try await session.adGuardProcess(using: lease) else { return }
                     guard !Task.isCancelled else { return }
                     model.acceptAdGuardProcess(result, token: token)
+                case .adGuardResources:
+                    guard let result = try await session.adGuardResources(using: lease) else { return }
+                    guard !Task.isCancelled else { return }
+                    model.acceptAdGuardResources(result, token: token)
                 }
             }
         } catch {

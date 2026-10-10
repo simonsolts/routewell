@@ -26,6 +26,9 @@ public protocol RouterBackend: Sendable {
     /// AdGuard Home › Overview's reads (chunk 17). `nil` without an AdGuard
     /// Home connection.
     var adGuardOverview: (any AdGuardOverviewService)? { get }
+    /// Back Up Now and Restore… for AdGuard Home's config.
+    /// `nil` without SSH or without an AdGuard Home connection.
+    var adGuardBackups: (any AdGuardBackupControl)? { get }
 }
 
 public extension RouterBackend {
@@ -42,6 +45,7 @@ public extension RouterBackend {
     var adGuardService: (any AdGuardServiceControl)? { nil }
     var adGuardSettings: (any AdGuardSettingControl)? { nil }
     var adGuardOverview: (any AdGuardOverviewService)? { nil }
+    var adGuardBackups: (any AdGuardBackupControl)? { nil }
 
     func service(for area: DataArea) -> (any FeatureService)? {
         switch area {

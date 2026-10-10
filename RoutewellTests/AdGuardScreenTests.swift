@@ -34,7 +34,7 @@ private func settle(_ environment: AppEnvironment, _ scenario: MockAdGuardScenar
         switch scenario {
         case .off, .turnOnFails: return adGuard.availability == .off
         case .running, .runningWithoutDNS, .switchFails, .addListFails, .refreshPartial, .rulesConflict,
-             .slowUpstream, .dnsApplyMismatch, .upstreamTestFails:
+             .slowUpstream, .dnsApplyMismatch, .upstreamTestFails, .updateAvailable, .updateCheckOff, .restoreFails:
             return adGuard.availability == .running && adGuard.handlesDNS == (scenario != .runningWithoutDNS)
         case .paused:
             guard adGuard.availability == .running, case .paused? = adGuard.protection else { return false }
@@ -464,11 +464,13 @@ private func loadOverview(_ environment: AppEnvironment) async {
     #expect(model.adGuardQueryLogFilter?.search == "192.0.2.10")
 }
 
-@Test func refreshPlanReadsTheOverviewOnlyOnItsTab() {
+@Test func refreshPlanReadsTheOverviewOnItsTabs() {
     let overview = ScreenRefreshPlan.resolve(destination: "adGuard", segment: "Overview").map(\.area)
     #expect(overview.contains(.adGuardOverview))
+    #expect(!overview.contains(.ssh))
+    // Instance shows the query log retention and reads memory over SSH.
     let instance = ScreenRefreshPlan.resolve(destination: "adGuard", segment: "Instance").map(\.area)
-    #expect(!instance.contains(.adGuardOverview))
+    #expect(instance.contains(.adGuardOverview) && instance.contains(.ssh))
     // The Query Log names blocklists from the same read.
     let queryLog = ScreenRefreshPlan.resolve(destination: "adGuard", segment: "Query Log").map(\.area)
     #expect(queryLog.contains(.adGuardOverview))

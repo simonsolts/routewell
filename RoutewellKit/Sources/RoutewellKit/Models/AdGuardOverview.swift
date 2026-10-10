@@ -126,8 +126,8 @@ public struct AdGuardStats: Sendable, Equatable, Codable {
     private static func entries(_ value: JSONValue?) -> [Entry] {
         (value?.array ?? []).compactMap { element in
             guard let object = element.object, object.count == 1, let (name, count) = object.first,
-                  let value = count.double, value >= 0 else { return nil }
-            return Entry(name: name, count: Int(value.rounded()))
+                  let value = count.double, value >= 0, let count = Int(exactly: value.rounded()) else { return nil }
+            return Entry(name: name, count: count)
         }
     }
 
@@ -190,7 +190,6 @@ public struct AdGuardStats: Sendable, Equatable, Codable {
 }
 
 /// `GET control/stats/config` (`GetStatsConfigResponse`) `[assumed]`.
-/// `ignored` is kept so chunk 19B can send the config back unchanged.
 public struct AdGuardStatsConfig: Sendable, Equatable, Codable {
     public var enabled: Bool?
     /// Retention in milliseconds.
@@ -205,7 +204,7 @@ public struct AdGuardStatsConfig: Sendable, Equatable, Codable {
 
     public static func parse(_ json: JSONValue) -> AdGuardStatsConfig {
         var config = AdGuardStatsConfig(enabled: json["enabled"]?.bool,
-                                        intervalMilliseconds: json["interval"]?.double.map { Int($0.rounded()) })
+                                        intervalMilliseconds: json["interval"]?.int)
         config.ignored = json["ignored"]?.array?.compactMap(\.string) ?? []
         config.ignoredEnabled = json["ignored_enabled"]?.bool
         return config
@@ -354,6 +353,8 @@ public struct AdGuardOverviewReading: Sendable, Equatable {
     public var filtering: Result<AdGuardFilteringStatus, RefreshFailureCategory>
     /// `control/dns_info`, for the DNS tab.
     public var dns: Result<AdGuardDNSSettings, RefreshFailureCategory>
+    /// The Instance tab: `querylog/config`.
+    public var queryLog: Result<AdGuardQueryLogConfig, RefreshFailureCategory> = .failure(.unavailable)
     public var observedAt: Date
 
     public init(range: AdGuardStatsRange, stats: Result<AdGuardStats, RefreshFailureCategory>, rangeHonoured: Bool = true,

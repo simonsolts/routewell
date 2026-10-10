@@ -16,6 +16,7 @@ final class AppEnvironment {
     let adGuard: AdGuardController
     let filters: AdGuardFiltersController
     let dns: AdGuardDNSController
+    let instance: AdGuardInstanceController
     let clients: ClientsController
     let clientDNS: ClientDNSController
     let queryLog: QueryLogController
@@ -98,14 +99,19 @@ final class AppEnvironment {
                                          store: AdGuardArchiveStore(root: model.mode == .live ? dataDirectory : nil))
         self.filters = AdGuardFiltersController(adGuard: adGuard)
         self.dns = AdGuardDNSController(adGuard: adGuard)
+        // Mock backups stay in memory; live ones use `adguard/<profile>/backups/`.
+        self.instance = AdGuardInstanceController(model: model, adGuard: adGuard, refresh: refresh,
+                                                  store: AdGuardBackupStore(root: model.mode == .live ? dataDirectory : nil))
         #if DEBUG
         mockBackend = backend as? MockRouterBackend
         #endif
         sshSetup.save = { [weak self] settings in self?.updateSSHSettings(settings) }
         adGuard.profileID = { [weak self] in self?.persistence.selectedProfile?.id }
+        instance.profileID = { [weak self] in self?.persistence.selectedProfile?.id }
         persistence.onSelectionChange = { [weak self] in
             self?.filters.reset()
             self?.dns.reset()
+            self?.instance.reset()
         }
         refresh.onAdGuardReading = { [weak self] reading, token in await self?.adGuard.observe(reading, token: token) }
         refresh.onAdGuardOverview = { [weak self] lease in try await self?.adGuard.refreshOverview(using: lease) }
@@ -446,6 +452,7 @@ final class AppEnvironment {
             try? await sshSetup.hostKeys.revoke(host: endpoint.host, port: profile.ssh?.port ?? SSHSettings().port)
         }
         await adGuard.removeArchive(profile: id)
+        await instance.removeBackups(profile: id)
         await persistence.removeProfile(id)
         updateNeedsSetup()
     }

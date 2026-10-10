@@ -204,6 +204,8 @@ final class AppModel {
     private(set) var routerLogs: RouterLogTail?
     private(set) var routerLogsFreshness = Freshness()
     private(set) var adGuardProcessID: Observed<Int> = .unknown
+    /// AdGuard Home's memory and query log size, for AdGuard Home › Instance.
+    private(set) var adGuardResources: AdGuardResources?
     /// Bumped when the backend's SSH service may have changed without a
     /// session switch (the mock scenario), so views re-read it.
     private var sshRevision = 0
@@ -225,6 +227,7 @@ final class AppModel {
         routerLogs = nil
         routerLogsFreshness = Freshness()
         adGuardProcessID = .unknown
+        adGuardResources = nil
     }
 
     func acceptSSHProbe(_ probe: SSHProbeResult, token: SessionToken) {
@@ -252,6 +255,11 @@ final class AppModel {
     func acceptAdGuardProcess(_ value: Observed<Int>, token: SessionToken) {
         guard session.isReady, token == session.expectedToken else { return }
         adGuardProcessID = value
+    }
+
+    func acceptAdGuardResources(_ value: AdGuardResources, token: SessionToken) {
+        guard session.isReady, token == session.expectedToken else { return }
+        adGuardResources = value
     }
 
     /// A failed read keeps the last value and records the failure.

@@ -44,6 +44,11 @@ public actor MockRouterBackend: RouterBackend {
         AdGuardSettingExecutor(transport: mockAdGuard, gate: gate, policy: .mock)
     }
     public nonisolated var adGuardOverview: (any AdGuardOverviewService)? { mockAdGuard }
+    /// Backups need SSH, as live.
+    public nonisolated var adGuardBackups: (any AdGuardBackupControl)? {
+        guard mockSSH.scenario != .off else { return nil }
+        return AdGuardBackupExecutor(files: mockAdGuard, service: mockAdGuard, settings: mockAdGuard, gate: gate, policy: .mock)
+    }
 
     public init(scenario: Scenario = .healthy, hostname: String = "flint-demo") {
         self.scenario = scenario

@@ -34,11 +34,13 @@ public struct AdGuardArchive: Sendable, Equatable, Codable {
     public var filtering: Section<AdGuardFilteringStatus>?
     /// `control/dns_info`: the DNS tab.
     public var dns: Section<AdGuardDNSSettings>?
+    /// The Instance tab: the update check and the query log retention.
+    public var instance: Section<AdGuardInstanceInfo>?
 
     public init(status: Section<AdGuardStatusResponse>? = nil, config: Section<AdGuardRouterConfig>? = nil,
                 stats: [String: Section<AdGuardStats>]? = nil, statsConfig: Section<AdGuardStatsConfig>? = nil,
                 protection: Section<ProtectionOptions>? = nil, filtering: Section<AdGuardFilteringStatus>? = nil,
-                dns: Section<AdGuardDNSSettings>? = nil) {
+                dns: Section<AdGuardDNSSettings>? = nil, instance: Section<AdGuardInstanceInfo>? = nil) {
         self.status = status
         self.config = config
         self.stats = stats
@@ -46,15 +48,16 @@ public struct AdGuardArchive: Sendable, Equatable, Codable {
         self.protection = protection
         self.filtering = filtering
         self.dns = dns
+        self.instance = instance
     }
 
     public var isEmpty: Bool {
-        status == nil && config == nil && (stats ?? [:]).isEmpty && statsConfig == nil && protection == nil && filtering == nil && dns == nil
+        status == nil && config == nil && (stats ?? [:]).isEmpty && statsConfig == nil && protection == nil && filtering == nil && dns == nil && instance == nil
     }
 
     /// The newest section's date: the age the read-only strip shows.
     public var savedAt: Date? {
-        ([status?.savedAt, config?.savedAt, statsConfig?.savedAt, protection?.savedAt, filtering?.savedAt, dns?.savedAt]
+        ([status?.savedAt, config?.savedAt, statsConfig?.savedAt, protection?.savedAt, filtering?.savedAt, dns?.savedAt, instance?.savedAt]
             + (stats ?? [:]).values.map(\.savedAt)).compactMap { $0 }.max()
     }
 
@@ -80,6 +83,10 @@ public actor AdGuardArchiveStore {
     /// Bumped by `remove`, so a save that was waiting on the file when the
     /// router was removed does not bring its copy back.
     private var generations: [UUID: Int] = [:]
+    /// One read-and-save at a time per router, so a save never builds on a
+    /// copy that another save is about to replace.
+    private var saving: Set<UUID> = []
+    private var waiting: [UUID: [CheckedContinuation<Void, Never>]] = [:]
 
     /// `beforeCommit` is for tests: it runs inside each file write.
     public init(root: URL?, beforeCommit: @escaping @Sendable () throws -> Void = {}) {
@@ -115,6 +122,8 @@ public actor AdGuardArchiveStore {
         guard case .success(let config) = reading.config, config.enabled == true,
               let status = reading.status else { return nil }
         let generation = generations[profile, default: 0]
+        await lock(profile)
+        defer { unlock(profile) }
         var next = await archive(for: profile) ?? AdGuardArchive()
         let at = reading.observedAt
         var changed = false
@@ -137,6 +146,8 @@ public actor AdGuardArchiveStore {
     @discardableResult
     public func save(_ overview: AdGuardOverviewReading, for profile: UUID, force: Bool = false) async -> StoreError? {
         let generation = generations[profile, default: 0]
+        await lock(profile)
+        defer { unlock(profile) }
         var next = await archive(for: profile) ?? AdGuardArchive()
         let at = overview.observedAt
         var changed = false
@@ -168,7 +179,22 @@ public actor AdGuardArchiveStore {
             next.dns = .init(savedAt: at, value: dns)
             changed = true
         }
+        if case .success(let queryLog) = overview.queryLog, force || Self.isDue(next.instance?.savedAt, at: at) {
+            next.instance = .init(savedAt: at, value: AdGuardInstanceInfo(version: next.instance?.value.version, queryLog: queryLog))
+            changed = true
+        }
         guard changed else { return nil }
+        return await commit(next, for: profile, generation: generation)
+    }
+
+    /// Saves the update check, read once per session.
+    @discardableResult
+    public func save(version: AdGuardVersionCheck, at date: Date, for profile: UUID) async -> StoreError? {
+        let generation = generations[profile, default: 0]
+        await lock(profile)
+        defer { unlock(profile) }
+        var next = await archive(for: profile) ?? AdGuardArchive()
+        next.instance = .init(savedAt: date, value: AdGuardInstanceInfo(version: version, queryLog: next.instance?.value.queryLog))
         return await commit(next, for: profile, generation: generation)
     }
 
@@ -177,8 +203,11 @@ public actor AdGuardArchiveStore {
     @discardableResult
     public func replace(_ archive: AdGuardArchive?, for profile: UUID) async -> StoreError? {
         guard let archive, !archive.isEmpty else { await remove(profile: profile); return nil }
+        let generation = generations[profile, default: 0]
+        await lock(profile)
+        defer { unlock(profile) }
         loaded.insert(profile)
-        return await commit(archive, for: profile, generation: generations[profile, default: 0])
+        return await commit(archive, for: profile, generation: generation)
     }
 
     /// Start Setup Again and profile removal: the whole folder goes.
@@ -194,6 +223,21 @@ public actor AdGuardArchiveStore {
     private static func isDue(_ savedAt: Date?, at date: Date) -> Bool {
         guard let savedAt else { return true }
         return date.timeIntervalSince(savedAt) >= minimumInterval
+    }
+
+    private func lock(_ profile: UUID) async {
+        guard saving.contains(profile) else { saving.insert(profile); return }
+        await withCheckedContinuation { waiting[profile, default: []].append($0) }
+    }
+
+    private func unlock(_ profile: UUID) {
+        if var queue = waiting[profile], !queue.isEmpty {
+            let next = queue.removeFirst()
+            waiting[profile] = queue.isEmpty ? nil : queue
+            next.resume()
+        } else {
+            saving.remove(profile)
+        }
     }
 
     private func store(for profile: UUID) -> AtomicJSONStore? {

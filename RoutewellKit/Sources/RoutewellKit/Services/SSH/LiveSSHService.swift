@@ -112,6 +112,17 @@ public actor LiveSSHService: SSHService {
         }
     }
 
+    public func adGuardResources() async throws -> AdGuardResources {
+        var resources = AdGuardResources()
+        if case .success(let output) = try await read(.adGuardMemory) {
+            resources.memoryBytes = AdGuardResourceParser.memoryBytes(output.stdout, exitStatus: output.exitStatus)
+        }
+        if case .success(let output) = try await read(.adGuardQueryLogSize) {
+            resources.queryLogBytes = AdGuardResourceParser.diskBytes(output.stdout)
+        }
+        return resources
+    }
+
     struct Output: Sendable {
         let stdout: String
         let stderr: String

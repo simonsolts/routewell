@@ -95,9 +95,13 @@ public protocol SSHService: FeatureService {
     func logTail() async throws -> AreaRefreshResult<RouterLogTail>
     /// The AdGuard Home process ID; `unavailable` when no process runs.
     func adGuardProcess() async throws -> Observed<Int>
+    /// AdGuard Home's memory and the query log's size on the router.
+    func adGuardResources() async throws -> AdGuardResources
 }
 
 public extension SSHService {
+    func adGuardResources() async throws -> AdGuardResources { AdGuardResources() }
+
     func probe() async -> Capability {
         (try? await check())?.capability ?? Capability()
     }

@@ -58,7 +58,8 @@ enum AdGuardPresentation {
     }
 
     /// The Instance header's second line.
-    static func instanceLine(_ availability: AdGuardAvailability, status: AdGuardStatusResponse?, sshConfigured: Bool, now: Date) -> String {
+    static func instanceLine(_ availability: AdGuardAvailability, status: AdGuardStatusResponse?, sshConfigured: Bool,
+                             memory: Observed<Int> = .unknown, now: Date) -> String {
         var parts: [String] = []
         switch availability {
         case .running:
@@ -72,8 +73,13 @@ enum AdGuardPresentation {
         case .off, .unknown: parts.append("Unknown")
         }
         if let version = status?.version { parts.append("Version \(version)") }
-        // Memory is read over SSH from chunk 19B.
-        if availability == .running, !sshConfigured { parts.append("Memory needs SSH") }
+        if availability == .running {
+            if !sshConfigured {
+                parts.append("Memory needs SSH")
+            } else if case .value(let bytes) = memory {
+                parts.append(ByteCountFormatter.string(fromByteCount: Int64(bytes), countStyle: .memory))
+            }
+        }
         return parts.joined(separator: " · ")
     }
 

@@ -1,0 +1,7 @@
+{
+ "disabled": false,
+ "new_version": "v0.107.70",
+ "announcement": "AdGuard Home v0.107.70 is now available!",
+ "announcement_url": "https://github.com/AdguardTeam/AdGuardHome/releases/tag/v0.107.70",
+ "can_autoupdate": false
+}
