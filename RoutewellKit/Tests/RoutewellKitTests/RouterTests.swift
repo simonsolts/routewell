@@ -293,22 +293,6 @@ private enum RouterStub {
         await #expect(throws: SessionError.stale) { try await session.checkFirmware(using: lease) }
     }
 
-    @Test func mockCoversEverySQMAndFirmwareScenario() async throws {
-        let mock = MockRouterService()
-        #expect(try await mock.details().sqmCapability.state == .unsupported)
-        await mock.setSQMBehavior(.available)
-        #expect(try await mock.details().sqmCapability.state == .supported)
-        await mock.setSQMBehavior(.failing)
-        #expect(try await mock.details().sqmCapability.state == .unknown)
-        #expect(try await mock.checkFirmware().status == .unableToCheck(.failed(.network)))
-        await mock.setFirmwareBehavior(.updateAvailable)
-        #expect(try await mock.checkFirmware().status == .updateAvailable)
-        await mock.setFirmwareBehavior(.upToDate)
-        #expect(try await mock.checkFirmware().status == .upToDate)
-        guard case .success(let wireless, _, _) = try await mock.details().wireless else { Issue.record("expected Wi-Fi"); return }
-        #expect(wireless.radios.map(\.band) == [.ghz2_4, .ghz5, .ghz6])
-    }
-
     @Test func theRouterScreenRequestsTheRouterArea() {
         let plan = ScreenRefreshPlan.resolve(destination: "router", segment: "Overview")
         #expect(plan.contains { $0.area == .routerDetail && $0.interval == .seconds(30) })

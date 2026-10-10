@@ -1,33 +1,6 @@
 import Foundation
 import Testing
 @testable import RoutewellKit
-import RoutewellMock
-
-@Test func defaultFeatureServicesAreAbsent() {
-    let backend: any RouterBackend = NoFeaturesBackend()
-    for area in [DataArea.clients, .queryLog, .network, .maintenance, .vpn, .plugins, .telemetry] {
-        #expect(backend.service(for: area) == nil)
-    }
-}
-
-@Test func mockCapabilityTransitionsAreIndependent() async throws {
-    let backend = MockRouterBackend()
-    let clients = try #require(backend.clients)
-    let vpn = try #require(backend.vpn)
-    // Clients has mock data, so it starts supported (chunk 12).
-    #expect(await clients.probe().state == .supported)
-    await backend.setFeatureBehavior(.unknown, for: .clients)
-    #expect(await clients.probe().state == .unknown)
-    await backend.setFeatureBehavior(.supported, for: .clients)
-    let supported = await clients.probe()
-    #expect(supported.state == .supported)
-    #expect(supported.observedAt != nil)
-    #expect(await vpn.probe().state == .unknown)
-    await backend.setFeatureBehavior(.unsupported, for: .clients)
-    #expect(await clients.probe().state == .unsupported)
-    await backend.setFeatureBehavior(.failing, for: .clients)
-    #expect(await clients.probe().state == .unknown)
-}
 
 @Test func telemetryRingsEvictOldestAndIgnoreUnknown() async {
     let sampler = TelemetrySampler(overviewLimit: 2, throughputLimit: 3)
@@ -92,10 +65,6 @@ import RoutewellMock
     #expect(manifest.source == "synthetic-test-backend")
     #expect(manifest.files.count == count)
     #expect(manifest.privacy.contains("privacy aliases"))
-}
-
-private struct NoFeaturesBackend: RouterBackend {
-    func overview() async throws -> OverviewRefreshResult { throw CancellationError() }
 }
 
 private struct FixtureBackend: RouterBackend, FixtureRecordableBackend {

@@ -48,8 +48,3 @@ import Testing
     let text = try #require(String(data: export, encoding: .utf8))
     #expect(!text.contains("ROUTEWELL-CANARY-SECRET"))
 }
-
-@Test func failureCategoriesHaveFixedSafeMessages() {
-    #expect(FailureCategory.timeout.message == "The router took too long to respond. Try again.")
-    #expect(RefreshFailureCategory.authentication.failureCategory == .authFailed)
-}

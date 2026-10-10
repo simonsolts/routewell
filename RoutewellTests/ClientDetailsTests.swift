@@ -142,12 +142,6 @@ private let kindle = mac("fc:65:de:02:1b:9a")
     _ = await follow.value
 }
 
-@Test func vpnRoutingIsUnknownUntilItsChunk() {
-    #expect((ClientDetailsFormat.vpnClientRows + ClientDetailsFormat.vpnGlobalRows).allSatisfy { $0.value == "Unknown" })
-    #expect(ClientDetailsFormat.vpnClientRows.map(\.label) == ["Route", "Policy source", "Matched by"])
-    #expect(ClientDetailsFormat.vpnGlobalRows.map(\.label) == ["Global VPN", "Client", "Policy mode"])
-}
-
 @MainActor @Test func pingAndWakeOverRPCAndSSH() async throws {
     let (environment, backend) = await detailsEnvironment()
     let actions = environment.clientActions

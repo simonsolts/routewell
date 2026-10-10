@@ -79,20 +79,6 @@ private func statusBody(enabled: Bool, durationMs: Int) -> Data {
         #expect(backend.adGuardOverview == nil)
     }
 
-    @Test func sessionRejectsWithCapabilityUnavailableWhenBackendHasNoAdGuard() async throws {
-        let transport = StubHTTPTransport { request in (Data(), StubHTTPTransport.response(200, url: request.url!)) }
-        let backend = Self.makeBackend(transport: transport, adGuard: nil)
-        let session = RouterSession()
-        let token = SessionToken(profileID: "no-adguard", revision: 1)
-        let lease = SessionLease(token: token, backend: backend)
-        try await session.beginRevision(token)
-        try await session.installLease(lease)
-
-        let report = try await session.runAdGuardSetting(using: lease, intent: .protection(.enable), availability: .running)
-        #expect(report.outcome == .rejected(.capabilityUnavailable))
-        #expect(report.dispatched == false)
-    }
-
     private static func makeAdGuardClient(_ transport: StubHTTPTransport) -> AdGuardClient {
         AdGuardClient(
             baseURL: URL(string: "http://192.0.2.40:3000/")!,

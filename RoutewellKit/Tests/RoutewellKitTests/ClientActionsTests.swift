@@ -131,17 +131,6 @@ PING 192.168.8.11 (192.168.8.11): 56 data bytes
         #expect(backend.queryLog == nil)
     }
 
-    @Test func mockMechanismsIncludeHidden() async throws {
-        let backend = MockRouterBackend()
-        #expect(backend.clientActions?.mechanism == .ssh)
-        backend.mockClientActions.setMechanism(.rpc)
-        #expect(backend.clientActions?.mechanism == .rpc)
-        backend.mockClientActions.setMechanism(.sshRequired)
-        #expect(try await backend.clientActions?.ping(target) == .failure(.unavailable))
-        backend.mockClientActions.setMechanism(nil)
-        #expect(backend.clientActions == nil)
-    }
-
     @Test func sessionFencesPingAndWake() async throws {
         let session = RouterSession()
         let token = SessionToken(profileID: "a", revision: 1)

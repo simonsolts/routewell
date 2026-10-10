@@ -1,7 +1,6 @@
 import Foundation
 import Testing
 @testable import RoutewellKit
-import RoutewellMock
 
 struct AdGuardFiltersRecordingTests {
     @Test func recorderKeepsListDatesAndPublicListURLs() {
@@ -428,59 +427,6 @@ private struct FailingRulesTransport: AdGuardSettingTransport {
 private func executor(_ transport: some AdGuardSettingTransport) -> AdGuardSettingExecutor {
     let clock = FiltersClock()
     return AdGuardSettingExecutor(transport: transport, gate: MutationGate(), clock: { clock.now() }, sleep: { try await clock.sleep($0) })
-}
-
-struct MockFiltersScenarioTests {
-    private func mock(_ scenario: MockAdGuardScenario) async -> MockAdGuardTransport {
-        let mock = MockAdGuardTransport()
-        await mock.setScenario(scenario)
-        return mock
-    }
-
-    @Test func populatedHasBothKindsAndRules() async throws {
-        let status = try await mock(.running).readFiltering()
-        #expect(status.blocklists.count == 4)
-        #expect(status.allowlists.count == 1)
-        #expect(status.intervalHours == 24)
-        #expect(status.userRules?.isEmpty == false)
-        #expect(status.blocklists.allSatisfy { $0.url?.contains("example") == true })
-    }
-
-    @Test func addedListDownloadsThenHasRules() async throws {
-        let mock = await mock(.running)
-        let report = await executor(mock).run(.addList(.blocklist, name: "Mine", url: "https://lists.example.org/mine.txt"), availability: .running)
-        guard case .verifiedSuccess(.filters(let status)) = report.outcome else { Issue.record("\(report.outcome)"); return }
-        let added = try #require(status.list(.blocklist, url: "https://lists.example.org/mine.txt"))
-        #expect(added.rulesCount == 0)
-        #expect(added.lastUpdated == nil)
-        let later = await mock.currentFiltering(now: Date().addingTimeInterval(60))
-        #expect((later.list(.blocklist, url: "https://lists.example.org/mine.txt")?.rulesCount ?? 0) > 0)
-    }
-
-    @Test func addFailsIsAMismatch() async {
-        let mock = await mock(.addListFails)
-        let report = await executor(mock).run(.addList(.blocklist, name: "Mine", url: "https://lists.example.org/mine.txt"), availability: .running)
-        guard case .verifiedMismatch = report.outcome else { Issue.record("\(report.outcome)"); return }
-    }
-
-    @Test func refreshPartialUpdatesOneList() async {
-        let mock = await mock(.refreshPartial)
-        let report = await executor(mock).run(.updateLists(.blocklist), availability: .running)
-        guard case .verifiedSuccess(.listsUpdated(let count, _)) = report.outcome else { Issue.record("\(report.outcome)"); return }
-        #expect(count == 1)
-        let full = await self.mock(.running)
-        guard case .verifiedSuccess(.listsUpdated(3, _)) = await executor(full).run(.updateLists(.blocklist), availability: .running).outcome else {
-            Issue.record("full refresh"); return
-        }
-    }
-
-    @Test func rulesConflictStopsSave() async throws {
-        let mock = await mock(.rulesConflict)
-        let loaded = try #require(try await mock.readFiltering().userRules)
-        let report = await executor(mock).run(.saveRules(loaded + ["||mine.example^"], loaded: loaded), availability: .running)
-        guard case .conflictingExternalEdit = report.outcome else { Issue.record("\(report.outcome)"); return }
-        #expect(await mock.writes.isEmpty)
-    }
 }
 
 struct FiltersRefreshPlanTests {

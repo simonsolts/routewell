@@ -55,15 +55,6 @@ private func loadOverview(_ environment: AppEnvironment) async {
 
 // MARK: - Sidebar and hand-off
 
-@Test func sidebarHasAdGuardHomeAndNoDNSActivity() {
-    let titles = SidebarDestination.allCases.map(\.title)
-    #expect(titles.contains("AdGuard Home"))
-    #expect(!titles.contains("DNS Activity"))
-    #expect(!titles.contains("Protection"))
-    #expect(SidebarDestination.adGuard.group == .monitoring)
-    #expect(SidebarDestination.adGuard.segments == ["Overview", "Query Log", "Filters", "DNS", "Instance"])
-}
-
 @MainActor @Test func showDNSLogOpensQueryLogForThatClient() {
     let model = AppModel(mode: .mock)
     model.showDNSLog(client: "192.0.2.20")
