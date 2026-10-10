@@ -81,6 +81,25 @@ public enum SSHCommand: Sendable, Hashable {
     case interfaceTelemetry([NetworkInterfaceName])
     /// Chunk 15: the AdGuard Home process ID. Only the first field is used.
     case adGuardProcess
+    /// Resident memory of each AdGuard Home process (`VmRSS`).
+    case adGuardMemory
+    /// The query log files' size in kilobytes. Path `[assumed]`.
+    case adGuardQueryLogSize
+    /// The AdGuard Home folder listing: names, sizes, and dates only. For
+    /// the recorder, to confirm the paths.
+    case adGuardFiles
+    /// AdGuard Home's `config.yaml` `[assumed]` path. It holds password
+    /// hashes, so the recorder never runs it.
+    case readAdGuardConfig
+    /// Replaces `config.yaml` with the bytes sent on stdin: a temporary
+    /// file in the same folder, then `mv`.
+    case writeAdGuardConfig
+
+    public static let adGuardFolder = "/etc/AdGuardHome"
+    public static let adGuardConfigPath = "/etc/AdGuardHome/config.yaml"
+
+    /// Only the config write reads stdin; every other command gets none.
+    public var takesInput: Bool { self == .writeAdGuardConfig }
 
     public static let wakeToolMissingMarker = "__WOL_TOOL_MISSING__"
     /// Printed when `samba4` has no configuration on the router.
@@ -123,6 +142,12 @@ public enum SSHCommand: Sendable, Hashable {
                 + "for f in \(Self.interfaceFiles.joined(separator: " ")); do "
                 + "printf '%s %s %s\\n' \"$i\" \"$f\" \"$(cat \"/sys/class/net/$i/$f\" 2>/dev/null || echo -)\"; done; done"
         case .adGuardProcess: "pgrep -a AdGuardHome"
+        case .adGuardMemory: "for p in $(pgrep AdGuardHome); do grep '^VmRSS:' /proc/$p/status; done; true"
+        case .adGuardQueryLogSize: "du -k \(Self.adGuardFolder)/data/querylog.json*"
+        case .adGuardFiles: "ls -l \(Self.adGuardFolder) \(Self.adGuardFolder)/data"
+        case .readAdGuardConfig: "cat \(Self.adGuardConfigPath)"
+        case .writeAdGuardConfig:
+            "umask 077 && cat > \(Self.adGuardConfigPath).routewell && mv \(Self.adGuardConfigPath).routewell \(Self.adGuardConfigPath)"
         }
     }
 }

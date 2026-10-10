@@ -47,9 +47,19 @@ public actor LiveSSHCommandRunner: SSHCommandRunning {
     /// Throws `SSHFailure`, `ProcessRunnerError.launchFailed` (nothing was
     /// sent), `ProcessRunnerError.outputLimitExceeded`, or `CancellationError`.
     public func run(_ command: SSHCommand, limits: ProcessLimits) async throws -> ProcessResult {
+        guard !command.takesInput else { throw SSHFailure.configurationFailed }
+        return try await queued(command, input: nil, limits: limits)
+    }
+
+    public func run(_ command: SSHCommand, input: Data, limits: ProcessLimits) async throws -> ProcessResult {
+        guard command.takesInput else { throw SSHFailure.configurationFailed }
+        return try await queued(command, input: input, limits: limits)
+    }
+
+    private func queued(_ command: SSHCommand, input: Data?, limits: ProcessLimits) async throws -> ProcessResult {
         let token = try await queue.acquire()
         do {
-            let result = try await perform(command, limits: limits)
+            let result = try await perform(command, input: input, limits: limits)
             await queue.release(token)
             return result
         } catch {
@@ -58,7 +68,7 @@ public actor LiveSSHCommandRunner: SSHCommandRunning {
         }
     }
 
-    private func perform(_ command: SSHCommand, limits: ProcessLimits) async throws -> ProcessResult {
+    private func perform(_ command: SSHCommand, input: Data?, limits: ProcessLimits) async throws -> ProcessResult {
         let target = connection.target
         let stored = try? await hostKeys.storedKeyLine(host: target.host, port: target.port)
         guard stored != nil else { throw SSHFailure.hostKeyNotTrusted }
@@ -72,7 +82,11 @@ public actor LiveSSHCommandRunner: SSHCommandRunning {
         try Task.checkCancellation()
         let result: ProcessResult
         do {
-            result = try await processes.run(executable: plan.executable, arguments: plan.arguments, environment: [:], limits: limits)
+            if let input {
+                result = try await processes.run(executable: plan.executable, arguments: plan.arguments, environment: [:], input: input, limits: limits)
+            } else {
+                result = try await processes.run(executable: plan.executable, arguments: plan.arguments, environment: [:], limits: limits)
+            }
         } catch ProcessRunnerError.timedOut {
             throw SSHFailure.timedOut
         } catch ProcessRunnerError.cancelled {

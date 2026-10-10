@@ -82,6 +82,9 @@ public actor LiveRouterBackend: RouterBackend, FixtureRecordableBackend, AdGuard
     /// Protection and Wake. Without an AdGuard Home connection, writes are
     /// verified with the router's setting only.
     public nonisolated let adGuardService: (any AdGuardServiceControl)?
+    /// The config file over SSH, the restart over RPC, the checks over
+    /// AdGuard Home's API, under the same gate.
+    public nonisolated let adGuardBackups: (any AdGuardBackupControl)?
 
     public init(
         configuration: LiveBackendConfiguration,
@@ -115,6 +118,14 @@ public actor LiveRouterBackend: RouterBackend, FixtureRecordableBackend, AdGuard
         self.adGuardService = AdGuardServiceExecutor(
             transport: LiveAdGuardServiceTransport(rpc: rpc, adGuard: adGuard), gate: gate, clock: clock, log: log
         )
+        if let sshRunner, let adGuard {
+            self.adGuardBackups = AdGuardBackupExecutor(
+                files: SSHAdGuardConfigFileTransport(runner: sshRunner),
+                service: LiveAdGuardServiceTransport(rpc: rpc, adGuard: adGuard),
+                settings: LiveAdGuardSettingTransport(adGuard: adGuard), gate: gate, clock: clock, log: log)
+        } else {
+            self.adGuardBackups = nil
+        }
     }
 
     // MARK: RouterBackend

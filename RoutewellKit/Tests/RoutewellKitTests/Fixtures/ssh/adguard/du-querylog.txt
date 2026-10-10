@@ -1,0 +1,2 @@
+8192	/etc/AdGuardHome/data/querylog.json
+4096	/etc/AdGuardHome/data/querylog.json.1

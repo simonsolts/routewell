@@ -56,6 +56,7 @@ public enum AdGuardReadPath: String, Sendable, CaseIterable {
     case safeSearchStatus = "control/safesearch/status"
     case filteringStatus = "control/filtering/status"
     case dnsInfo = "control/dns_info"
+    case queryLogConfig = "control/querylog/config"
 
     /// The name in the session log.
     var logName: String {
@@ -68,6 +69,7 @@ public enum AdGuardReadPath: String, Sendable, CaseIterable {
         case .safeSearchStatus: "safesearch status"
         case .filteringStatus: "filtering status"
         case .dnsInfo: "dns info"
+        case .queryLogConfig: "querylog config"
         }
     }
 
@@ -114,10 +116,24 @@ public enum AdGuardWrite: Sendable, Equatable {
     /// `POST control/test_upstream_dns` → one text per address. A check,
     /// not a change.
     case testUpstreams(UpstreamTestRequest)
+    /// `PUT control/querylog/config/update`: the config as read, with a new
+    /// `interval`.
+    case queryLogConfig(JSONValue)
+    /// `PUT control/stats/config/update`: the same for the stats.
+    case statsConfig(JSONValue)
+    /// `POST control/querylog_clear`, no body.
+    case clearQueryLog
+    /// `POST control/stats_reset`, no body.
+    case resetStats
+    /// `POST control/version.json {"recheck_now": false}`: a read, though
+    /// it is a POST.
+    case versionCheck
 
     var httpMethod: String {
-        if case .safeSearchSettings = self { return "PUT" }
-        return "POST"
+        switch self {
+        case .safeSearchSettings, .queryLogConfig, .statsConfig: "PUT"
+        default: "POST"
+        }
     }
 
     var path: String {
@@ -139,6 +155,11 @@ public enum AdGuardWrite: Sendable, Equatable {
         case .dnsConfig: "control/dns_config"
         case .clearDNSCache: "control/cache_clear"
         case .testUpstreams: "control/test_upstream_dns"
+        case .queryLogConfig: "control/querylog/config/update"
+        case .statsConfig: "control/stats/config/update"
+        case .clearQueryLog: "control/querylog_clear"
+        case .resetStats: "control/stats_reset"
+        case .versionCheck: "control/version.json"
         }
     }
 
@@ -168,6 +189,9 @@ public enum AdGuardWrite: Sendable, Equatable {
             .object(["upstream_dns": .array(request.upstreams.map(JSONValue.string)),
                      "bootstrap_dns": .array(request.bootstrap.map(JSONValue.string)),
                      "fallback_dns": .array(request.fallback.map(JSONValue.string))])
+        case .queryLogConfig(let config), .statsConfig(let config): config
+        case .clearQueryLog, .resetStats: nil
+        case .versionCheck: .object(["recheck_now": .bool(false)])
         }
     }
 
@@ -185,6 +209,11 @@ public enum AdGuardWrite: Sendable, Equatable {
         case .dnsConfig: "set dns"
         case .clearDNSCache: "clear dns cache"
         case .testUpstreams: "test upstreams"
+        case .queryLogConfig: "set querylog config"
+        case .statsConfig: "set stats config"
+        case .clearQueryLog: "clear querylog"
+        case .resetStats: "reset stats"
+        case .versionCheck: "version check"
         }
     }
 }
@@ -263,6 +292,12 @@ public actor AdGuardClient {
         return try await get(path: "control/querylog", query: query, method: "querylog", retried: false)
     }
 
+    /// `POST control/version.json`. Nothing on the router changes.
+    public func versionCheck() async throws -> JSONValue {
+        guard let json = try await write(.versionCheck), json.object != nil else { throw AdGuardClientError.malformedResponse }
+        return json
+    }
+
     /// `path` may end in a query (`control/stats?recent=86400000`). Each
     /// name and value must pass `FixtureRecordingPlan.isSafeQueryValue`.
     public func recordRead(path: String) async -> JSONValue {
@@ -281,7 +316,10 @@ public actor AdGuardClient {
         guard route.hasPrefix("control/"), !route.contains("..") else {
             return .object(["error": .object(["category": .string("invalid path")])])
         }
-        do { return try await get(path: route, query: query, method: "fixture", retried: false) }
+        do {
+            if route == AdGuardWrite.versionCheck.path, query.isEmpty { return try await versionCheck() }
+            return try await get(path: route, query: query, method: "fixture", retried: false)
+        }
         catch AdGuardClientError.unauthorized {
             return .object(["error": .object(["category": .string("authentication")])])
         } catch AdGuardClientError.httpStatus(let status) {

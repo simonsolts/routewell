@@ -4,7 +4,8 @@ import Foundation
 /// `RouterBackend.adGuardOverview`. `nil` without an AdGuard Home connection.
 public protocol AdGuardOverviewService: Sendable {
     /// Stats for `range`, the stats retention, the three switches, the
-    /// blocklists, and the DNS settings. Throws only `CancellationError`; every other failure is
+    /// blocklists, the DNS settings, the update check, and the query log
+    /// retention. Throws only `CancellationError`; every other failure is
     /// a part of the reading.
     func overview(range: AdGuardStatsRange) async throws -> AdGuardOverviewReading
 }
@@ -32,6 +33,8 @@ public struct LiveAdGuardOverviewService: AdGuardOverviewService {
             guard let settings = AdGuardDNSSettings.parse(try await adGuard.read(.dnsInfo)) else { throw AdGuardClientError.malformedResponse }
             return settings
         }
+        async let version = Self.part { AdGuardVersionCheck.parse(try await adGuard.versionCheck()) }
+        async let queryLog = Self.part { AdGuardQueryLogConfig.parse(try await adGuard.read(.queryLogConfig)) }
 
         let statsConfig = try await config
         let retention = try? statsConfig.get().intervalMilliseconds
@@ -45,8 +48,11 @@ public struct LiveAdGuardOverviewService: AdGuardOverviewService {
             let enabled = switches.map { try? $0.get()["enabled"]?.bool }
             protection = .success(ProtectionOptions(safeBrowsing: enabled[0] ?? nil, parental: enabled[1] ?? nil, safeSearch: enabled[2] ?? nil))
         }
-        return AdGuardOverviewReading(range: range, stats: stats, rangeHonoured: honoured, statsConfig: statsConfig,
-                                      protection: protection, filtering: try await filtering, dns: try await dns, observedAt: observedAt)
+        var reading = AdGuardOverviewReading(range: range, stats: stats, rangeHonoured: honoured, statsConfig: statsConfig,
+                                             protection: protection, filtering: try await filtering, dns: try await dns, observedAt: observedAt)
+        reading.version = try await version
+        reading.queryLog = try await queryLog
+        return reading
     }
 
     /// The stats for `range`, and whether the reply honoured `recent`.

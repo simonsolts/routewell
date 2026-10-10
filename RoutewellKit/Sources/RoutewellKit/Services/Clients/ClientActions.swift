@@ -58,6 +58,14 @@ public enum PingOutputParser {
 /// (chunk 15) is the live one; the live backend has none until SSH is set up.
 public protocol SSHCommandRunning: Sendable {
     func run(_ command: SSHCommand, limits: ProcessLimits) async throws -> ProcessResult
+    /// Sends `input` on stdin. Only for a command that `takesInput`.
+    func run(_ command: SSHCommand, input: Data, limits: ProcessLimits) async throws -> ProcessResult
+}
+
+public extension SSHCommandRunning {
+    func run(_ command: SSHCommand, input: Data, limits: ProcessLimits) async throws -> ProcessResult {
+        throw SSHFailure.configurationFailed
+    }
 }
 
 /// Ping and Wake over SSH. Wake holds the router's `MutationGate` from

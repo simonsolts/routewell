@@ -34,11 +34,13 @@ public struct AdGuardArchive: Sendable, Equatable, Codable {
     public var filtering: Section<AdGuardFilteringStatus>?
     /// `control/dns_info`: the DNS tab.
     public var dns: Section<AdGuardDNSSettings>?
+    /// The Instance tab: the update check and the query log retention.
+    public var instance: Section<AdGuardInstanceInfo>?
 
     public init(status: Section<AdGuardStatusResponse>? = nil, config: Section<AdGuardRouterConfig>? = nil,
                 stats: [String: Section<AdGuardStats>]? = nil, statsConfig: Section<AdGuardStatsConfig>? = nil,
                 protection: Section<ProtectionOptions>? = nil, filtering: Section<AdGuardFilteringStatus>? = nil,
-                dns: Section<AdGuardDNSSettings>? = nil) {
+                dns: Section<AdGuardDNSSettings>? = nil, instance: Section<AdGuardInstanceInfo>? = nil) {
         self.status = status
         self.config = config
         self.stats = stats
@@ -46,15 +48,16 @@ public struct AdGuardArchive: Sendable, Equatable, Codable {
         self.protection = protection
         self.filtering = filtering
         self.dns = dns
+        self.instance = instance
     }
 
     public var isEmpty: Bool {
-        status == nil && config == nil && (stats ?? [:]).isEmpty && statsConfig == nil && protection == nil && filtering == nil && dns == nil
+        status == nil && config == nil && (stats ?? [:]).isEmpty && statsConfig == nil && protection == nil && filtering == nil && dns == nil && instance == nil
     }
 
     /// The newest section's date: the age the read-only strip shows.
     public var savedAt: Date? {
-        ([status?.savedAt, config?.savedAt, statsConfig?.savedAt, protection?.savedAt, filtering?.savedAt, dns?.savedAt]
+        ([status?.savedAt, config?.savedAt, statsConfig?.savedAt, protection?.savedAt, filtering?.savedAt, dns?.savedAt, instance?.savedAt]
             + (stats ?? [:]).values.map(\.savedAt)).compactMap { $0 }.max()
     }
 
@@ -166,6 +169,13 @@ public actor AdGuardArchiveStore {
         }
         if case .success(let dns) = overview.dns, force || Self.isDue(next.dns?.savedAt, at: at) {
             next.dns = .init(savedAt: at, value: dns)
+            changed = true
+        }
+        let version = try? overview.version.get(), queryLog = try? overview.queryLog.get()
+        if version != nil || queryLog != nil, force || Self.isDue(next.instance?.savedAt, at: at) {
+            // A part whose read failed keeps its saved value.
+            next.instance = .init(savedAt: at, value: AdGuardInstanceInfo(version: version ?? next.instance?.value.version,
+                                                                         queryLog: queryLog ?? next.instance?.value.queryLog))
             changed = true
         }
         guard changed else { return nil }

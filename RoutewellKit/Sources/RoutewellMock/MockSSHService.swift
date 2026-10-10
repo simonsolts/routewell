@@ -72,6 +72,12 @@ public final class MockSSHService: SSHService {
         return scenario == .populated ? .value(4321) : .unknown
     }
 
+    public func adGuardResources() async throws -> AdGuardResources {
+        try Task.checkCancellation()
+        guard scenario == .populated else { return AdGuardResources() }
+        return AdGuardResources(memoryBytes: .value(48 * 1024 * 1024), queryLogBytes: .value(12 * 1024 * 1024))
+    }
+
     public static let board = SystemBoard(model: "Example Router", hostname: "flint-demo", boardName: "example,router",
                                           releaseVersion: "21.02-SNAPSHOT", kernel: "5.4.0", target: "example/target")
 

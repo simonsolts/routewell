@@ -354,6 +354,9 @@ public struct AdGuardOverviewReading: Sendable, Equatable {
     public var filtering: Result<AdGuardFilteringStatus, RefreshFailureCategory>
     /// `control/dns_info`, for the DNS tab.
     public var dns: Result<AdGuardDNSSettings, RefreshFailureCategory>
+    /// The Instance tab: `version.json` and `querylog/config`.
+    public var version: Result<AdGuardVersionCheck, RefreshFailureCategory> = .failure(.unavailable)
+    public var queryLog: Result<AdGuardQueryLogConfig, RefreshFailureCategory> = .failure(.unavailable)
     public var observedAt: Date
 
     public init(range: AdGuardStatsRange, stats: Result<AdGuardStats, RefreshFailureCategory>, rangeHonoured: Bool = true,

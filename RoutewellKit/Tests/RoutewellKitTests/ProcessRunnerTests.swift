@@ -131,3 +131,17 @@ private let shell = URL(fileURLWithPath: "/bin/sh")
         _ = try await runner.run(executable: URL(fileURLWithPath: "/nonexistent/binary"), arguments: [])
     }
 }
+
+@Test func inputReachesStdin() async throws {
+    let input = Data((0..<200_000).map { UInt8($0 % 251) })
+    let result = try await ProcessRunner().run(executable: URL(fileURLWithPath: "/bin/cat"), arguments: [], environment: [:],
+                                               input: input, limits: ProcessLimits(deadline: .seconds(10), maxOutputBytes: 1 << 20))
+    #expect(result.exitStatus == 0)
+    #expect(result.stdout == input)
+}
+
+@Test func childThatIgnoresStdinDoesNotStopTheApp() async throws {
+    let result = try await ProcessRunner().run(executable: URL(fileURLWithPath: "/usr/bin/true"), arguments: [], environment: [:],
+                                               input: Data(count: 1 << 20), limits: ProcessLimits(deadline: .seconds(10)))
+    #expect(result.exitStatus == 0)
+}

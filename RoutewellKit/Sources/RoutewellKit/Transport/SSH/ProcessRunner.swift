@@ -130,6 +130,7 @@ public actor ProcessRunner {
         executable: URL,
         arguments: [String],
         environment: [String: String] = [:],
+        input: Data? = nil,
         limits: ProcessLimits = .init()
     ) async throws -> ProcessResult {
         let process = Process()
@@ -138,7 +139,8 @@ public actor ProcessRunner {
         var childEnvironment = environment
         if childEnvironment["PATH"] == nil { childEnvironment["PATH"] = "/usr/bin:/bin" }
         process.environment = childEnvironment
-        process.standardInput = FileHandle.nullDevice
+        let stdinPipe = input.map { _ in Pipe() }
+        process.standardInput = stdinPipe ?? FileHandle.nullDevice
 
         let stdoutPipe = Pipe()
         let stderrPipe = Pipe()
@@ -189,6 +191,16 @@ public actor ProcessRunner {
             stdoutPipe.fileHandleForReading.readabilityHandler = nil
             stderrPipe.fileHandleForReading.readabilityHandler = nil
             throw ProcessRunnerError.launchFailed(error.localizedDescription)
+        }
+        if let stdinPipe, let input {
+            // Written off the actor: a full pipe blocks until the child reads.
+            let writer = stdinPipe.fileHandleForWriting
+            // A child that exits early must not kill the app with SIGPIPE.
+            _ = fcntl(writer.fileDescriptor, F_SETNOSIGPIPE, 1)
+            DispatchQueue.global(qos: .utility).async {
+                try? writer.write(contentsOf: input)
+                try? writer.close()
+            }
         }
 
         let timeoutTask = Task {
@@ -243,6 +255,22 @@ public actor ProcessRunner {
 /// so tests can serve canned results and never start `ssh` or `ssh-keyscan`.
 public protocol ProcessRunning: Sendable {
     func run(executable: URL, arguments: [String], environment: [String: String], limits: ProcessLimits) async throws -> ProcessResult
+    /// The same, with `input` on stdin.
+    func run(executable: URL, arguments: [String], environment: [String: String], input: Data, limits: ProcessLimits) async throws -> ProcessResult
 }
 
-extension ProcessRunner: ProcessRunning {}
+public extension ProcessRunning {
+    func run(executable: URL, arguments: [String], environment: [String: String], input: Data, limits: ProcessLimits) async throws -> ProcessResult {
+        throw ProcessRunnerError.launchFailed("stdin is not supported")
+    }
+}
+
+extension ProcessRunner: ProcessRunning {
+    public func run(executable: URL, arguments: [String], environment: [String: String], limits: ProcessLimits) async throws -> ProcessResult {
+        try await run(executable: executable, arguments: arguments, environment: environment, input: nil, limits: limits)
+    }
+
+    public func run(executable: URL, arguments: [String], environment: [String: String], input: Data, limits: ProcessLimits) async throws -> ProcessResult {
+        try await run(executable: executable, arguments: arguments, environment: environment, input: Optional(input), limits: limits)
+    }
+}

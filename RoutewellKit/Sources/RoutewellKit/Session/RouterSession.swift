@@ -163,6 +163,13 @@ public actor RouterSession {
         return try await fenced(lease) { try await service.adGuardProcess() }
     }
 
+    /// AdGuard Home's memory and query log size over SSH. `nil` when SSH is
+    /// not set up.
+    public func adGuardResources(using lease: SessionLease) async throws -> AdGuardResources? {
+        guard let service = lease.backend.ssh else { try validateBefore(lease); return nil }
+        return try await fenced(lease) { try await service.adGuardResources() }
+    }
+
     /// Pings one client from the router, fenced like a read. `nil` when the
     /// backend offers no client actions.
     public func ping(using lease: SessionLease, address: IPv4Literal) async throws -> Result<PingResult, RefreshFailureCategory>? {
@@ -232,6 +239,31 @@ public actor RouterSession {
     ) async throws -> Result<UpstreamTestResult, RefreshFailureCategory> {
         guard let settings = lease.backend.adGuardSettings else { try validateBefore(lease); return .failure(.unavailable) }
         return try await fenced(lease) { await settings.testUpstreams(request, availability: availability) }
+    }
+
+    /// Back Up Now's read of `config.yaml`, fenced like the reads.
+    public func readAdGuardConfig(using lease: SessionLease, availability: AdGuardAvailability)
+        async throws -> Result<AdGuardConfigFile, AdGuardBackupFailure> {
+        guard let backups = lease.backend.adGuardBackups else { try validateBefore(lease); return .failure(.unreadable(.unavailable)) }
+        return try await fenced(lease) { await backups.readConfig(availability: availability) }
+    }
+
+    /// Restore…, fenced like the other writes: a `.stale` from
+    /// `validateAfter` means the file may have reached the router.
+    public func restoreAdGuardConfig(
+        using lease: SessionLease, file: AdGuardConfigFile, availability: AdGuardAvailability,
+        saveCurrent: @escaping @Sendable (AdGuardConfigFile) async -> Bool
+    ) async throws -> MutationReport<AdGuardRestoreState> {
+        try validateBefore(lease)
+        let report: MutationReport<AdGuardRestoreState>
+        if let backups = lease.backend.adGuardBackups {
+            report = await backups.restore(file, availability: availability, saveCurrent: saveCurrent)
+        } else {
+            let now = Date()
+            report = MutationReport(outcome: .rejected(.capabilityUnavailable), dispatched: false, startedAt: now, finishedAt: now, failure: nil)
+        }
+        try validateAfter(lease)
+        return report
     }
 
     /// AdGuard Home › Overview's reads, fenced like the others. `nil` when

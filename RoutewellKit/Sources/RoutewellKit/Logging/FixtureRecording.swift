@@ -60,6 +60,9 @@ public enum FixtureRecordingPlan {
         .init(.adGuard, method: "control/querylog?limit=500&search={newest_domain}", fileName: "adguard-querylog-search-domain.json"),
         .init(.adGuard, method: "control/querylog?limit=500&response_status=blocked", fileName: "adguard-querylog-status-blocked.json"),
         .init(.adGuard, method: "control/dns_info", fileName: "adguard-dns-info.json"),
+        // Chunk 19B: the Instance tab. `version.json` is a POST that only reads.
+        .init(.adGuard, method: "control/version.json", fileName: "adguard-version.json"),
+        .init(.adGuard, method: "control/querylog/config", fileName: "adguard-querylog-config.json"),
         // Chunk 15: the SSH reads. Recorded only when SSH is set up for the
         // profile; otherwise they are skipped.
         .init(.ssh, method: "system-board", fileName: "ssh-ubus-system-board.json"),
@@ -71,6 +74,9 @@ public enum FixtureRecordingPlan {
         .init(.ssh, method: "network-interfaces", fileName: "ssh-sys-class-net-interfaces.txt"),
         .init(.ssh, method: interfaceTelemetryKey, fileName: "ssh-sys-class-net-telemetry.txt"),
         .init(.ssh, method: "adguard-process", fileName: "ssh-pgrep-adguardhome.txt"),
+        .init(.ssh, method: "adguard-memory", fileName: "ssh-adguardhome-vmrss.txt"),
+        .init(.ssh, method: "adguard-querylog-size", fileName: "ssh-du-querylog.txt"),
+        .init(.ssh, method: "adguard-files", fileName: "ssh-ls-adguardhome.txt"),
     ]
 
     /// The fixed SSH reads the recorder may run, by key. The interface
@@ -84,6 +90,9 @@ public enum FixtureRecordingPlan {
         "samba-shares": .sambaShares,
         "network-interfaces": .networkInterfaces,
         "adguard-process": .adGuardProcess,
+        "adguard-memory": .adGuardMemory,
+        "adguard-querylog-size": .adGuardQueryLogSize,
+        "adguard-files": .adGuardFiles,
     ]
     public static let interfaceTelemetryKey = "interface-telemetry"
     public static let queryLogFirstPage = "adguard-querylog-500.json"
@@ -138,7 +147,7 @@ public enum FixtureRecordingPlan {
             guard let object = call.object else { return false }
             return call.method.hasPrefix("get_") || call.method == "list" || namedReads.contains("\(object).\(call.method)")
         case .adGuard:
-            return call.method.hasPrefix("control/") && !call.method.contains("set") && !call.method.contains("update")
+            return call.method.hasPrefix("control/") && !["set", "update", "clear", "reset"].contains { call.method.contains($0) }
         case .ssh:
             return call.object == nil && (sshReads[call.method] != nil || call.method == interfaceTelemetryKey)
         }
