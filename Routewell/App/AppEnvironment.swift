@@ -38,22 +38,22 @@ final class AppEnvironment {
     private let sshKeyAccess = SSHKeyFileAccess()
     /// Starts `/usr/bin/ssh` for the live SSH runner. Tests pass a fake.
     private let processRunner: any ProcessRunning
-    private let credentials: any CredentialStore
+    let credentials: any CredentialStore
     /// Builds one `HTTPTransport` for a lease, given the trust store it
     /// should validate certificates against. Called once per built live
     /// backend, never in `.mock` mode.
-    private let transportFactory: (any EndpointTrustStore) -> any HTTPTransport
-    private var setup: Task<Void, Never>?
+    let transportFactory: (any EndpointTrustStore) -> any HTTPTransport
+    var setup: Task<Void, Never>?
     #if DEBUG
-    private var mockBackend: MockRouterBackend?
-    private(set) var mockClientsScenario: MockClientsService.Scenario = .newDevices
-    private(set) var mockClientActionsMechanism: ClientActionMechanism? = .ssh
-    private(set) var mockSQMBehavior: MockRouterService.SQMBehavior = .unavailable
-    private(set) var mockFirmwareBehavior: MockRouterService.FirmwareBehavior = .unableToCheck
-    private(set) var mockSSHScenario: MockSSHService.Scenario = .populated
-    private(set) var mockAdGuardScenario: MockAdGuardScenario = .running
+    var mockBackend: MockRouterBackend?
+    var mockClientsScenario: MockClientsService.Scenario = .newDevices
+    var mockClientActionsMechanism: ClientActionMechanism? = .ssh
+    var mockSQMBehavior: MockRouterService.SQMBehavior = .unavailable
+    var mockFirmwareBehavior: MockRouterService.FirmwareBehavior = .unableToCheck
+    var mockSSHScenario: MockSSHService.Scenario = .populated
+    var mockAdGuardScenario: MockAdGuardScenario = .running
     /// The "Empty" Query Log: AdGuard Home answers with no entries.
-    private(set) var mockQueryLogEmpty = false
+    var mockQueryLogEmpty = false
     #endif
     /// Set when `transportFactory` was actually called. Tests use this to
     /// prove mock mode never constructs a live transport.
@@ -245,196 +245,10 @@ final class AppEnvironment {
         #endif
     }
 
-    #if DEBUG
-    func setMockFeatureBehavior(_ behavior: MockRouterBackend.FeatureBehavior, for area: DataArea) {
-        guard model.mode == .mock, let mockBackend else { return }
-        Task {
-            await mockBackend.setFeatureBehavior(behavior, for: area)
-            refresh.refreshNow()
-        }
-    }
-
-    /// `nil` hides Ping and Wake.
-    func setMockClientActions(_ mechanism: ClientActionMechanism?) {
-        guard model.mode == .mock, let mockBackend else { return }
-        mockClientActionsMechanism = mechanism
-        mockBackend.mockClientActions.setMechanism(mechanism)
-        clientActions.mechanismChanged()
-    }
-
-    func setMockSQMBehavior(_ behavior: MockRouterService.SQMBehavior) {
-        guard model.mode == .mock, let mockBackend else { return }
-        mockSQMBehavior = behavior
-        Task {
-            await mockBackend.mockRouter.setSQMBehavior(behavior)
-            refresh.refreshNow()
-        }
-    }
-
-    func setMockFirmwareBehavior(_ behavior: MockRouterService.FirmwareBehavior) {
-        guard model.mode == .mock, let mockBackend else { return }
-        mockFirmwareBehavior = behavior
-        Task { await mockBackend.mockRouter.setFirmwareBehavior(behavior) }
-    }
-
-    /// SSH off, probe pending, fails, times out, host key
-    /// changed, or populated. The probe runs again for the new scenario.
-    func setMockSSHScenario(_ scenario: MockSSHService.Scenario) {
-        guard model.mode == .mock, let mockBackend else { return }
-        mockSSHScenario = scenario
-        mockBackend.mockSSH.setScenario(scenario)
-        refresh.reprobeSSH()
-        refresh.refreshNow()
-    }
-
-    /// The writes the mock AdGuard Home received, for tests.
-    func mockAdGuardWrites() async -> [AdGuardWrite] {
-        await mockBackend?.mockAdGuard.writes ?? []
-    }
-
-    /// The router's AdGuard Home setting and the saved copy.
-    func setMockAdGuardScenario(_ scenario: MockAdGuardScenario) {
-        guard model.mode == .mock, let mockBackend else { return }
-        mockAdGuardScenario = scenario
-        Task {
-            await mockBackend.mockAdGuard.setScenario(scenario)
-            await adGuard.replaceArchive(scenario.seedArchive(now: .now))
-            refresh.refreshNow()
-        }
-    }
-
-    func setMockClientsScenario(_ scenario: MockClientsService.Scenario) {
-        guard model.mode == .mock, let mockBackend else { return }
-        mockClientsScenario = scenario
-        Task {
-            await mockBackend.setClientsScenario(scenario)
-            refresh.refreshNow()
-        }
-    }
-
-    func setMockQueryLogEmpty(_ empty: Bool) {
-        guard model.mode == .mock, let mockBackend else { return }
-        mockQueryLogEmpty = empty
-        Task { await mockBackend.mockQueryLog.setEmpty(empty) }
-        model.personRefreshes += 1
-    }
-
-    func recordFixtures() {
-        guard model.mode == .live, let lease = model.session.lease,
-              lease.backend is LiveRouterBackend else { return }
-        let panel = NSOpenPanel()
-        panel.message = "Choose a folder for live router responses with private values replaced by examples"
-        panel.prompt = "Record Fixtures"
-        panel.canChooseDirectories = true
-        panel.canChooseFiles = false
-        panel.canCreateDirectories = true
-        guard panel.runModal() == .OK, let directory = panel.url else { return }
-        let session = model.session.routerSession
-        Task {
-            do {
-                let count = try await FixtureRecorder().record(session: session, lease: lease, to: directory)
-                let sshNote = lease.backend.ssh == nil
-                    ? " SSH is not set up, so the SSH commands were skipped. Set up SSH in Settings › Router, then record again."
-                    : " SSH output is text: addresses, quoted names, and key fingerprints are replaced, but log lines can hold other private text."
-                let alert = NSAlert()
-                alert.messageText = "Fixtures recorded"
-                alert.informativeText = "Recorded \(count) read-only calls from the connected live router. Example addresses and names are privacy aliases, not mock responses.\(sshNote) Check _recording-manifest.json and review the files before committing."
-                alert.runModal()
-            } catch {
-                let reason = Self.recordingFailure(error)
-                self.logging.record(level: .warning, kind: .session, message: "Fixture recording stopped", fields: ["reason": reason])
-                let alert = NSAlert()
-                alert.messageText = "Fixture recording stopped"
-                alert.informativeText = reason
-                alert.runModal()
-            }
-        }
-    }
-
-    /// The real reason a recording stopped, in plain words.
-    nonisolated static func recordingFailure(_ error: any Error) -> String {
-        switch error {
-        case SessionError.stale:
-            return "The router session changed during the recording, for example after a reconnect or a settings change. Record again."
-        case SessionError.switching:
-            return "The router session was still connecting. Wait for the sidebar to show the router, then record again."
-        case RecorderError.unsafePlan:
-            return "The recording plan holds a call that is not a read, so nothing was sent."
-        case RecorderError.unavailable:
-            return "This router session cannot record fixtures."
-        case is CancellationError:
-            return "The recording was cancelled."
-        case let error as CocoaError:
-            let path = error.filePath ?? (error.userInfo[NSURLErrorKey] as? URL)?.path ?? "unknown path"
-            return "A file could not be written: \(error.localizedDescription) (\(path), code \(error.code.rawValue))."
-        default:
-            let error = error as NSError
-            return "Unexpected error: \(error.domain) \(error.code): \(error.localizedDescription)"
-        }
-    }
-    #endif
-
-    #if DEBUG
-    /// The first mock profile keeps its hostname when it is renamed.
-    private func installMock(profile: RouterProfile, scenarioID: String) {
-        let hostname = profile.endpoint == "mock://home" ? "flint-demo" : "travel-demo"
-        let scenario = MockRouterBackend.Scenario(rawValue: scenarioID) ?? .healthy
-        let backend = MockRouterBackend(scenario: scenario, hostname: hostname)
-        backend.mockClientActions.setMechanism(mockClientActionsMechanism)
-        backend.mockSSH.setScenario(mockSSHScenario)
-        mockBackend = backend
-        let clientsScenario = mockClientsScenario
-        let sqm = mockSQMBehavior
-        let firmware = mockFirmwareBehavior
-        let adGuardScenario = mockAdGuardScenario
-        let queryLogEmpty = mockQueryLogEmpty
-        setup = model.session.switchProfile(profile.name, model: model, refresh: refresh) {
-            await backend.mockAdGuard.setScenario(adGuardScenario)
-            await backend.mockQueryLog.setEmpty(queryLogEmpty)
-            await backend.setClientsScenario(clientsScenario)
-            await backend.mockRouter.setSQMBehavior(sqm)
-            await backend.mockRouter.setFirmwareBehavior(firmware)
-            return SessionLease(token: $0, backend: backend)
-        }
-    }
-    #endif
-
     /// `needsSetup` follows the selected profile: live and finished, or not.
     func updateNeedsSetup() {
         guard let profile = persistence.selectedProfile else { model.setHasLiveEndpoint(false); return }
         model.setHasLiveEndpoint(profile.liveEndpoint != nil && profile.setupComplete)
-    }
-
-    // MARK: Onboarding
-
-    /// Sign-in for onboarding: a throwaway client checks the password with the
-    /// certificate the person just trusted. A changed certificate is never
-    /// prompted for here; it comes back as `untrustedServer`.
-    func onboardingSignIn(endpoint: RouterEndpoint, password: String) async throws -> RouterProbe {
-        let transport = transportFactory(trust.store)
-        let rpc = GLiNetRPCClient(endpoint: endpoint, username: SSHSettings().user, password: { password },
-                                  transport: transport, log: logging.eventLog)
-        let backend = LiveRouterBackend(configuration: LiveBackendConfiguration(routerEndpoint: endpoint), rpc: rpc, adGuard: nil,
-                                        trustStore: trust.store, trustPrompt: RefusingTrustPrompt(), log: logging.eventLog)
-        return try await backend.probe()
-    }
-
-    /// Saves the signed-in router, still unfinished, and starts its session,
-    /// so the SSH steps can probe through it. `needsSetup` stays true.
-    func saveOnboardedProfile(name: String, endpoint: RouterEndpoint, password: Data) async -> UUID? {
-        let profile = RouterProfile(name: name, liveEndpoint: endpoint, username: SSHSettings().user,
-                                    adGuard: AdGuardSettings(), setupComplete: false)
-        guard await persistence.addLiveProfile(profile, password: password) else { return nil }
-        reconnectLiveSession()
-        await waitUntilReady()
-        return profile.id
-    }
-
-    /// Onboarding's Finish: the profile is complete, so the main window opens.
-    func completeSetup(_ id: UUID, name: String) async -> Bool {
-        guard await persistence.completeSetup(id, name: name) else { return false }
-        updateNeedsSetup()
-        return true
     }
 
     /// Removes a router and everything Routewell keeps for it on this Mac:
@@ -612,7 +426,7 @@ final class AppEnvironment {
         return LiveSSHCommandRunner(connection: connection, hostKeys: sshSetup.hostKeys, processes: processRunner)
     }
 
-    private static func readPassword(_ store: any CredentialStore, _ reference: CredentialReference) async throws -> String {
+    static func readPassword(_ store: any CredentialStore, _ reference: CredentialReference) async throws -> String {
         let data = try await store.read(reference)
         return String(decoding: data, as: UTF8.self)
     }
@@ -623,170 +437,6 @@ final class AppEnvironment {
         let hostToken = host.contains(":") ? "[\(host)]" : host
         let scheme = settings.useHTTPS ? "https" : "http"
         return URL(string: "\(scheme)://\(hostToken):\(settings.port)/")!
-    }
-
-    // MARK: Test Connection
-
-    /// Settings › Router › Test Connection for the saved live profile, or
-    /// `nil` without one. The router and AdGuard Home checks use throwaway
-    /// clients, so they test the saved address and Keychain passwords, not the
-    /// running session. A certificate prompt shows on `trustPromptController`,
-    /// the Settings window's own. `onProbe` gets what the router reported.
-    func connectionTest(trustPromptController: TrustPromptController,
-                        onProbe: @escaping @MainActor (RouterProbe) -> Void) -> ConnectionTest? {
-        guard model.mode == .live, let profile = persistence.selectedProfile, let endpoint = profile.liveEndpoint else { return nil }
-        let credentials = self.credentials
-        let routerCredential = profile.credential
-        let adGuardCredential = CredentialReference(profileID: profile.id, endpoint: profile.endpoint, kind: .adGuardPassword)
-        let routerPassword: @Sendable () async throws -> String = { try await Self.readPassword(credentials, routerCredential) }
-        let adGuardPassword: @Sendable () async throws -> String = { try await Self.readPassword(credentials, adGuardCredential) }
-        let username = profile.username
-        let adGuardSettings = profile.adGuard
-        return ConnectionTest(
-            router: { [weak self] in
-                await self?.checkRouter(endpoint: endpoint, username: username, password: routerPassword,
-                                        trustPromptController: trustPromptController, onProbe: onProbe) ?? .failed(.noResponse)
-            },
-            sshEnabled: profile.ssh?.enabled == true,
-            ssh: { [weak self] in await self?.reprobeSSH() ?? SSHProbeResult(capability: Capability()) },
-            adGuardConfigured: adGuardSettings != nil,
-            adGuardEnabled: { [weak self] in await self?.adGuardHomeEnabled() ?? .unknown },
-            adGuardStatus: { [weak self] in
-                guard let self, let adGuardSettings else { return .noResponse }
-                return await self.checkAdGuardStatus(endpoint: endpoint, username: username, settings: adGuardSettings,
-                                                      routerPassword: routerPassword, adGuardPassword: adGuardPassword,
-                                                      trustPromptController: trustPromptController)
-            }
-        )
-    }
-
-    /// `adguardhome get_config` `enabled` through the running session.
-    func adGuardHomeEnabled() async -> Observed<Bool> {
-        guard let lease = model.session.lease, let reader = lease.backend as? AdGuardHomeStateReading else { return .unknown }
-        let value = await reader.adGuardHomeEnabled()
-        return model.session.expectedToken == lease.token ? value : .unknown
-    }
-
-    /// Probes SSH once more through the session and waits for the result.
-    func reprobeSSH(timeout: Duration = .seconds(45)) async -> SSHProbeResult {
-        guard model.sshConfigured else { return SSHProbeResult(capability: Capability(), failure: .configurationFailed) }
-        refresh.reprobeSSH()
-        return await waitForSSHProbe(timeout: timeout)
-    }
-
-    /// The refresh controller probes SSH once per new session lease. This
-    /// waits for that result instead of starting a second connection.
-    func waitForSSHProbe(timeout: Duration) async -> SSHProbeResult {
-        let clock = ContinuousClock()
-        let deadline = clock.now.advanced(by: timeout)
-        while clock.now < deadline, !Task.isCancelled {
-            if model.session.isReady, let probe = model.sshProbe { return probe }
-            try? await Task.sleep(for: .milliseconds(100))
-        }
-        return SSHProbeResult(capability: Capability(), failure: .timedOut)
-    }
-
-    /// Signs in, then times one more `system get_info`: the round trip.
-    private func checkRouter(endpoint: RouterEndpoint, username: String, password: @escaping @Sendable () async throws -> String,
-                             trustPromptController: TrustPromptController,
-                             onProbe: @MainActor (RouterProbe) -> Void) async -> RouterCheck {
-        let transport = transportFactory(trust.store)
-        let rpc = GLiNetRPCClient(endpoint: endpoint, username: username, password: password, transport: transport, log: logging.eventLog)
-        let backend = LiveRouterBackend(configuration: LiveBackendConfiguration(routerEndpoint: endpoint), rpc: rpc, adGuard: nil,
-                                        trustStore: trust.store, trustPrompt: TrustPromptAdapter(controller: trustPromptController),
-                                        log: logging.eventLog)
-        do {
-            _ = try await backend.probe()
-            let clock = ContinuousClock()
-            let start = clock.now
-            let probe = try await backend.probe()
-            let check = RouterCheck.responded(after: clock.now - start)
-            onProbe(probe)
-            return check
-        } catch let error as GLiNetRPCError {
-            return .failed(ConnectionCheckFailure(error))
-        } catch {
-            return .failed(.noResponse)
-        }
-    }
-
-    /// `control/status` with the saved AdGuard Home settings. With the
-    /// router's own login, a throwaway `GLiNetRPCClient` signs in first, so an
-    /// untrusted router certificate is asked about here; `AdGuardClient`
-    /// would only see that login fail as `credentialUnavailable`.
-    private func checkAdGuardStatus(endpoint: RouterEndpoint, username: String, settings: AdGuardSettings,
-                                    routerPassword: @escaping @Sendable () async throws -> String,
-                                    adGuardPassword: @escaping @Sendable () async throws -> String,
-                                    trustPromptController: TrustPromptController) async -> ConnectionCheckFailure? {
-        let transport = transportFactory(trust.store)
-        let baseURL = Self.adGuardBaseURL(host: endpoint.host, settings: settings)
-        let adGuardPort = baseURL.port ?? (settings.useHTTPS ? 443 : 80)
-        let provider: any AdGuardCredentialProvider
-        if settings.useRouterCredentials {
-            let rpc = GLiNetRPCClient(endpoint: endpoint, username: username, password: routerPassword, transport: transport, log: logging.eventLog)
-            do {
-                try await establishTrustedSession(rpc, host: endpoint.host, port: endpoint.port, trustPromptController: trustPromptController)
-            } catch let error as GLiNetRPCError {
-                return ConnectionCheckFailure(error)
-            } catch {
-                return .noResponse
-            }
-            provider = RouterTokenAdGuardCredentials(session: rpc)
-        } else {
-            provider = BasicAdGuardCredentials(username: settings.username, password: adGuardPassword)
-        }
-        let client = AdGuardClient(baseURL: baseURL, credentials: provider, transport: transport, log: logging.eventLog)
-        do {
-            _ = try await requestAdGuardStatus(client, host: baseURL.host ?? endpoint.host, port: adGuardPort, trustPromptController: trustPromptController)
-            return nil
-        } catch let error as AdGuardClientError {
-            return ConnectionCheckFailure(error)
-        } catch let error as GLiNetRPCError {
-            return ConnectionCheckFailure(error)
-        } catch {
-            return .noResponse
-        }
-    }
-
-    /// Forces a login so an untrusted router certificate is caught and
-    /// prompted for here — before `RouterTokenAdGuardCredentials` reuses this
-    /// same `rpc` and would otherwise see the login failure only as
-    /// `AdGuardClientError.credentialUnavailable`, with no certificate to show.
-    private func establishTrustedSession(
-        _ rpc: GLiNetRPCClient, host: String, port: Int, trustPromptController: TrustPromptController
-    ) async throws {
-        do {
-            _ = try await rpc.sessionID()
-        } catch GLiNetRPCError.transport(.untrustedServer(let decision)) {
-            let approved = await trustPromptController.present(TrustPromptRequest(host: host, port: port, decision: decision))
-            guard approved else { throw GLiNetRPCError.transport(.untrustedServer(decision)) }
-            await trust.approve(TrustedEndpoint(host: host, port: port, fingerprint: decision.leafFingerprint, approvedAt: Date()))
-            _ = try await rpc.sessionID()
-        }
-    }
-
-    /// Same shape as `establishTrustedSession`, for the AdGuard Home host
-    /// itself (only reached when `AdGuardClient`'s own transport — not a
-    /// router-login lookup — hits an untrusted certificate).
-    private func requestAdGuardStatus(
-        _ client: AdGuardClient, host: String, port: Int, trustPromptController: TrustPromptController
-    ) async throws -> AdGuardStatusResponse {
-        do {
-            return try await client.status()
-        } catch AdGuardClientError.transport(.untrustedServer(let decision)) {
-            let approved = await trustPromptController.present(TrustPromptRequest(host: host, port: port, decision: decision))
-            guard approved else { throw AdGuardClientError.transport(.untrustedServer(decision)) }
-            await trust.approve(TrustedEndpoint(host: host, port: port, fingerprint: decision.leafFingerprint, approvedAt: Date()))
-            return try await client.status()
-        }
-    }
-
-    /// The launch guess: onboarding unless the saved, selected profile is a
-    /// finished live router. Reads the file without loading the store.
-    static func peekNeedsSetup(in directory: URL) -> Bool {
-        guard let saved = AtomicJSONStore.peek(ProfileSettings.self, from: .profiles, in: directory) else { return true }
-        let selected = saved.profiles.first { $0.id == saved.selectedID } ?? saved.profiles.first
-        return !(selected?.liveEndpoint != nil && selected?.setupComplete == true)
     }
 
     static func configured(
@@ -822,16 +472,11 @@ final class AppEnvironment {
     }
 }
 
-/// Never prompts. Onboarding shows the fingerprint on its own step first.
-private struct RefusingTrustPrompt: TrustPromptHandler {
-    func requestTrust(host: String, port: Int, decision: TrustDecision) async -> Bool { false }
-}
-
 /// Hops `TrustPromptHandler.requestTrust` into `TrustPromptController` on the
 /// main actor. `TrustPromptController` is `@MainActor` and `Sendable`
 /// (every access to its state is already actor-serialized), so holding a
 /// reference to it here needs no extra synchronization.
-private struct TrustPromptAdapter: TrustPromptHandler {
+struct TrustPromptAdapter: TrustPromptHandler {
     let controller: TrustPromptController
 
     func requestTrust(host: String, port: Int, decision: TrustDecision) async -> Bool {
