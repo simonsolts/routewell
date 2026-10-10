@@ -254,6 +254,8 @@ extension AdGuardPresentation {
             case .updateInterval: return "AdGuard Home did not change how often it checks the lists."
             case .updateLists: return "AdGuard Home did not update the lists."
             case .saveRules: return "AdGuard Home did not save the custom rules."
+            case .dns: return "AdGuard Home did not take every DNS change. The tab shows its settings now."
+            case .clearDNSCache: return "AdGuard Home did not clear the cache."
             }
         case .conflictingExternalEdit:
             switch intent {
@@ -263,6 +265,7 @@ extension AdGuardPresentation {
             case .listEnabled, .addList, .removeList, .updateInterval, .updateLists:
                 return "The lists changed from somewhere else. Refresh to check."
             case .protection, .filtering, .feature: return "Protection changed from somewhere else. Refresh to check."
+            case .dns, .clearDNSCache: return "The DNS settings changed from somewhere else. Refresh to check."
             }
         case .recoveryFailed, .unknownAfterDispatch:
             return "AdGuard Home did not answer in time. The change may have applied. Refresh to check."
@@ -272,7 +275,8 @@ extension AdGuardPresentation {
             case .staleSession: return "The router changed during the operation. Refresh to check."
             case .capabilityUnavailable: return "AdGuard Home is not set up in Routewell."
             case .preconditionFailed("AdGuard Home refused the login"): return "AdGuard Home refused the sign-in. Nothing was changed."
-            case .preconditionFailed("status unavailable"): return "AdGuard Home did not answer. Nothing was changed."
+            case .preconditionFailed("status unavailable"), .preconditionFailed("DNS settings unavailable"):
+                return "AdGuard Home did not answer. Nothing was changed."
             case .preconditionFailed("credential unavailable"): return "The AdGuard Home password is not available. Nothing was changed."
             case .preconditionFailed(let reason), .invalidIntent(let reason): return reason
             }

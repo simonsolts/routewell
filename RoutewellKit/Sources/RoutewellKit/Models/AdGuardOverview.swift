@@ -77,7 +77,7 @@ public struct AdGuardStats: Sendable, Equatable, Codable {
     /// Keys are client IPs `[verified live]`.
     public var topClients: [Entry] = []
     public var topUpstreams: [Entry] = []
-    /// `top_upstreams_avg_time`, in seconds `[verified live]`. Optional so
+    /// `top_upstreams_avg_time`, in seconds. Optional so
     /// an older saved copy still loads.
     public var topUpstreamTimes: [TimeEntry]?
 

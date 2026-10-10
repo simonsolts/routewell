@@ -12,7 +12,7 @@ private func json(_ text: String) -> JSONValue {
 }
 
 /// `dns-info.json` is built from the AdGuard Home 0.107 schema with neutral
-/// values `[assumed]`: no recording of `dns_info` exists yet.
+/// values; no recording of `dns_info` exists yet.
 struct AdGuardDNSParsingTests {
     @Test func fixtureParsesEveryShownField() throws {
         let settings = try #require(AdGuardDNSSettings.parse(try dnsFixture()))
@@ -95,8 +95,8 @@ struct AdGuardDNSParsingTests {
 }
 
 struct UpstreamStatsJoinTests {
-    /// The stats name upstreams with their port `[verified live]`; the
-    /// settings may leave it out. Neutral addresses in the recorded shapes.
+    /// The stats name upstreams with their port; the settings may leave
+    /// it out. Neutral addresses in the recorded shapes.
     @Test func keysJoinAcrossDefaultPorts() {
         #expect(UpstreamAddress.key("https://dns.example.net/dns-query") == UpstreamAddress.key("https://dns.example.net:443/dns-query"))
         #expect(UpstreamAddress.key("quic://dns.example.com") == UpstreamAddress.key("quic://dns.example.com:853"))
@@ -127,7 +127,7 @@ struct UpstreamStatsJoinTests {
         #expect(!missing.isSlow)
     }
 
-    /// The anonymised chunk 17 stats: the slowest upstream is over 0.5 s.
+    /// The anonymised recorded stats: the slowest upstream is over 0.5 s.
     @Test func fixtureStatsTimesParseInSeconds() throws {
         let url = try #require(Bundle.module.url(forResource: "stats-24h", withExtension: "json", subdirectory: "Fixtures/adguard/overview"))
         let stats = AdGuardStats.parse(try JSONDecoder().decode(JSONValue.self, from: Data(contentsOf: url)))
@@ -331,6 +331,12 @@ struct AdGuardDNSApplyTests {
 }
 
 struct AdGuardDNSArchiveTests {
+    /// The DNS tab shows the Overview read's `dns_info` and upstream stats.
+    @Test func dnsTabRunsTheOverviewRead() {
+        let areas = ScreenRefreshPlan.resolve(destination: "adGuard", segment: "DNS", defaultInterval: .seconds(30)).map(\.area)
+        #expect(areas.contains(.adGuardOverview))
+    }
+
     @Test func overviewReadSavesTheDNSSection() async throws {
         let store = AdGuardArchiveStore(root: nil)
         let profile = UUID()

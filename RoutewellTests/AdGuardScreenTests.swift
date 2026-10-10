@@ -33,7 +33,8 @@ private func settle(_ environment: AppEnvironment, _ scenario: MockAdGuardScenar
         await environment.refresh.waitForRefresh()
         switch scenario {
         case .off, .turnOnFails: return adGuard.availability == .off
-        case .running, .runningWithoutDNS, .switchFails, .addListFails, .refreshPartial, .rulesConflict:
+        case .running, .runningWithoutDNS, .switchFails, .addListFails, .refreshPartial, .rulesConflict,
+             .slowUpstream, .dnsApplyMismatch, .upstreamTestFails:
             return adGuard.availability == .running && adGuard.handlesDNS == (scenario != .runningWithoutDNS)
         case .paused:
             guard adGuard.availability == .running, case .paused? = adGuard.protection else { return false }
@@ -561,4 +562,22 @@ private func loadOverview(_ environment: AppEnvironment) async {
         }
     }
     FilterListKind.allCases.forEach(writeSheet)
+    for (name, scenario) in [("running", MockAdGuardScenario.running), ("slow", .slowUpstream), ("cached", .cached)] {
+        let environment = await mockEnvironment(scenario)
+        await loadOverview(environment)
+        environment.model.subpages[.adGuard] = AdGuardTab.dns.rawValue
+        write("dns-\(name)", environment)
+    }
+    let staged = await mockEnvironment(.running)
+    await loadOverview(staged)
+    staged.model.subpages[.adGuard] = AdGuardTab.dns.rawValue
+    staged.dns.edit { $0.blockingMode = .customIP }
+    staged.dns.edit { $0.blockingIPv4 = "192.0.2.99" }
+    write("dns-staged", staged)
+    let tested = await mockEnvironment(.upstreamTestFails)
+    await loadOverview(tested)
+    tested.model.subpages[.adGuard] = AdGuardTab.dns.rawValue
+    tested.dns.runTest()
+    await eventually { tested.dns.test != .testing }
+    write("dns-tested", tested)
 }

@@ -487,7 +487,7 @@ struct FiltersRefreshPlanTests {
     @Test func filtersTabReadsTheLists() {
         let areas = ScreenRefreshPlan.resolve(destination: "adGuard", segment: "Filters", defaultInterval: .seconds(30)).map(\.area)
         #expect(areas.contains(.adGuardOverview))
-        let dns = ScreenRefreshPlan.resolve(destination: "adGuard", segment: "DNS", defaultInterval: .seconds(30)).map(\.area)
-        #expect(!dns.contains(.adGuardOverview))
+        let instance = ScreenRefreshPlan.resolve(destination: "adGuard", segment: "Instance", defaultInterval: .seconds(30)).map(\.area)
+        #expect(!instance.contains(.adGuardOverview))
     }
 }

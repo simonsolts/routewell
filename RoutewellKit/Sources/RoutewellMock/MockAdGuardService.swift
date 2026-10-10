@@ -102,9 +102,12 @@ public actor MockAdGuardTransport: AdGuardServiceTransport {
     /// Every write AdGuard Home received, for tests.
     public internal(set) var writes: [AdGuardWrite] = []
 
+    public private(set) var scenario: MockAdGuardScenario = .running
+
     public init() {}
 
     public func setScenario(_ scenario: MockAdGuardScenario) {
+        self.scenario = scenario
         answersAfter = nil
         refusesTurnOn = scenario == .turnOnFails
         answers = scenario != .unreachable

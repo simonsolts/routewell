@@ -20,7 +20,7 @@ public enum AdGuardBlockingMode: String, CaseIterable, Sendable {
     case customIP = "custom_ip"
 }
 
-/// `GET control/dns_info` `[assumed]` from the AdGuard Home 0.107 schema.
+/// `GET control/dns_info`, shaped as in the AdGuard Home 0.107 schema.
 /// The whole object is kept as read; the accessors read and change single
 /// fields, so a field the app does not know stays as AdGuard Home sent it.
 /// A missing or differently typed field reads as `nil` (Unknown).
@@ -241,8 +241,8 @@ public enum UpstreamProtocol: String, Sendable {
 }
 
 /// Upstream addresses as AdGuard Home's stats name them: the stats keys
-/// carry the port (`https://host:443/dns-query`, `quic://host:853`
-/// `[verified live]`), the settings may not.
+/// carry the port (`https://host:443/dns-query`, `quic://host:853`),
+/// the settings may not.
 public enum UpstreamAddress {
     static func scheme(_ address: String) -> String? {
         guard let range = address.range(of: "://") else { return nil }
@@ -294,7 +294,7 @@ public struct UpstreamUsage: Sendable, Equatable {
         self.averageMilliseconds = averageMilliseconds
     }
 
-    /// Over half a second `[decision]`.
+    /// Over half a second.
     public static let slowMilliseconds: Double = 500
 
     public var isSlow: Bool { (averageMilliseconds ?? 0) > Self.slowMilliseconds }
@@ -332,7 +332,7 @@ public struct UpstreamTestRequest: Sendable, Equatable {
 }
 
 /// `POST control/test_upstream_dns` → one text per address: `OK` or an
-/// error `[assumed]`.
+/// error.
 public struct UpstreamTestResult: Sendable, Equatable {
     public enum Status: Sendable, Equatable {
         case ok

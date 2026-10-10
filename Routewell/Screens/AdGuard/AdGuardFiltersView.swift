@@ -38,7 +38,7 @@ extension AdGuardSettingIntent {
     var isFiltersWrite: Bool {
         switch self {
         case .listEnabled, .addList, .removeList, .updateInterval, .updateLists, .saveRules: true
-        case .protection, .filtering, .feature, .domainRule: false
+        case .protection, .filtering, .feature, .domainRule, .dns, .clearDNSCache: false
         }
     }
 }

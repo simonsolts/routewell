@@ -47,6 +47,7 @@ final class AdGuardController {
     private var verifiedFeatures: [AdGuardFeature: (value: Bool, at: Date)] = [:]
     private var verifiedFiltering: (value: Bool, at: Date)?
     private var verifiedFilters: (status: AdGuardFilteringStatus, at: Date)?
+    private var verifiedDNS: (settings: AdGuardDNSSettings, at: Date)?
     @ObservationIgnored private var pauseEndTask: Task<Void, Never>?
 
     init(model: AppModel, refresh: RefreshController, store: AdGuardArchiveStore) {
@@ -140,6 +141,19 @@ final class AdGuardController {
         if let verified = verifiedFilters, live.observedAt < verified.at { status = verified.status }
         if let verified = verifiedFiltering, live.observedAt < verified.at { status.enabled = verified.value }
         return status
+    }
+
+    /// The live DNS read failed.
+    var dnsFailure: RefreshFailureCategory? {
+        guard let live = liveOverview, case .failure(let category) = live.dns else { return nil }
+        return category
+    }
+
+    var dnsSettings: AdGuardDNSSettings? {
+        guard availability == .running else { return archive?.dns?.value }
+        guard let live = liveOverview, let settings = try? live.dns.get() else { return nil }
+        if let verified = verifiedDNS, live.observedAt < verified.at { return verified.settings }
+        return settings
     }
 
     /// The ranges the pop-up offers. Running: up to the stats retention.
@@ -334,6 +348,8 @@ final class AdGuardController {
                     self.verifiedFiltering = (value, report.finishedAt)
                 case (_, .filters(let status)), (_, .listsUpdated(_, let status?)):
                     self.verifiedFilters = (status, report.finishedAt)
+                case (_, .dns(let settings)):
+                    self.verifiedDNS = (settings, report.finishedAt)
                 case (_, .rules(let rules)):
                     if var status = self.filtering {
                         status.userRules = rules
@@ -350,6 +366,13 @@ final class AdGuardController {
             }
             return report
         }
+    }
+
+    /// Test Upstreams. `nil` when the session changed or there is none.
+    func testUpstreams(_ request: UpstreamTestRequest) async -> Result<UpstreamTestResult, RefreshFailureCategory>? {
+        guard let lease = model.session.lease else { return nil }
+        let availability = availability
+        return try? await model.session.routerSession.testAdGuardUpstreams(using: lease, request: request, availability: availability)
     }
 
     /// The value, or `nil` when it takes longer than `limit` (the read is
