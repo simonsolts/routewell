@@ -205,15 +205,27 @@ private actor SpyTrustPromptHandler: TrustPromptHandler {
     guard case .success(let router, _, let routerSource) = result.router else {
         Issue.record("expected router success, got \(result.router)"); return
     }
+    #expect(router.reachability == .connected)
     #expect(router.model == "GL Technologies, Inc. AXT1800")
     #expect(router.hostname == "GL-AXT1800")
+    #expect(router.firmware == "4.0.0")
+    #expect(router.openWrtVersion == "OpenWrt 21.02-SNAPSHOT r16273+114-378769b555")
+    #expect(router.lanAddress == "192.168.8.1")
+    #expect(router.uptimeSeconds == 111)
+    #expect(router.loadAverages == [2.01, 0.89, 0.33])
+    #expect(router.memoryTotalBytes == 126943232)
+    #expect(router.memoryUsedBytes == Int64(126943232 - 78471168))
+    #expect(router.temperatureCelsius == .value(82))
     #expect(routerSource == .routerRPC)
 
     guard case .success(let internet, _, _) = result.internet else {
         Issue.record("expected internet success, got \(result.internet)"); return
     }
     #expect(internet.reachability == .unreachable) // fixture's wan entry has online:false
+    #expect(internet.publicAddress == "192.168.113.137")
     #expect(internet.gateway == "192.168.113.1")
+    #expect(internet.dnsServers == ["8.8.8.8", "8.8.4.4"])
+    #expect(internet.gatewayLatencyMilliseconds == nil)
 
     guard case .success(let adGuard, _, let adGuardSource) = result.adGuard else {
         Issue.record("expected adGuard success, got \(result.adGuard)"); return
