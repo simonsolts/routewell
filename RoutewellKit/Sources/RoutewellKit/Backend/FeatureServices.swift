@@ -41,20 +41,34 @@ public protocol ClientsService: FeatureService {
 /// The AdGuard Home query log (chunk 13 reads it per client; chunk 18 adds
 /// the Query Log tab). One bounded page per call, never persisted.
 public protocol QueryLogService: FeatureService {
-    /// Throws only `CancellationError`; every other failure is a result.
-    func recentQueries(search: String?, limit: Int) async throws -> AreaRefreshResult<QueryLogPage>
     /// One page for the Query Log tab. Throws only `CancellationError`.
     func page(_ query: QueryLogQuery) async throws -> AreaRefreshResult<QueryLogPage>
 }
 
-public enum QueryLogLimits {
-    /// One fetch never asks for more than this many entries.
-    public static let maximum = 500
-    /// The Query Log tab keeps at most this many entries in memory.
-    public static let loadedCap = 5_000
-    /// A Live read asks for this many of the newest entries.
-    public static let liveLimit = 100
+public extension QueryLogService {
+    /// Throws only `CancellationError`; every other failure is a result.
+    func recentQueries(search: String?, limit: Int) async throws -> AreaRefreshResult<QueryLogPage> {
+        try await page(QueryLogQuery(search: search, limit: limit))
+    }
 }
+
+/// AdGuard Home › Overview's reads (chunk 17), behind
+/// `RouterBackend.adGuardOverview`. `nil` without an AdGuard Home connection.
+public protocol AdGuardOverviewService: Sendable {
+    /// Stats for `range`, the stats retention, the three switches, the
+    /// blocklists, the DNS settings, and the query log retention. Throws only `CancellationError`; every other failure is
+    /// a part of the reading.
+    func overview(range: AdGuardStatsRange) async throws -> AdGuardOverviewReading
+    /// `version.json` with `recheck_now` false. It can make AdGuard Home
+    /// ask the internet, so the app reads it once per session, not on
+    /// every refresh. Throws only `CancellationError`.
+    func versionCheck() async throws -> Result<AdGuardVersionCheck, RefreshFailureCategory>
+}
+
+public extension AdGuardOverviewService {
+    func versionCheck() async throws -> Result<AdGuardVersionCheck, RefreshFailureCategory> { .failure(.unavailable) }
+}
+
 /// The Router screen's RPC reads beyond the Overview areas (chunk 14).
 /// Both calls throw only `CancellationError`; every other failure is a result.
 public protocol RouterService: FeatureService {

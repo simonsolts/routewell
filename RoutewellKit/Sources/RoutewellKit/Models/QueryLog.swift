@@ -216,3 +216,12 @@ public struct ClientQueryActivity: Sendable, Equatable {
             .map { $0 }
     }
 }
+
+public enum QueryLogLimits {
+    /// One fetch never asks for more than this many entries.
+    public static let maximum = 500
+    /// The Query Log tab keeps at most this many entries in memory.
+    public static let loadedCap = 5_000
+    /// A Live read asks for this many of the newest entries.
+    public static let liveLimit = 100
+}

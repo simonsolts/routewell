@@ -28,11 +28,6 @@ public actor MockQueryLogService: QueryLogService {
         }
     }
 
-    public func recentQueries(search: String?, limit: Int) async throws -> AreaRefreshResult<QueryLogPage> {
-        // The details pane searches by client IP and keeps exact matches.
-        try await page(QueryLogQuery(search: search, limit: limit))
-    }
-
     public func page(_ query: QueryLogQuery) async throws -> AreaRefreshResult<QueryLogPage> {
         try Task.checkCancellation()
         let selected = behavior

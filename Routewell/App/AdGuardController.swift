@@ -153,7 +153,7 @@ final class AdGuardController {
               version?.token != lease.token, versionReading != lease.token else { return }
         versionReading = lease.token
         defer { if versionReading == lease.token { versionReading = nil } }
-        guard case .success(let check)?? = try? await model.session.routerSession.adGuardVersionCheck(using: lease),
+        guard case .success(let check)? = try? await model.session.routerSession.adGuardVersionCheck(using: lease),
               lease.token == model.session.expectedToken else { return }
         version = (lease.token, check)
         await store.save(version: check, at: Date(), for: profile)

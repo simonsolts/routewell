@@ -21,10 +21,6 @@ public actor LiveQueryLogService: QueryLogService {
         }
     }
 
-    public func recentQueries(search: String?, limit: Int) async throws -> AreaRefreshResult<QueryLogPage> {
-        try await page(QueryLogQuery(search: search, limit: limit))
-    }
-
     public func page(_ query: QueryLogQuery) async throws -> AreaRefreshResult<QueryLogPage> {
         let attemptedAt = clock()
         let adGuard = adGuard

@@ -1,22 +1,5 @@
 import Foundation
 
-/// AdGuard Home › Overview's reads (chunk 17), behind
-/// `RouterBackend.adGuardOverview`. `nil` without an AdGuard Home connection.
-public protocol AdGuardOverviewService: Sendable {
-    /// Stats for `range`, the stats retention, the three switches, the
-    /// blocklists, the DNS settings, and the query log retention. Throws only `CancellationError`; every other failure is
-    /// a part of the reading.
-    func overview(range: AdGuardStatsRange) async throws -> AdGuardOverviewReading
-    /// `version.json` with `recheck_now` false. It can make AdGuard Home
-    /// ask the internet, so the app reads it once per session, not on
-    /// every refresh. Throws only `CancellationError`.
-    func versionCheck() async throws -> Result<AdGuardVersionCheck, RefreshFailureCategory>
-}
-
-public extension AdGuardOverviewService {
-    func versionCheck() async throws -> Result<AdGuardVersionCheck, RefreshFailureCategory> { .failure(.unavailable) }
-}
-
 /// Reads the retention first, because `recent` must not exceed it, then the
 /// stats for the range. The other reads run alongside.
 public struct LiveAdGuardOverviewService: AdGuardOverviewService {
