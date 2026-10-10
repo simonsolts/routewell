@@ -198,7 +198,6 @@ private let kindle = mac("fc:65:de:02:1b:9a")
     model.clientsDetailsVisible = false
     model.revealClient(printer, section: .personalise)
     #expect(model.selection == .clients)
-    #expect(model.subpages[.clients] == "All Clients")
     #expect(model.clientsSelection == [printer])
     #expect(model.clientsDetailsVisible)
     #expect(model.clientsDetailsSection == "personalise")

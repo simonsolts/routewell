@@ -1,9 +1,9 @@
 import SwiftUI
 import RoutewellKit
 
-/// Clients: All Clients (table, filter row, status line, details pane). The
-/// segmented control and Refresh live in `MainWindow`'s toolbar; this view
-/// adds the search field and the details-pane toggle.
+/// Clients: All Clients (table, filter row, status line, details pane).
+/// Refresh lives in `MainWindow`'s toolbar; this view adds the search field
+/// and the details-pane toggle.
 struct ClientsScreen: View {
     @Environment(AppModel.self) private var model
     @State private var search = ""

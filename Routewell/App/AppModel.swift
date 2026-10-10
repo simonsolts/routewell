@@ -140,7 +140,6 @@ final class AppModel {
     /// Opens one device in the All Clients details pane.
     func revealClient(_ mac: MACAddress, section: ClientDetailsSection) {
         selection = .clients
-        subpages[.clients] = SidebarDestination.clients.segments[0]
         clientsSelection = [mac]
         clientsDetailsVisible = true
         clientsDetailsSection = section.rawValue
