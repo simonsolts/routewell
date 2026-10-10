@@ -77,6 +77,19 @@ public struct AdGuardStats: Sendable, Equatable, Codable {
     /// Keys are client IPs `[verified live]`.
     public var topClients: [Entry] = []
     public var topUpstreams: [Entry] = []
+    /// `top_upstreams_avg_time`, in seconds. Optional so
+    /// an older saved copy still loads.
+    public var topUpstreamTimes: [TimeEntry]?
+
+    public struct TimeEntry: Sendable, Equatable, Codable {
+        public var name: String
+        public var seconds: Double
+
+        public init(name: String, seconds: Double) {
+            self.name = name
+            self.seconds = seconds
+        }
+    }
 
     public init() {}
 
@@ -95,6 +108,11 @@ public struct AdGuardStats: Sendable, Equatable, Codable {
         stats.topBlocked = entries(json["top_blocked_domains"])
         stats.topClients = entries(json["top_clients"])
         stats.topUpstreams = entries(json["top_upstreams_responses"])
+        stats.topUpstreamTimes = (json["top_upstreams_avg_time"]?.array ?? []).compactMap { element in
+            guard let object = element.object, object.count == 1, let (name, value) = object.first,
+                  let seconds = value.double, seconds >= 0 else { return nil }
+            return TimeEntry(name: name, seconds: seconds)
+        }
         return stats
     }
 
@@ -334,18 +352,22 @@ public struct AdGuardOverviewReading: Sendable, Equatable {
     /// A failure only when all three status calls failed.
     public var protection: Result<ProtectionOptions, RefreshFailureCategory>
     public var filtering: Result<AdGuardFilteringStatus, RefreshFailureCategory>
+    /// `control/dns_info`, for the DNS tab.
+    public var dns: Result<AdGuardDNSSettings, RefreshFailureCategory>
     public var observedAt: Date
 
     public init(range: AdGuardStatsRange, stats: Result<AdGuardStats, RefreshFailureCategory>, rangeHonoured: Bool = true,
                 statsConfig: Result<AdGuardStatsConfig, RefreshFailureCategory>,
                 protection: Result<ProtectionOptions, RefreshFailureCategory>,
-                filtering: Result<AdGuardFilteringStatus, RefreshFailureCategory>, observedAt: Date) {
+                filtering: Result<AdGuardFilteringStatus, RefreshFailureCategory>,
+                dns: Result<AdGuardDNSSettings, RefreshFailureCategory> = .failure(.unavailable), observedAt: Date) {
         self.range = range
         self.stats = stats
         self.rangeHonoured = rangeHonoured
         self.statsConfig = statsConfig
         self.protection = protection
         self.filtering = filtering
+        self.dns = dns
         self.observedAt = observedAt
     }
 }

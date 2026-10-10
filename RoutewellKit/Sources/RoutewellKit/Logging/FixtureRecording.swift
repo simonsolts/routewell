@@ -59,6 +59,7 @@ public enum FixtureRecordingPlan {
         .init(.adGuard, method: "control/querylog?limit=500&search={newest_client}", fileName: "adguard-querylog-search-client.json"),
         .init(.adGuard, method: "control/querylog?limit=500&search={newest_domain}", fileName: "adguard-querylog-search-domain.json"),
         .init(.adGuard, method: "control/querylog?limit=500&response_status=blocked", fileName: "adguard-querylog-status-blocked.json"),
+        .init(.adGuard, method: "control/dns_info", fileName: "adguard-dns-info.json"),
         // Chunk 15: the SSH reads. Recorded only when SSH is set up for the
         // profile; otherwise they are skipped.
         .init(.ssh, method: "system-board", fileName: "ssh-ubus-system-board.json"),
@@ -252,10 +253,12 @@ public enum RecordedFixtureRedactor {
     /// Router and AdGuard enum-like fields whose values are technical tokens,
     /// never personal text: interface names, device class, vendor, AdGuard
     /// client source, query result reason, DNS status, protocol, record type.
-    /// Chunk 14 adds version, kernel, architecture, radio, and SQM tokens.
+    /// Chunk 14 adds version, kernel, architecture, radio, and SQM tokens,
+    /// then the DNS upstream and blocking modes.
     private static let tokenFields: Set<String> = ["iface", "class", "vendor", "source", "reason", "status", "client_proto", "type", "band", "time_units",
         "firmware_version", "current_version", "new_firmware_version", "version", "kernel_version", "openwrt_version", "architecture",
-        "firmware_type", "htmode", "hwmode", "txpower", "qdisc", "protocol", "device", "state", "interface"]
+        "firmware_type", "htmode", "hwmode", "txpower", "qdisc", "protocol", "device", "state", "interface",
+        "upstream_mode", "blocking_mode"]
     private static let numericFields: Set<String> = ["total_rx", "total_tx", "total_rx_init", "total_tx_init", "online_time", "elapsedms", "upload", "download"]
     private static let timeFields: Set<String> = ["time", "oldest", "last_updated"]
     /// Only a catalog URL, exactly as the catalog has it, is public; any

@@ -3,8 +3,8 @@ import Foundation
 /// AdGuard Home › Overview's reads (chunk 17), behind
 /// `RouterBackend.adGuardOverview`. `nil` without an AdGuard Home connection.
 public protocol AdGuardOverviewService: Sendable {
-    /// Stats for `range`, the stats retention, the three switches, and the
-    /// blocklists. Throws only `CancellationError`; every other failure is
+    /// Stats for `range`, the stats retention, the three switches, the
+    /// blocklists, and the DNS settings. Throws only `CancellationError`; every other failure is
     /// a part of the reading.
     func overview(range: AdGuardStatsRange) async throws -> AdGuardOverviewReading
 }
@@ -28,6 +28,10 @@ public struct LiveAdGuardOverviewService: AdGuardOverviewService {
         async let parental = Self.part { try await adGuard.read(.parentalStatus) }
         async let safeSearch = Self.part { try await adGuard.read(.safeSearchStatus) }
         async let filtering = Self.part { AdGuardFilteringStatus.parse(try await adGuard.read(.filteringStatus)) }
+        async let dns = Self.part {
+            guard let settings = AdGuardDNSSettings.parse(try await adGuard.read(.dnsInfo)) else { throw AdGuardClientError.malformedResponse }
+            return settings
+        }
 
         let statsConfig = try await config
         let retention = try? statsConfig.get().intervalMilliseconds
@@ -42,7 +46,7 @@ public struct LiveAdGuardOverviewService: AdGuardOverviewService {
             protection = .success(ProtectionOptions(safeBrowsing: enabled[0] ?? nil, parental: enabled[1] ?? nil, safeSearch: enabled[2] ?? nil))
         }
         return AdGuardOverviewReading(range: range, stats: stats, rangeHonoured: honoured, statsConfig: statsConfig,
-                                      protection: protection, filtering: try await filtering, observedAt: observedAt)
+                                      protection: protection, filtering: try await filtering, dns: try await dns, observedAt: observedAt)
     }
 
     /// The stats for `range`, and whether the reply honoured `recent`.

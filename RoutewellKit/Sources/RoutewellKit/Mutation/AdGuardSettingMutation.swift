@@ -41,7 +41,8 @@ public enum ProtectionIntent: Sendable, Equatable {
 }
 
 /// A change to a setting inside AdGuard Home (architecture 04): protection
-/// on, off, or paused, "Filter requests", and the three Protection switches.
+/// on, off, or paused, "Filter requests", the three Protection switches,
+/// lists and rules, and DNS settings.
 public enum AdGuardSettingIntent: Sendable, Equatable {
     case protection(ProtectionIntent)
     /// AdGuard Home's "Filter requests": blocklists, allowlists, and rules.
@@ -62,6 +63,9 @@ public enum AdGuardSettingIntent: Sendable, Equatable {
     /// Save the custom rules. `loaded` is what the editor started from:
     /// when AdGuard Home's rules are no longer that, nothing is sent.
     case saveRules([String], loaded: [String])
+    /// DNS Apply: only the fields that changed (`dns_config`).
+    case dns(changes: [String: JSONValue])
+    case clearDNSCache
 
     /// Writes run only while AdGuard Home runs; the read-only UI is not the
     /// only guard.
@@ -76,7 +80,9 @@ public enum AdGuardSettingIntent: Sendable, Equatable {
             return FilterListURL.validated(url) == nil ? .invalidIntent("Enter a URL that starts with http:// or https://.") : nil
         case .updateInterval(let hours):
             return FilterUpdateInterval.isValid(hours) ? nil : .invalidIntent("Not a check interval")
-        case .filtering, .feature, .listEnabled, .removeList, .updateLists, .saveRules: return nil
+        case .dns(let changes):
+            return changes.isEmpty ? .invalidIntent("No DNS changes") : nil
+        case .filtering, .feature, .listEnabled, .removeList, .updateLists, .saveRules, .clearDNSCache: return nil
         }
     }
 }
@@ -94,6 +100,8 @@ public enum AdGuardSettingState: Sendable, Equatable {
     case listsUpdated(Int?, AdGuardFilteringStatus?)
     /// The custom rules AdGuard Home reported.
     case rules([String])
+    case dns(AdGuardDNSSettings)
+    case cacheCleared
 }
 
 /// The calls a setting write needs. Live: AdGuard Home's own API.
@@ -110,9 +118,16 @@ public protocol AdGuardSettingTransport: Sendable {
     /// `POST control/filtering/refresh`: the `updated` count, or `nil`
     /// when the reply has none.
     func refreshLists(_ kind: FilterListKind) async throws -> Int?
+    /// `control/dns_info`.
+    func readDNS() async throws -> AdGuardDNSSettings
+    /// `POST control/test_upstream_dns`: the reply as sent.
+    func testUpstreams(_ request: UpstreamTestRequest) async throws -> JSONValue?
 }
 
 public extension AdGuardSettingTransport {
+    func readDNS() async throws -> AdGuardDNSSettings { throw AdGuardClientError.malformedResponse }
+    func testUpstreams(_ request: UpstreamTestRequest) async throws -> JSONValue? { throw AdGuardClientError.malformedResponse }
+
     func refreshLists(_ kind: FilterListKind) async throws -> Int? {
         try await write(.refreshLists(whitelist: kind.isAllowlist))
         return nil
@@ -123,6 +138,15 @@ public extension AdGuardSettingTransport {
 /// the profile has no AdGuard Home connection.
 public protocol AdGuardSettingControl: Sendable {
     func run(_ intent: AdGuardSettingIntent, availability: AdGuardAvailability) async -> MutationReport<AdGuardSettingState>
+    /// Test Upstreams: a check, not a change, so it does not wait for the
+    /// gate. Only while AdGuard Home runs.
+    func testUpstreams(_ request: UpstreamTestRequest, availability: AdGuardAvailability) async -> Result<UpstreamTestResult, RefreshFailureCategory>
+}
+
+public extension AdGuardSettingControl {
+    func testUpstreams(_ request: UpstreamTestRequest, availability: AdGuardAvailability) async -> Result<UpstreamTestResult, RefreshFailureCategory> {
+        .failure(.unavailable)
+    }
 }
 
 /// Timing knobs for verifying a setting write. All virtual-clock driven
@@ -197,6 +221,8 @@ public struct AdGuardSettingExecutor: AdGuardSettingControl {
         case .updateInterval(let hours): step = await performInterval(hours: hours)
         case .updateLists(let kind): step = await performUpdateLists(kind)
         case .saveRules(let rules, let loaded): step = await performSaveRules(rules, loaded: loaded)
+        case .dns(let changes): step = await performDNS(changes)
+        case .clearDNSCache: step = await performClearCache()
         }
         await gate.release(token)
         await log?.record(LogEvent(
@@ -451,6 +477,49 @@ public struct AdGuardSettingExecutor: AdGuardSettingControl {
         return (.verifiedMismatch(expected: .rules(rules), actual: .rules(last)), true, nil)
     }
 
+    // MARK: DNS (gate held)
+
+    /// Sends only the changed fields, so a field changed elsewhere since the
+    /// tab read it is not written back.
+    private func performDNS(_ changes: [String: JSONValue]) async -> Step {
+        let before: AdGuardDNSSettings
+        do {
+            before = try await transport.readDNS()
+        } catch {
+            return (.rejected(.preconditionFailed("DNS settings unavailable")), false, Self.category(for: error))
+        }
+        if before.contains(changes) { return (.verifiedSuccess(.dns(before)), false, nil) }
+        if let stop = await dispatch(.dnsConfig(changes)) { return stop }
+
+        let poll = await poll { try await transport.readDNS() } matches: { $0.contains(changes) }
+        if let matched = poll.matched { return (.verifiedSuccess(.dns(matched)), true, nil) }
+        guard let last = poll.last else { return (.unknownAfterDispatch, true, poll.failure) }
+        return (.verifiedMismatch(expected: .dns(before.applying(changes)), actual: .dns(last)), true, nil)
+    }
+
+    /// Recovery class `none`: nothing can be read back.
+    private func performClearCache() async -> Step {
+        do {
+            try await transport.write(.clearDNSCache)
+            return (.verifiedSuccess(.cacheCleared), true, nil)
+        } catch AdGuardClientError.credentialUnavailable {
+            return (.rejected(.preconditionFailed("credential unavailable")), false, .authentication)
+        } catch AdGuardClientError.unauthorized {
+            return (.rejected(.preconditionFailed("AdGuard Home refused the login")), true, .authentication)
+        } catch {
+            return (.unknownAfterDispatch, true, Self.category(for: error))
+        }
+    }
+
+    public func testUpstreams(_ request: UpstreamTestRequest, availability: AdGuardAvailability) async -> Result<UpstreamTestResult, RefreshFailureCategory> {
+        guard availability == .running else { return .failure(.unavailable) }
+        do {
+            return .success(UpstreamTestResult.parse(try await transport.testUpstreams(request)))
+        } catch {
+            return .failure(Self.category(for: error))
+        }
+    }
+
     private static func setEnabled(_ enabled: Bool, url: String, kind: FilterListKind, in status: inout AdGuardFilteringStatus) {
         func update(_ lists: inout [AdGuardFilterList]) {
             for index in lists.indices where lists[index].url == url { lists[index].enabled = enabled }
@@ -610,5 +679,12 @@ public struct LiveAdGuardSettingTransport: AdGuardSettingTransport {
     public func write(_ write: AdGuardWrite) async throws { try await adGuard.write(write) }
     public func refreshLists(_ kind: FilterListKind) async throws -> Int? {
         try await adGuard.write(.refreshLists(whitelist: kind.isAllowlist))?["updated"]?.int
+    }
+    public func readDNS() async throws -> AdGuardDNSSettings {
+        guard let settings = AdGuardDNSSettings.parse(try await adGuard.read(.dnsInfo)) else { throw AdGuardClientError.malformedResponse }
+        return settings
+    }
+    public func testUpstreams(_ request: UpstreamTestRequest) async throws -> JSONValue? {
+        try await adGuard.write(.testUpstreams(request))
     }
 }

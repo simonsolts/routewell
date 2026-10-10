@@ -225,6 +225,15 @@ public actor RouterSession {
         return report
     }
 
+    /// Test Upstreams, fenced like the reads. A failure when the backend has
+    /// no AdGuard Home connection.
+    public func testAdGuardUpstreams(
+        using lease: SessionLease, request: UpstreamTestRequest, availability: AdGuardAvailability
+    ) async throws -> Result<UpstreamTestResult, RefreshFailureCategory> {
+        guard let settings = lease.backend.adGuardSettings else { try validateBefore(lease); return .failure(.unavailable) }
+        return try await fenced(lease) { await settings.testUpstreams(request, availability: availability) }
+    }
+
     /// AdGuard Home › Overview's reads, fenced like the others. `nil` when
     /// the backend has no AdGuard Home connection.
     public func adGuardOverview(using lease: SessionLease, range: AdGuardStatsRange) async throws -> AdGuardOverviewReading? {

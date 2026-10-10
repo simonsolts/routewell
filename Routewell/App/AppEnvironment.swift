@@ -15,6 +15,7 @@ final class AppEnvironment {
     let trust: TrustController
     let adGuard: AdGuardController
     let filters: AdGuardFiltersController
+    let dns: AdGuardDNSController
     let clients: ClientsController
     let clientDNS: ClientDNSController
     let queryLog: QueryLogController
@@ -96,12 +97,16 @@ final class AppEnvironment {
         self.adGuard = AdGuardController(model: model, refresh: refresh,
                                          store: AdGuardArchiveStore(root: model.mode == .live ? dataDirectory : nil))
         self.filters = AdGuardFiltersController(adGuard: adGuard)
+        self.dns = AdGuardDNSController(adGuard: adGuard)
         #if DEBUG
         mockBackend = backend as? MockRouterBackend
         #endif
         sshSetup.save = { [weak self] settings in self?.updateSSHSettings(settings) }
         adGuard.profileID = { [weak self] in self?.persistence.selectedProfile?.id }
-        persistence.onSelectionChange = { [weak self] in self?.filters.reset() }
+        persistence.onSelectionChange = { [weak self] in
+            self?.filters.reset()
+            self?.dns.reset()
+        }
         refresh.onAdGuardReading = { [weak self] reading, token in await self?.adGuard.observe(reading, token: token) }
         refresh.onAdGuardOverview = { [weak self] lease in try await self?.adGuard.refreshOverview(using: lease) }
         onboarding.environment = self

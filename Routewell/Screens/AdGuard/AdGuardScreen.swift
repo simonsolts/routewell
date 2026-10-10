@@ -37,6 +37,7 @@ struct AdGuardScreen: View {
         case .overview: AdGuardOverviewView()
         case .instance: AdGuardInstanceView()
         case .filters: AdGuardFiltersView()
+        case .dns: AdGuardDNSView()
         case .queryLog:
             // Read live only; there is no saved copy of the log.
             if environment.adGuard.availability == .running {
