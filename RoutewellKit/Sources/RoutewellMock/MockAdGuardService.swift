@@ -14,6 +14,9 @@ public enum MockAdGuardScenario: String, CaseIterable, Sendable {
     case addListFails
     case refreshPartial
     case rulesConflict
+    case slowUpstream
+    case dnsApplyMismatch
+    case upstreamTestFails
 
     public var title: String {
         switch self {
@@ -28,6 +31,9 @@ public enum MockAdGuardScenario: String, CaseIterable, Sendable {
         case .addListFails: "Running, adding a list fails"
         case .refreshPartial: "Running, Update Now updates one list"
         case .rulesConflict: "Running, rules change elsewhere"
+        case .slowUpstream: "Running, one upstream is slow"
+        case .dnsApplyMismatch: "Running, DNS Apply keeps the old cache size"
+        case .upstreamTestFails: "Running, Test Upstreams finds a bad server"
         }
     }
 
@@ -45,8 +51,10 @@ public enum MockAdGuardScenario: String, CaseIterable, Sendable {
                                   stats: (try? overview.stats.get()).map { [AdGuardStatsRange.day.rawValue: .init(savedAt: savedAt, value: $0)] },
                                   statsConfig: (try? overview.statsConfig.get()).map { .init(savedAt: savedAt, value: $0) },
                                   protection: (try? overview.protection.get()).map { .init(savedAt: savedAt, value: $0) },
-                                  filtering: (try? overview.filtering.get()).map { .init(savedAt: savedAt, value: $0) })
-        case .off, .running, .paused, .runningWithoutDNS, .turnOnFails, .switchFails, .addListFails, .refreshPartial, .rulesConflict:
+                                  filtering: (try? overview.filtering.get()).map { .init(savedAt: savedAt, value: $0) },
+                                  dns: .init(savedAt: savedAt, value: MockAdGuardTransport.defaultDNS))
+        case .off, .running, .paused, .runningWithoutDNS, .turnOnFails, .switchFails, .addListFails, .refreshPartial, .rulesConflict,
+             .slowUpstream, .dnsApplyMismatch, .upstreamTestFails:
             return nil
         }
     }
@@ -81,6 +89,11 @@ public actor MockAdGuardTransport: AdGuardServiceTransport {
     var failsListAdd = false
     var refreshesPartly = false
     var changesRulesElsewhere = false
+    var dns = MockAdGuardTransport.defaultDNS
+    var slowUpstream = false
+    /// A `dns_config` field AdGuard Home accepts but does not change.
+    var ignoredDNSField: String?
+    var failsUpstreamTest = false
     /// Safe Search's engine flags, sent back unchanged by the switch.
     var safeSearchEngines: [String: JSONValue] = ["bing": .bool(true), "duckduckgo": .bool(true), "ecosia": .bool(true),
         "google": .bool(true), "pixabay": .bool(true), "yandex": .bool(true), "youtube": .bool(true)]
@@ -106,9 +119,14 @@ public actor MockAdGuardTransport: AdGuardServiceTransport {
         failsListAdd = scenario == .addListFails
         refreshesPartly = scenario == .refreshPartial
         changesRulesElsewhere = scenario == .rulesConflict
+        dns = Self.defaultDNS
+        slowUpstream = scenario == .slowUpstream
+        ignoredDNSField = scenario == .dnsApplyMismatch ? "cache_size" : nil
+        failsUpstreamTest = scenario == .upstreamTestFails
         switch scenario {
         case .off, .cached, .turnOnFails: config = AdGuardRouterConfig(enabled: false, handlesDNS: true)
-        case .running, .paused, .unreachable, .switchFails, .addListFails, .refreshPartial, .rulesConflict: config = AdGuardRouterConfig(enabled: true, handlesDNS: true)
+        case .running, .paused, .unreachable, .switchFails, .addListFails, .refreshPartial, .rulesConflict,
+             .slowUpstream, .dnsApplyMismatch, .upstreamTestFails: config = AdGuardRouterConfig(enabled: true, handlesDNS: true)
         case .runningWithoutDNS: config = AdGuardRouterConfig(enabled: true, handlesDNS: false)
         }
     }

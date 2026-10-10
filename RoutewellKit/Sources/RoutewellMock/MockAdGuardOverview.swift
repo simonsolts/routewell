@@ -75,6 +75,22 @@ extension MockAdGuardTransport: AdGuardSettingTransport, AdGuardOverviewService 
 
     static func timestamp(_ date: Date) -> String { date.formatted(.iso8601) }
 
+    public func readDNS() async throws -> AdGuardDNSSettings {
+        guard currentStatus() != nil else { throw AdGuardClientError.transport(.timedOut) }
+        return dns
+    }
+
+    public func testUpstreams(_ request: UpstreamTestRequest) async throws -> JSONValue? {
+        guard currentStatus() != nil else { throw AdGuardClientError.transport(.timedOut) }
+        try? await Task.sleep(for: .milliseconds(900))
+        writes.append(.testUpstreams(request))
+        let addresses = (request.upstreams + request.bootstrap + request.fallback).compactMap { UpstreamLine($0).address }
+        return .object(Dictionary(addresses.map { address in
+            let fails = failsUpstreamTest && address.contains("dns.example.org")
+            return (address, JSONValue.string(fails ? "couldn't communicate with upstream: i/o timeout" : "OK"))
+        }) { first, _ in first })
+    }
+
     public func write(_ write: AdGuardWrite) async throws {
         guard currentStatus() != nil else { throw AdGuardClientError.transport(.timedOut) }
         try? await Task.sleep(for: .milliseconds(150))
@@ -109,8 +125,10 @@ extension MockAdGuardTransport: AdGuardSettingTransport, AdGuardOverviewService 
             if whitelist { update(&filterLists.allowlists) } else { update(&filterLists.blocklists) }
         case .removeList(let url, let whitelist):
             if whitelist { filterLists.allowlists.removeAll { $0.url == url } } else { filterLists.blocklists.removeAll { $0.url == url } }
-        case .refreshLists:
+        case .refreshLists, .clearDNSCache, .testUpstreams:
             break
+        case .dnsConfig(let changes):
+            dns = dns.applying(changes.filter { $0.key != ignoredDNSField })
         }
         if case .filteringConfig(_, let hours) = write { filterLists.intervalHours = hours }
     }
@@ -122,28 +140,31 @@ extension MockAdGuardTransport: AdGuardSettingTransport, AdGuardOverviewService 
             return AdGuardOverviewReading(range: range, stats: .failure(.timeout), statsConfig: .failure(.timeout),
                                           protection: .failure(.timeout), filtering: .failure(.timeout), observedAt: now)
         }
-        var reading = Self.overview(range: range, now: now, options: options, filteringEnabled: filteringEnabled)
+        var reading = Self.overview(range: range, now: now, options: options, filteringEnabled: filteringEnabled,
+                                    slowUpstream: slowUpstream)
         reading.filtering = .success(currentFiltering(now: now))
+        reading.dns = .success(dns)
         return reading
     }
 
     /// The Overview a running mock shows at `now`. A range longer than the
     /// retention is not read, as in the live service.
     static func overview(range: AdGuardStatsRange, now: Date, options: ProtectionOptions,
-                         filteringEnabled: Bool = true) -> AdGuardOverviewReading {
+                         filteringEnabled: Bool = true, slowUpstream: Bool = false) -> AdGuardOverviewReading {
         let available = range.isAvailable(retentionMilliseconds: retentionMilliseconds)
         return AdGuardOverviewReading(
             range: range,
-            stats: available ? .success(stats(range: range)) : .failure(.unavailable),
+            stats: available ? .success(stats(range: range, slowUpstream: slowUpstream)) : .failure(.unavailable),
             statsConfig: .success(AdGuardStatsConfig(enabled: true, intervalMilliseconds: retentionMilliseconds)),
             protection: .success(options),
             filtering: .success(filtering(enabled: filteringEnabled)),
+            dns: .success(defaultDNS),
             observedAt: now
         )
     }
 
     /// A daily curve: quiet at night, busy in the evening.
-    static func stats(range: AdGuardStatsRange) -> AdGuardStats {
+    static func stats(range: AdGuardStatsRange, slowUpstream: Bool = false) -> AdGuardStats {
         let shape = range.expectedShape
         var stats = AdGuardStats()
         stats.timeUnits = shape.units
@@ -170,9 +191,43 @@ extension MockAdGuardTransport: AdGuardSettingTransport, AdGuardOverviewService 
         // The mock clients' addresses, so names resolve; .177 has no name.
         let clients = ["192.168.8.192", "192.168.8.177", "192.168.8.199", "192.168.8.105", "192.168.8.20", "192.168.8.228", "192.168.8.150"]
         stats.topClients = clients.enumerated().map { .init(name: $1, count: queries / (4 + $0 * 2)) }
-        stats.topUpstreams = [.init(name: "https://dns.example.net/dns-query", count: queries / 2)]
+        // Stats name upstreams with their port, as AdGuard Home does.
+        stats.topUpstreams = [.init(name: "https://dns.example.net:443/dns-query", count: queries * 6 / 10),
+                              .init(name: "tls://dns.example.org:853", count: queries * 3 / 10),
+                              .init(name: "192.0.2.53:53", count: queries / 10)]
+        stats.topUpstreamTimes = [.init(name: "https://dns.example.net:443/dns-query", seconds: 0.018),
+                                  .init(name: "tls://dns.example.org:853", seconds: slowUpstream ? 0.74 : 0.034),
+                                  .init(name: "192.0.2.53:53", seconds: 0.009)]
         return stats
     }
+
+    /// `dns_info` with neutral addresses, including fields the tab does not
+    /// show.
+    static let defaultDNS = AdGuardDNSSettings(fields: [
+        "upstream_dns": .array(["https://dns.example.net/dns-query", "tls://dns.example.org", "192.0.2.53",
+                                "# Local names", "[/home.arpa/]192.0.2.1"].map(JSONValue.string)),
+        "upstream_mode": .string("load_balance"),
+        "fallback_dns": .array([.string("203.0.113.53")]),
+        "bootstrap_dns": .array([.string("192.0.2.10"), .string("198.51.100.10")]),
+        "blocking_mode": .string("default"),
+        "blocking_ipv4": .string(""),
+        "blocking_ipv6": .string(""),
+        "blocked_response_ttl": .number(10),
+        "cache_enabled": .bool(true),
+        "cache_size": .number(4_194_304),
+        "cache_ttl_min": .number(0),
+        "cache_ttl_max": .number(0),
+        "cache_optimistic": .bool(false),
+        "dnssec_enabled": .bool(false),
+        "edns_cs_enabled": .bool(false),
+        "disable_ipv6": .bool(false),
+        "ratelimit": .number(20),
+        "upstream_timeout": .number(10),
+        "ratelimit_subnet_len_ipv4": .number(24),
+        "ratelimit_whitelist": .array([]),
+        "use_private_ptr_resolvers": .bool(true),
+        "local_ptr_upstreams": .array([]),
+    ])
 
     static func filtering(enabled: Bool) -> AdGuardFilteringStatus {
         var status = AdGuardFilteringStatus()

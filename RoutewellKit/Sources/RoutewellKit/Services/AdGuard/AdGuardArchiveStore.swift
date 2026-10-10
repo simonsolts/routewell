@@ -3,9 +3,10 @@ import Foundation
 /// The saved copy of AdGuard Home's data for one router (architecture 05).
 /// One section per read, each with the date it was saved. Chunk 16 saves the
 /// service status and the router config; chunk 17 adds the Overview's stats
-/// (per range), stats config, switches, and blocklists. A section is
-/// replaced only by a newer successful read while AdGuard Home runs. New
-/// sections are optional, so a chunk 16 file still loads.
+/// (per range), stats config, switches, and blocklists, and the DNS
+/// settings. A section is replaced only by a newer successful read while
+/// AdGuard Home runs. New sections are optional, so a chunk 16 file still
+/// loads.
 public struct AdGuardArchive: Sendable, Equatable, Codable {
     public struct Section<Value: Sendable & Equatable & Codable>: Sendable, Equatable, Codable {
         public var savedAt: Date
@@ -31,25 +32,29 @@ public struct AdGuardArchive: Sendable, Equatable, Codable {
     public var protection: Section<ProtectionOptions>?
     /// `control/filtering/status`: the lists behind the Blocklists row.
     public var filtering: Section<AdGuardFilteringStatus>?
+    /// `control/dns_info`: the DNS tab.
+    public var dns: Section<AdGuardDNSSettings>?
 
     public init(status: Section<AdGuardStatusResponse>? = nil, config: Section<AdGuardRouterConfig>? = nil,
                 stats: [String: Section<AdGuardStats>]? = nil, statsConfig: Section<AdGuardStatsConfig>? = nil,
-                protection: Section<ProtectionOptions>? = nil, filtering: Section<AdGuardFilteringStatus>? = nil) {
+                protection: Section<ProtectionOptions>? = nil, filtering: Section<AdGuardFilteringStatus>? = nil,
+                dns: Section<AdGuardDNSSettings>? = nil) {
         self.status = status
         self.config = config
         self.stats = stats
         self.statsConfig = statsConfig
         self.protection = protection
         self.filtering = filtering
+        self.dns = dns
     }
 
     public var isEmpty: Bool {
-        status == nil && config == nil && (stats ?? [:]).isEmpty && statsConfig == nil && protection == nil && filtering == nil
+        status == nil && config == nil && (stats ?? [:]).isEmpty && statsConfig == nil && protection == nil && filtering == nil && dns == nil
     }
 
     /// The newest section's date: the age the read-only strip shows.
     public var savedAt: Date? {
-        ([status?.savedAt, config?.savedAt, statsConfig?.savedAt, protection?.savedAt, filtering?.savedAt]
+        ([status?.savedAt, config?.savedAt, statsConfig?.savedAt, protection?.savedAt, filtering?.savedAt, dns?.savedAt]
             + (stats ?? [:]).values.map(\.savedAt)).compactMap { $0 }.max()
     }
 
@@ -157,6 +162,10 @@ public actor AdGuardArchiveStore {
         }
         if case .success(let filtering) = overview.filtering, force || Self.isDue(next.filtering?.savedAt, at: at) {
             next.filtering = .init(savedAt: at, value: filtering)
+            changed = true
+        }
+        if case .success(let dns) = overview.dns, force || Self.isDue(next.dns?.savedAt, at: at) {
+            next.dns = .init(savedAt: at, value: dns)
             changed = true
         }
         guard changed else { return nil }

@@ -55,6 +55,7 @@ public enum AdGuardReadPath: String, Sendable, CaseIterable {
     case parentalStatus = "control/parental/status"
     case safeSearchStatus = "control/safesearch/status"
     case filteringStatus = "control/filtering/status"
+    case dnsInfo = "control/dns_info"
 
     /// The name in the session log.
     var logName: String {
@@ -66,6 +67,7 @@ public enum AdGuardReadPath: String, Sendable, CaseIterable {
         case .parentalStatus: "parental status"
         case .safeSearchStatus: "safesearch status"
         case .filteringStatus: "filtering status"
+        case .dnsInfo: "dns info"
         }
     }
 
@@ -105,6 +107,13 @@ public enum AdGuardWrite: Sendable, Equatable {
     case removeList(url: String, whitelist: Bool)
     /// `POST control/filtering/refresh {"whitelist"}` → `{"updated": n}`.
     case refreshLists(whitelist: Bool)
+    /// `POST control/dns_config` with the changed fields only.
+    case dnsConfig([String: JSONValue])
+    /// `POST control/cache_clear`, no body.
+    case clearDNSCache
+    /// `POST control/test_upstream_dns` → one text per address. A check,
+    /// not a change.
+    case testUpstreams(UpstreamTestRequest)
 
     var httpMethod: String {
         if case .safeSearchSettings = self { return "PUT" }
@@ -127,6 +136,9 @@ public enum AdGuardWrite: Sendable, Equatable {
         case .setList: "control/filtering/set_url"
         case .removeList: "control/filtering/remove_url"
         case .refreshLists: "control/filtering/refresh"
+        case .dnsConfig: "control/dns_config"
+        case .clearDNSCache: "control/cache_clear"
+        case .testUpstreams: "control/test_upstream_dns"
         }
     }
 
@@ -149,6 +161,13 @@ public enum AdGuardWrite: Sendable, Equatable {
             .object(["url": .string(url), "whitelist": .bool(whitelist)])
         case .refreshLists(let whitelist):
             .object(["whitelist": .bool(whitelist)])
+        case .dnsConfig(let changes):
+            .object(changes)
+        case .clearDNSCache: nil
+        case .testUpstreams(let request):
+            .object(["upstream_dns": .array(request.upstreams.map(JSONValue.string)),
+                     "bootstrap_dns": .array(request.bootstrap.map(JSONValue.string)),
+                     "fallback_dns": .array(request.fallback.map(JSONValue.string))])
         }
     }
 
@@ -163,6 +182,9 @@ public enum AdGuardWrite: Sendable, Equatable {
         case .setList: "set list"
         case .removeList: "remove list"
         case .refreshLists: "refresh lists"
+        case .dnsConfig: "set dns"
+        case .clearDNSCache: "clear dns cache"
+        case .testUpstreams: "test upstreams"
         }
     }
 }
