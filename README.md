@@ -9,7 +9,7 @@
 
 ![macOS 26+](https://img.shields.io/badge/macOS-26%2B-000000?logo=apple&logoColor=white)
 ![Swift](https://img.shields.io/badge/Swift-SwiftUI-F05138?logo=swift&logoColor=white)
-![Status: alpha](https://img.shields.io/badge/status-early%20alpha-orange)
+![Status: beta](https://img.shields.io/badge/status-beta-orange)
 [![Release](https://img.shields.io/github/v/release/simonsolts/routewell?include_prereleases&sort=semver)](https://github.com/simonsolts/routewell/releases)
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
 
@@ -23,7 +23,7 @@ Routewell talks directly to your router on your local network. It has no
 account and no cloud service.
 
 <p align="center">
-  <a href="https://github.com/simonsolts/routewell/releases"><b>Download the latest alpha</b></a>
+  <a href="https://github.com/simonsolts/routewell/releases"><b>Download the latest beta</b></a>
   · macOS 26 or later · tested on the GL.iNet Flint 4 with firmware 4.9.1
 </p>
 
@@ -79,23 +79,23 @@ account and no cloud service.
 
 ## Coming next
 
-Routewell is a very early alpha. Next on the list: network settings,
-maintenance tasks, notifications, analytics, VPN, and applications.
+Next on the list: network settings, maintenance tasks, notifications,
+analytics, VPN, and applications.
 
 ## Get Routewell
 
 > [!WARNING]
-> **Routewell is a very early alpha build.** Many screens are not finished,
-> and you can find bugs. It has been tested on one router only. Do not rely on
-> it to manage a network that other people depend on.
+> **Routewell is in beta.** Some screens are not finished, and you can find
+> bugs. It has been tested on one router only: the GL.iNet Flint 4
+> (GL-BE14000) with firmware 4.9.1. Do not rely on it to manage a network that
+> other people depend on.
 
-Download the latest alpha from the
+Download the latest beta from the
 [Releases page](https://github.com/simonsolts/routewell/releases). The app is
-signed and notarized by Apple. Unzip it and move **Routewell (Alpha)** to your
+signed and notarized by Apple. Unzip it and move **Routewell** to your
 Applications folder.
 
-Routewell needs macOS 26 or later. It has been tested on the GL.iNet Flint 4
-(GL-BE14000) with firmware 4.9.1.
+Routewell needs macOS 26 or later.
 
 When you open Routewell for the first time, a setup assistant finds your
 router. Sign in with your router's admin password. AdGuard Home and SSH are
