@@ -30,3 +30,6 @@ xcuserdata/
 
 # Locally recorded router responses; review and derive safe test fixtures instead.
 /RoutewellKit/Tests/RoutewellKitTests/Fixtures/recorded*/
+
+# Local sourcekit-lsp config (machine-specific paths)
+buildServer.json
