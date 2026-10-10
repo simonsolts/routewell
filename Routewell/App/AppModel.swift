@@ -86,8 +86,8 @@ final class AppModel {
 
     // MARK: Client details
 
-    /// The All Clients table selection. Kept here so Known Clients, the
-    /// review sheet, and the context menu can open a device in the pane.
+    /// The All Clients table selection. Kept here so the review sheet and
+    /// the context menu can open a device in the pane.
     var clientsSelection: Set<MACAddress> = []
     /// Local presence history, shared by every router session.
     private(set) var presence = PresenceLogState()
@@ -140,7 +140,6 @@ final class AppModel {
     /// Opens one device in the All Clients details pane.
     func revealClient(_ mac: MACAddress, section: ClientDetailsSection) {
         selection = .clients
-        subpages[.clients] = SidebarDestination.clients.segments[0]
         clientsSelection = [mac]
         clientsDetailsVisible = true
         clientsDetailsSection = section.rawValue

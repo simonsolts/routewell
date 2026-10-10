@@ -79,14 +79,6 @@ struct ReviewRowModel: Equatable, Identifiable {
     var id: MACAddress { mac }
 }
 
-struct KnownClientsSummary: Equatable {
-    let known: Int
-    let online: Int
-    let favourites: Int
-    let monitored: Int
-    var offline: Int { known - online }
-}
-
 /// Every string the Clients screen shows. Views stay thin; tests read these.
 enum ClientsFormat {
     static let unknown = "Unknown"
@@ -283,18 +275,5 @@ enum ClientsFormat {
         case .partial: "Some AdGuard Home data did not load; some names or DNS counts are unknown."
         case .failed: "AdGuard Home did not respond; names from it and DNS counts are unknown."
         }
-    }
-
-    // MARK: Known Clients
-
-    static func knownSummary(registry: DeviceRegistryState, clients: [Client]) -> KnownClientsSummary {
-        let online = Set(clients.filter { $0.online == .value(true) }.map(\.mac))
-        let records = registry.records.values
-        return KnownClientsSummary(
-            known: records.count,
-            online: records.filter { online.contains($0.mac) }.count,
-            favourites: records.filter(\.favourite).count,
-            monitored: records.filter(\.monitored).count
-        )
     }
 }

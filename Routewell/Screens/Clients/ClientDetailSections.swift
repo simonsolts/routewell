@@ -510,7 +510,7 @@ struct ClientForgetSection: View {
 }
 
 extension View {
-    /// The one Forget Device… confirmation, shared by the pane and Known Clients.
+    /// The one Forget Device… confirmation.
     func forgetDeviceAlert(isPresented: Binding<Bool>, entry: ClientListEntry?) -> some View {
         modifier(ForgetDeviceAlert(isPresented: isPresented, entry: entry))
     }

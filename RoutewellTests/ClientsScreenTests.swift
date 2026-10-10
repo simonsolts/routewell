@@ -143,18 +143,6 @@ private func mac(_ raw: String) -> MACAddress { MACAddress(raw)! }
     #expect(rows[1].name == "Unknown device")
 }
 
-@Test func knownClientsStatStripCounts() {
-    let records = [
-        DeviceRecord(mac: mac("AA:00:00:00:00:01"), favourite: true, monitored: true, firstSeen: .now),
-        DeviceRecord(mac: mac("AA:00:00:00:00:02"), monitored: true, firstSeen: .now),
-        DeviceRecord(mac: mac("AA:00:00:00:00:03"), firstSeen: .now),
-    ]
-    let clients = [Client(mac: records[0].mac, online: .value(true)), Client(mac: records[1].mac, online: .value(false))]
-    let summary = ClientsFormat.knownSummary(registry: DeviceRegistryState(records: records), clients: clients)
-    #expect(summary == KnownClientsSummary(known: 3, online: 1, favourites: 1, monitored: 2))
-    #expect(summary.offline == 2)
-}
-
 @MainActor @Test func mockClientsRefreshFindsThreeNewDevicesOnce() async {
     let (environment, _) = await clientsEnvironment()
     let model = environment.model
@@ -208,13 +196,10 @@ private func mac(_ raw: String) -> MACAddress { MACAddress(raw)! }
 
 @MainActor @Test func clientsScreenStatesLayOut() async {
     let (environment, _) = await clientsEnvironment()
-    for segment in ["All Clients", "Known Clients"] {
-        environment.model.subpages[.clients] = segment
-        let view = NSHostingView(rootView: ClientsScreen().environment(environment.model).environment(environment)
-            .frame(width: 1100, height: 760))
-        view.layoutSubtreeIfNeeded()
-        #expect(view.fittingSize.width > 0)
-    }
+    let view = NSHostingView(rootView: ClientsScreen().environment(environment.model).environment(environment)
+        .frame(width: 1100, height: 760))
+    view.layoutSubtreeIfNeeded()
+    #expect(view.fittingSize.width > 0)
     let sheet = NSHostingView(rootView: NewDevicesSheet(rows: [], onReview: { _ in }, onDone: {}))
     #expect(sheet.fittingSize.height > 0)
 }
