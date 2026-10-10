@@ -98,7 +98,7 @@ private struct LiveFixture {
     #expect(SettingsView.services(empty) == nil)
 }
 
-@Test func generalTabShowsTheVersionFromInfoPlist() {
+@MainActor @Test func generalTabShowsTheVersionFromInfoPlist() {
     #expect(GeneralSettingsTab.versionText(["CFBundleShortVersionString": "1.2.3", "CFBundleVersion": "4"]) == "1.2.3 (4)")
     #expect(GeneralSettingsTab.versionText(["CFBundleShortVersionString": "1.2.3"]) == "1.2.3")
     #expect(GeneralSettingsTab.versionText(nil) == "Unknown")
