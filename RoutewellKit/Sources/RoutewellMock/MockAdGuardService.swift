@@ -88,8 +88,6 @@ public actor MockAdGuardTransport: AdGuardServiceTransport {
     var stuckFeature: AdGuardFeature?
     /// Every write AdGuard Home received, for tests.
     public internal(set) var writes: [AdGuardWrite] = []
-    /// How long the next Overview read waits after it reads, for tests.
-    var nextOverviewDelay: Duration?
 
     public init() {}
 

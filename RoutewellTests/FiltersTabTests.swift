@@ -17,8 +17,8 @@ private func eventually(timeout: Duration = .seconds(10), _ predicate: () async 
 
 /// A mock environment in `scenario`, with the Filters tab's read done.
 @MainActor
-private func environment(_ scenario: MockAdGuardScenario = .running, backend: MockRouterBackend = MockRouterBackend()) async -> AppEnvironment {
-    let environment = AppEnvironment(model: AppModel(mode: .mock), backend: backend)
+private func environment(_ scenario: MockAdGuardScenario = .running) async -> AppEnvironment {
+    let environment = AppEnvironment(model: AppModel(mode: .mock), backend: MockRouterBackend())
     await environment.waitUntilReady()
     await environment.refresh.waitForRefresh()
     environment.setMockAdGuardScenario(scenario)
@@ -141,20 +141,6 @@ private func host(_ environment: AppEnvironment) -> NSWindow {
     environment.model.selection = .router
     await eventually { filters.downloadTask == nil }
     #expect(filters.isDownloading(filters.lists(.blocklist).first { $0.url == off.url }!))
-}
-
-@MainActor @Test func anOlderOverlappingReadKeepsTheNewerOverview() async {
-    let backend = MockRouterBackend()
-    let environment = await environment(backend: backend)
-    guard let lease = environment.model.session.lease else { Issue.record("No lease"); return }
-    await backend.mockAdGuard.delayNextOverview(.milliseconds(400))
-    let older = Task { try? await environment.adGuard.refreshOverview(using: lease) }
-    try? await Task.sleep(for: .milliseconds(100))
-    _ = await environment.adGuard.refreshOverviewNow()
-    let newer = environment.adGuard.overview?.observedAt
-    await older.value
-    #expect(newer != nil)
-    #expect(environment.adGuard.overview?.observedAt == newer)
 }
 
 @MainActor @Test func addRemoveIntervalAndUpdateNow() async {

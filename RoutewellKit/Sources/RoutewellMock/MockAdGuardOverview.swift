@@ -124,14 +124,8 @@ extension MockAdGuardTransport: AdGuardSettingTransport, AdGuardOverviewService 
         }
         var reading = Self.overview(range: range, now: now, options: options, filteringEnabled: filteringEnabled)
         reading.filtering = .success(currentFiltering(now: now))
-        if let delay = nextOverviewDelay {
-            nextOverviewDelay = nil
-            try? await Task.sleep(for: delay)
-        }
         return reading
     }
-
-    public func delayNextOverview(_ delay: Duration) { nextOverviewDelay = delay }
 
     /// The Overview a running mock shows at `now`. A range longer than the
     /// retention is not read, as in the live service.

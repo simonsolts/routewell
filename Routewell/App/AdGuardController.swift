@@ -180,8 +180,6 @@ final class AdGuardController {
         archive = saved
         // A newer range was picked while this one was read.
         guard generation == overviewGeneration else { return }
-        // A read that started earlier finished last.
-        if overviewToken == lease.token, let current = overview, current.observedAt > reading.observedAt { return }
         // A new session starts by offering every range again.
         if overviewToken != lease.token { rangesUnsupported = false }
         overview = reading
