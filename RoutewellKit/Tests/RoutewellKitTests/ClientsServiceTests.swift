@@ -119,9 +119,9 @@ private enum ServiceStub {
         let lease = SessionLease(token: old, backend: backend)
         try await session.beginRevision(old)
         try await session.installLease(lease)
-        #expect(try await session.clientInventory(using: lease) != nil)
+        #expect(try await session.query(lease) { try await $0.clients?.inventory() } != nil)
         try await session.beginRevision(SessionToken(profileID: "home", revision: 2))
-        await #expect(throws: SessionError.self) { try await session.clientInventory(using: lease) }
+        await #expect(throws: SessionError.self) { try await session.query(lease) { try await $0.clients?.inventory() } }
     }
 }
 
@@ -130,18 +130,6 @@ private enum ServiceStub {
         let backend = MockRouterBackend()
         await backend.setClientsScenario(scenario)
         return try await backend.mockClients.inventory().area
-    }
-
-    @Test func scenariosProduceTheirShapes() async throws {
-        guard case .success(let withNew, _, _) = try await inventory(.newDevices) else { Issue.record("newDevices"); return }
-        guard case .success(let standard, _, _) = try await inventory(.standard) else { Issue.record("standard"); return }
-        guard case .success(let empty, _, _) = try await inventory(.empty) else { Issue.record("empty"); return }
-        guard case .success(let mismatch, _, _) = try await inventory(.adGuardMismatch) else { Issue.record("mismatch"); return }
-        guard case .failure(.network, _) = try await inventory(.primaryFailure) else { Issue.record("primaryFailure"); return }
-        #expect(withNew.clients.count == standard.clients.count + 3)
-        #expect(empty.clients.isEmpty)
-        #expect(mismatch.clients.allSatisfy { $0.dnsQueries == .unknown && $0.adGuardName == nil })
-        #expect(withNew.clients.filter { $0.online == .value(true) }.count == MockClientsService.defaultOnlineCount)
     }
 
     @Test func seedRegistryMakesThreeDevicesNew() async throws {

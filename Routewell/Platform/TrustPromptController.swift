@@ -9,9 +9,7 @@ struct TrustPromptRequest: Equatable {
     let decision: TrustDecision
 }
 
-/// Presents at most one trust prompt at a time. `chunk 09` will call
-/// `present(_:)` from the live transport's challenge path; this chunk only
-/// wires the controller and view up so that path can be filled in later.
+/// Presents at most one trust prompt at a time.
 /// `@MainActor`-isolated, so this conformance only asserts what is already
 /// true: every access to its mutable state is serialized through the main
 /// actor, which is what `Sendable` requires of a reference type here. Needed

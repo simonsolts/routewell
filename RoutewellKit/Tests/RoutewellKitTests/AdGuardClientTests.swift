@@ -51,7 +51,7 @@ private actor StubSessionProvider: RouterSessionTokenProvider {
         #expect(status.dnsPort == 3053)
     }
 
-    /// Chunk 17: the recorder sends a plan query as URL query items, and
+    /// The recorder sends a plan query as URL query items, and
     /// refuses any other characters.
     @Test func recordReadSendsPlanQuery() async throws {
         let transport = StubHTTPTransport { request in
@@ -66,7 +66,7 @@ private actor StubSessionProvider: RouterSessionTokenProvider {
         #expect(urls == ["http://192.168.8.1:3000/control/stats?recent=86400000"])
     }
 
-    /// Chunk 18: a time sends `+` as `%2B`, which AdGuard Home would
+    /// A time sends `+` as `%2B`, which AdGuard Home would
     /// otherwise read as a space.
     @Test func recordReadEncodesPlusInATime() async throws {
         let transport = StubHTTPTransport { request in
@@ -96,39 +96,19 @@ private actor StubSessionProvider: RouterSessionTokenProvider {
         #expect(stats.timeUnits == "days")
     }
 
-    @Test func adGuardStatusPausedMapping() {
-        let now = Date(timeIntervalSince1970: 1_700_000_000)
-        let status = AdGuardStatusResponse(protectionEnabled: false, protectionDisabledDurationMilliseconds: 60_000)
-        let result = AdGuardClient.adGuardStatus(status: status, stats: nil, now: now)
-        #expect(result.reachability == .connected)
-        if case .paused(let until) = result.protection {
-            #expect(until == now.addingTimeInterval(60))
-        } else {
-            Issue.record("expected .paused, got \(result.protection)")
-        }
-    }
+    private static let statusTime = Date(timeIntervalSince1970: 1_700_000_000)
 
-    @Test func adGuardStatusDisabledMapping() {
-        let status = AdGuardStatusResponse(protectionEnabled: false, protectionDisabledDurationMilliseconds: 0)
-        let result = AdGuardClient.adGuardStatus(status: status, stats: nil, now: .now)
-        #expect(result.protection == .disabled)
-    }
-
-    @Test func adGuardStatusEnabledMapping() {
-        let status = AdGuardStatusResponse(protectionEnabled: true)
-        let result = AdGuardClient.adGuardStatus(status: status, stats: nil, now: .now)
-        #expect(result.protection == .enabled)
-    }
-
-    @Test func adGuardStatusUnknownWhenNil() {
-        let result = AdGuardClient.adGuardStatus(status: nil, stats: nil, now: .now)
-        #expect(result.protection == .unknown)
-        #expect(result.reachability == .unknown)
-    }
-
-    @Test func adGuardStatusIncludesStatsCounts() {
+    @Test(arguments: [
+        (AdGuardStatusResponse?(AdGuardStatusResponse(protectionEnabled: false, protectionDisabledDurationMilliseconds: 60_000)), ProtectionState.paused(until: statusTime.addingTimeInterval(60)), Reachability.connected),
+        (AdGuardStatusResponse(protectionEnabled: false, protectionDisabledDurationMilliseconds: 0), .disabled, .connected),
+        (AdGuardStatusResponse(protectionEnabled: true), .enabled, .connected),
+        (nil, .unknown, .unknown),
+    ])
+    func adGuardStatusMapping(status: AdGuardStatusResponse?, protection: ProtectionState, reachability: Reachability) {
         let stats = AdGuardStatsResponse(queries: 10, blocked: 2, timeUnits: "days")
-        let result = AdGuardClient.adGuardStatus(status: nil, stats: stats, now: .now)
+        let result = AdGuardClient.adGuardStatus(status: status, stats: stats, now: Self.statusTime)
+        #expect(result.protection == protection)
+        #expect(result.reachability == reachability)
         #expect(result.queriesToday == 10)
         #expect(result.blockedToday == 2)
     }

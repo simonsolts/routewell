@@ -5,7 +5,7 @@ public struct AppSettings: Codable, Equatable, Sendable {
     public var refreshIntervalSeconds = 30
     public var pauseWhenHidden = true
     public var showStatusBar = true
-    /// Clients details pane (chunk 12): shown or hidden, its height in
+    /// Clients details pane: shown or hidden, its height in
     /// points, and the selected section in its source list.
     public var clientsDetailsVisible = true
     public var clientsDetailsHeight = 300.0
@@ -59,7 +59,7 @@ public struct SSHSettings: Codable, Equatable, Sendable {
     /// A security-scoped bookmark to `keyFilePath`, so a sandboxed app can
     /// read the key again after a relaunch. `nil` for keys chosen before it existed.
     public var keyFileBookmark: Data?
-    /// Chunk 15: use the SSH agent from `SSH_AUTH_SOCK` instead of a key file.
+    /// Use the SSH agent from `SSH_AUTH_SOCK` instead of a key file.
     public var useAgent: Bool = false
 
     public init(enabled: Bool = false, port: Int = 22, user: String = "root", keyFilePath: String? = nil,
@@ -108,7 +108,7 @@ public struct RouterProfile: Codable, Identifiable, Equatable, Sendable {
     public var ssh: SSHSettings?
     /// False from sign-in until onboarding's Finish. A profile left false
     /// (onboarding closed or the app quit) is removed at the next launch,
-    /// so onboarding always starts empty. Profiles saved before chunk 15A
+    /// so onboarding always starts empty. Older profiles without the field
     /// read as complete.
     public var setupComplete: Bool = true
 

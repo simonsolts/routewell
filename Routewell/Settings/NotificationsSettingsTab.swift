@@ -1,6 +1,5 @@
 import SwiftUI
 
-/// Placeholder until the event centre (chunk 24).
 struct NotificationsSettingsTab: View {
     var body: some View {
         Form {

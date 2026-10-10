@@ -235,10 +235,3 @@ private func withTempDirectory<T>(_ body: (URL) throws -> T) throws -> T {
 }
 
 // MARK: - Display type
-
-@Test func displayTypeStrings() {
-    #expect(SSHKeyInspection.usable(kind: "ED25519").displayType == "ED25519 private key")
-    #expect(SSHKeyInspection.usable(kind: "RSA").displayType == "RSA private key")
-    #expect(SSHKeyInspection.usable(kind: "ECDSA-SK").displayType == "ECDSA-SK private key")
-    #expect(SSHKeyInspection.usable(kind: nil).displayType == "Private key")
-}

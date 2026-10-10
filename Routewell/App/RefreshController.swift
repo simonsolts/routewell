@@ -20,15 +20,15 @@ final class RefreshController {
     private var overviewElapsed: Duration = .zero
     private var featureElapsed: [DataArea: Duration] = [:]
     /// SSH runs in its own task, one at a time, so a slow SSH probe or
-    /// read never holds up the RPC refresh (chunk 15).
+    /// read never holds up the RPC refresh.
     private var sshTask: Task<Void, Never>?
     private var sshPending: SSHWork?
     /// The lease whose SSH probe has started. One probe per lease.
     private var sshProbedToken: SessionToken?
     /// Each overview's AdGuard Home reading, for the AdGuard Home screen and
-    /// its saved copy (chunk 16).
+    /// its saved copy.
     var onAdGuardReading: ((AdGuardServiceReading, SessionToken) async -> Void)?
-    /// AdGuard Home › Overview's reads while the tab is visible (chunk 17).
+    /// AdGuard Home › Overview's reads while the tab is visible.
     var onAdGuardOverview: ((SessionLease) async throws -> Void)?
 
     var isAvailable: Bool { model.session.isReady && !sleeping }
@@ -165,7 +165,7 @@ final class RefreshController {
                 do {
                     let overviewDue = self?.overviewElapsed ?? .zero >= .seconds(model.refreshIntervalSeconds)
                     if overviewDue {
-                        var result = try await model.session.routerSession.overview(using: lease)
+                        var result = try await model.session.routerSession.query(lease) { try await $0.overview() }
                         guard !Task.isCancelled else { return }
                         if case .success(var router, let observedAt, let source) = result.router {
                             let total = router.memoryTotalBytes
@@ -216,7 +216,7 @@ final class RefreshController {
                                 let topDevices = model.selection == .adGuard
                                     && (model.subpages[.adGuard] ?? AdGuardTab.overview.rawValue) == AdGuardTab.overview.rawValue
                                 guard model.selection == .clients || topDevices else { continue }
-                                guard let result = try await model.session.routerSession.clientInventory(using: lease) else { continue }
+                                guard let result = try await model.session.routerSession.query(lease, { try await $0.clients?.inventory() }) else { continue }
                                 guard !Task.isCancelled, model.session.expectedToken == lease.token else { return }
                                 model.acceptCapability(result.capability, area: .clients, token: lease.token)
                                 var observation: DeviceObservation?
@@ -249,7 +249,7 @@ final class RefreshController {
                             if request.area == .routerDetail {
                                 // Wi-Fi and SQM are read only while the Router screen is visible.
                                 guard model.selection == .router else { continue }
-                                guard let result = try await model.session.routerSession.routerDetails(using: lease) else { continue }
+                                guard let result = try await model.session.routerSession.query(lease, { try await $0.router?.details() }) else { continue }
                                 guard !Task.isCancelled, model.session.expectedToken == lease.token else { return }
                                 model.acceptRouterDetails(result, token: lease.token)
                                 self?.featureElapsed[.routerDetail] = .zero
@@ -300,7 +300,7 @@ final class RefreshController {
 
     func waitForRefresh() async { await task?.value }
 
-    // MARK: SSH (chunk 15)
+    // MARK: SSH
 
     enum SSHRead: Hashable { case ports, storage, logs, adGuardProcess, adGuardResources }
 
@@ -356,7 +356,7 @@ final class RefreshController {
         let token = lease.token
         do {
             if probe {
-                guard let result = try await session.sshProbe(using: lease) else { return }
+                guard let result = try await session.query(lease, { try await $0.ssh?.check() }) else { return }
                 guard !Task.isCancelled else { return }
                 model.acceptSSHProbe(result, token: token)
             }
@@ -364,23 +364,23 @@ final class RefreshController {
             for read in [SSHRead.adGuardProcess, .adGuardResources, .ports, .storage, .logs] where reads.contains(read) {
                 switch read {
                 case .ports:
-                    guard let result = try await session.routerPorts(using: lease) else { return }
+                    guard let result = try await session.query(lease, { try await $0.ssh?.ports() }) else { return }
                     guard !Task.isCancelled else { return }
                     model.acceptPorts(result, token: token)
                 case .storage:
-                    guard let result = try await session.routerStorage(using: lease) else { return }
+                    guard let result = try await session.query(lease, { try await $0.ssh?.storage() }) else { return }
                     guard !Task.isCancelled else { return }
                     model.acceptStorage(result, token: token)
                 case .logs:
-                    guard let result = try await session.routerLogs(using: lease) else { return }
+                    guard let result = try await session.query(lease, { try await $0.ssh?.logTail() }) else { return }
                     guard !Task.isCancelled else { return }
                     model.acceptRouterLogs(result, token: token)
                 case .adGuardProcess:
-                    guard let result = try await session.adGuardProcess(using: lease) else { return }
+                    guard let result = try await session.query(lease, { try await $0.ssh?.adGuardProcess() }) else { return }
                     guard !Task.isCancelled else { return }
                     model.acceptAdGuardProcess(result, token: token)
                 case .adGuardResources:
-                    guard let result = try await session.adGuardResources(using: lease) else { return }
+                    guard let result = try await session.query(lease, { try await $0.ssh?.adGuardResources() }) else { return }
                     guard !Task.isCancelled else { return }
                     model.acceptAdGuardResources(result, token: token)
                 }

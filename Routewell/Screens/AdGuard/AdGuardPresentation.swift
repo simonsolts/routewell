@@ -1,10 +1,10 @@
 import Foundation
 import RoutewellKit
 
-/// Text and tones for the AdGuard Home screen (design/adguard-home.md), kept
-/// out of the views so tests can check them.
+/// Text and tones for the AdGuard Home screen, kept out of the views so
+/// tests can check them.
 enum AdGuardPresentation {
-    /// "Oct 7 at 15:02", as in the design's strip.
+    /// "Oct 7 at 15:02".
     static func savedDate(_ date: Date) -> String {
         let day = date.formatted(.dateTime.month(.abbreviated).day())
         let time = date.formatted(date: .omitted, time: .shortened)
@@ -19,8 +19,7 @@ enum AdGuardPresentation {
         let action: StripAction
     }
 
-    /// The read-only strip under the toolbar. "Search and export still work"
-    /// comes back with the Query Log in chunk 18, which builds them.
+    /// The read-only strip under the toolbar.
     static func strip(_ availability: AdGuardAvailability, archive: AdGuardArchive?) -> Strip? {
         guard let savedAt = archive?.savedAt else { return nil }
         let message = "Showing a read-only copy saved \(savedDate(savedAt))."
@@ -34,7 +33,7 @@ enum AdGuardPresentation {
         }
     }
 
-    /// Names the problem; never says "off" (architecture 03).
+    /// Names the problem; never says "off".
     static func problemTitle(_ problem: AdGuardProblem) -> String {
         switch problem {
         case .routerUnreadable: "The router did not say whether AdGuard Home is on"

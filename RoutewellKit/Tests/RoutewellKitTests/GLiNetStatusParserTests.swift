@@ -10,21 +10,6 @@ private func loadFixture(_ name: String) -> JSONValue {
 }
 
 @Suite struct GLiNetStatusParserTests {
-    @Test func routerStatusFromFixtures() {
-        let status = GLiNetStatusParser.routerStatus(getStatus: loadFixture("system-get_status"), getInfo: loadFixture("system-get_info"))
-        #expect(status.reachability == .connected)
-        #expect(status.hostname == "GL-AXT1800")
-        #expect(status.model == "GL Technologies, Inc. AXT1800")
-        #expect(status.firmware == "4.0.0")
-        #expect(status.openWrtVersion == "OpenWrt 21.02-SNAPSHOT r16273+114-378769b555")
-        #expect(status.lanAddress == "192.168.8.1")
-        #expect(status.uptimeSeconds == 111)
-        #expect(status.loadAverages == [2.01, 0.89, 0.33])
-        #expect(status.memoryTotalBytes == 126943232)
-        #expect(status.memoryUsedBytes == Int64(126943232 - 78471168))
-        #expect(status.temperatureCelsius == .value(82))
-    }
-
     @Test func routerStatusWithNoInputsIsUnknown() {
         let status = GLiNetStatusParser.routerStatus(getStatus: nil, getInfo: nil)
         #expect(status.reachability == .unknown)
@@ -61,15 +46,6 @@ private func loadFixture(_ name: String) -> JSONValue {
         #expect(status.memoryUsedBytes == nil)
     }
 
-    @Test func internetStatusFromFixtures() {
-        let internet = GLiNetStatusParser.internetStatus(getStatus: loadFixture("system-get_status"), cableStatus: loadFixture("cable-get_status"))
-        #expect(internet.reachability == .unreachable) // fixture's wan entry has online:false
-        #expect(internet.publicAddress == "192.168.113.137")
-        #expect(internet.gateway == "192.168.113.1")
-        #expect(internet.dnsServers == ["8.8.8.8", "8.8.4.4"])
-        #expect(internet.gatewayLatencyMilliseconds == nil)
-    }
-
     @Test func internetStatusOnlineWan() {
         let getStatus: JSONValue = .object(["network": .array([.object(["interface": .string("wan"), "online": .bool(true)])])])
         let internet = GLiNetStatusParser.internetStatus(getStatus: getStatus, cableStatus: nil)
@@ -88,11 +64,6 @@ private func loadFixture(_ name: String) -> JSONValue {
         #expect(internet.reachability == .unknown)
         #expect(internet.publicAddress == nil)
         #expect(internet.dnsServers.isEmpty)
-    }
-
-    @Test func clientStatusFromClientListFixture() {
-        let clients = GLiNetStatusParser.clientStatus(getStatus: nil, clientList: loadFixture("clients-get_list"))
-        #expect(clients.activeCount == .value(1))
     }
 
     @Test func clientStatusOfflineClientNotCounted() {

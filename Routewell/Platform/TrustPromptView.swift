@@ -2,8 +2,7 @@ import SwiftUI
 import RoutewellKit
 
 /// A sheet asking whether to trust a certificate `URLSessionTransport`
-/// could not verify automatically. Chunk 09 wires this to the live transport;
-/// this chunk only builds the view and its controller.
+/// could not verify automatically.
 struct TrustPromptView: View {
     let request: TrustPromptRequest
     let onCancel: () -> Void

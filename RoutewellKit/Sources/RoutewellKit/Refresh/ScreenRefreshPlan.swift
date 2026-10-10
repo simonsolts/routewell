@@ -31,13 +31,13 @@ public enum ScreenRefreshPlan {
         if let area { intervals[area] = defaultInterval }
         if destination == "analytics", segment == "Overview" { intervals[.telemetry] = .seconds(2) }
         if destination == "network", segment == "Overview" { intervals[.publicIP] = .seconds(600) }
-        // Chunk 15: SSH reads for the segments that need them. Logs reads
+        // SSH reads for the segments that need them. Logs reads
         // only on demand; the refresh loop skips it on timed ticks.
         if destination == "router", let segment, ["Overview", "Ports", "Storage", "Logs"].contains(segment) {
             intervals[.ssh] = defaultInterval
         }
-        // Chunk 17: the Overview tab's stats, switches, and blocklists.
-        // Chunk 18: the Query Log needs the blocklist names for its Reason.
+        // The Overview tab's stats, switches, and blocklists.
+        // The Query Log needs the blocklist names for its Reason.
         // The Instance tab: the update check, retention, memory, and log size.
         if destination == "adGuard", segment == nil || ["Overview", "Query Log", "Filters", "DNS", "Instance"].contains(segment) {
             intervals[.adGuardOverview] = defaultInterval

@@ -237,7 +237,7 @@ private var oneShotPolicy: AdGuardSettingVerifyPolicy {
     }
 
     /// `resync`: a verified mismatch reports what AdGuard Home says and
-    /// sends nothing more (chunk 10's executor sent the old state back).
+    /// sends nothing more.
     @Test func mismatchSendsNoSecondWrite() async throws {
         let script = Script(reads: [.ok(enabled: true, durationMs: nil)])
         let transport = makeTransport(script)
@@ -464,7 +464,7 @@ private var oneShotPolicy: AdGuardSettingVerifyPolicy {
         #expect(report.dispatched == true)
     }
 
-    // MARK: Chunk 17: availability and the three switches
+    // MARK: Availability and the three switches
 
     @Test func writesAreRejectedBeforeAnyRequestUnlessRunning() async throws {
         let script = Script(reads: [.ok(enabled: true, durationMs: nil)])
@@ -536,7 +536,7 @@ private var oneShotPolicy: AdGuardSettingVerifyPolicy {
         #expect(writes.count == 1)
     }
 
-    /// "Filter requests" (user, chunk 17): `POST control/filtering/config`
+    /// "Filter requests": `POST control/filtering/config`
     /// with the interval sent back as read.
     @Test func filterRequestsPostsTheConfigWithTheIntervalAsRead() async throws {
         let server = FilteringServer(enabled: true, interval: 72)

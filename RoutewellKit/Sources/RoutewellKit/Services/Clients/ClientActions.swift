@@ -32,7 +32,7 @@ public enum WakeResult: Sendable, Equatable {
 }
 
 /// Ping is a read; Wake is a write with recovery class `none` whose verifier
-/// is the tool's own output (architecture 04). A `nil` service on the
+/// is the tool's own output. A `nil` service on the
 /// backend means the buttons are hidden.
 public protocol ClientActionsService: Sendable {
     var mechanism: ClientActionMechanism { get }
@@ -55,7 +55,7 @@ public enum PingOutputParser {
 }
 
 /// Runs one allow-listed SSH command on the router. `LiveSSHCommandRunner`
-/// (chunk 15) is the live one; the live backend has none until SSH is set up.
+/// is the live one; the live backend has none until SSH is set up.
 public protocol SSHCommandRunning: Sendable {
     func run(_ command: SSHCommand, limits: ProcessLimits) async throws -> ProcessResult
     /// Sends `input` on stdin. Only for a command that `takesInput`.

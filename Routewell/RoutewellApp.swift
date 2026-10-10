@@ -21,7 +21,7 @@ struct RoutewellApp: App {
         .defaultLaunchBehavior(environment.launchShowsOnboarding ? .suppressed : .presented)
         .commands { RoutewellCommands(environment: environment) }
 
-        // First run (chunk 15A): the main window opens at Finish.
+        // First run: the main window opens at Finish.
         Window("Set Up Routewell", id: "onboarding") {
             OnboardingWindow(environment: environment, delegate: delegate)
                 .environment(model)

@@ -1,7 +1,7 @@
 import Foundation
 import RoutewellKit
 
-/// Chunk 17: protection and the switches run through the real
+/// Protection and the switches run through the real
 /// `AdGuardSettingExecutor` against the in-memory AdGuard Home, and the
 /// Overview reads its stats. Every name and address is a neutral sample.
 extension MockAdGuardTransport: AdGuardSettingTransport, AdGuardOverviewService {

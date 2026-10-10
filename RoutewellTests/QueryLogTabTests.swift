@@ -5,7 +5,7 @@ import RoutewellKit
 import RoutewellMock
 @testable import Routewell
 
-/// Chunk 18: AdGuard Home › Query Log in the app.
+/// AdGuard Home › Query Log in the app.
 
 @MainActor
 private func eventually(timeout: Duration = .seconds(10), _ predicate: () async -> Bool) async {
@@ -122,7 +122,7 @@ private func entry(_ reason: String, filterID: Int? = nil, cached: Bool? = false
     #expect(QueryLogPresentation.unavailableMessage(.unreachable(.notConfigured)).contains("does not answer"))
 }
 
-@Test func domainRuleResultNamesTheRule() {
+@MainActor @Test func domainRuleResultNamesTheRule() {
     let intent = AdGuardSettingIntent.domainRule(.unblock, domain: "ads.example.net")
     #expect(QueryLogInspectorContent.resultText(intent, .verifiedSuccess(.rule(applied: true))) == "Added @@||ads.example.net^ to the custom rules.")
     #expect(QueryLogInspectorContent.resultText(intent, .verifiedMismatch(expected: .rule(applied: true), actual: .rule(applied: false)))

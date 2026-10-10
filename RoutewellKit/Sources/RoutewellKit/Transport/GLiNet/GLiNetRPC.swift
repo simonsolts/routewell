@@ -23,3 +23,7 @@ public struct GLiNetRPCCall: Sendable, Equatable {
         self.params = params
     }
 }
+
+extension GLiNetRPCCall {
+    static let clientList = GLiNetRPCCall(object: "clients", method: "get_list", params: .object([:]))
+}

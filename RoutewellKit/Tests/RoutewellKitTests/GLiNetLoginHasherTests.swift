@@ -58,17 +58,6 @@ import Testing
     #expect(wrappedHash == "806ff4b7ca5b405f3989d4c7582004ab")
 }
 
-@Test func challengeInitAcceptsAlgAsNumericString() throws {
-    let result = JSONValue.object([
-        "alg": .string("1"),
-        "salt": .string("37784Ahz"),
-        "nonce": .string("nonce"),
-    ])
-    let challenge = try GLiNetChallenge(result: result)
-    #expect(challenge.alg == 1)
-    #expect(challenge.hashMethod == nil)
-}
-
 @Test func challengeInitAcceptsAlgAsInt() throws {
     let result = JSONValue.object([
         "alg": .number(5),

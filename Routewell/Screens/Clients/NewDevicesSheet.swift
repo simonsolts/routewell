@@ -3,7 +3,6 @@ import RoutewellKit
 
 /// "N new devices awaiting review": one row per device with its
 /// first-observed text and a Review… button that opens it in the table.
-/// Row shape follows the v1 banner until a v2 mock exists `[assumed]`.
 struct NewDevicesSheet: View {
     let rows: [ReviewRowModel]
     let onReview: (MACAddress) -> Void

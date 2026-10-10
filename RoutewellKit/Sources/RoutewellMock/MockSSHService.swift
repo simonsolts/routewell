@@ -81,7 +81,7 @@ public final class MockSSHService: SSHService {
     public static let board = SystemBoard(model: "Example Router", hostname: "flint-demo", boardName: "example,router",
                                           releaseVersion: "21.02-SNAPSHOT", kernel: "5.4.0", target: "example/target")
 
-    /// The Ethernet interfaces a 4.9.1 router enumerates `[verified live]`,
+    /// The Ethernet interfaces a 4.9.1 router enumerates,
     /// with example link states and counters.
     public static let ports = RouterPortsStatus(ports: [
         EthernetPortStatus(name: "eth0", link: .up, speedMbps: 10_000, duplex: "full", rxBytes: 1_000, txBytes: 2_000,

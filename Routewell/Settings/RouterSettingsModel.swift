@@ -10,7 +10,7 @@ struct RouterFacts: Equatable {
     var uptimeSeconds: Int?
 }
 
-/// The three confirmations on the Router tab, with the design's copy.
+/// The three confirmations on the Router tab.
 enum RouterSettingsAlert: Identifiable, Equatable {
     case startSetupAgain, forgetCertificate, forgetHostKey
 
@@ -84,7 +84,7 @@ protocol RouterSettingsServices: AnyObject {
     func startSetupAgain() async
 }
 
-/// Settings › Router (chunk 15B): the drafts, alerts, Test Connection, and
+/// Settings › Router: the drafts, alerts, Test Connection, and
 /// the SSH sheet, without the views. The views bind to it; tests drive it.
 @MainActor @Observable
 final class RouterSettingsModel {
@@ -190,7 +190,7 @@ final class RouterSettingsModel {
         return [model, firmware.map { "Firmware \($0)" } ?? "Firmware unknown", services.address].joined(separator: " · ")
     }
 
-    /// "0d 22h", as in the design.
+    /// "0d 22h".
     static func uptime(_ seconds: Int) -> String {
         let hours = max(0, seconds) / 3600
         return "\(hours / 24)d \(hours % 24)h"

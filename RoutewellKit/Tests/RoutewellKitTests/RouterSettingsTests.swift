@@ -2,7 +2,7 @@ import Foundation
 import Testing
 @testable import RoutewellKit
 
-// MARK: Test Connection (chunk 15B)
+// MARK: Test Connection
 
 /// Counts which checks ran, so a test can prove that nothing else was sent.
 private actor CallLog {

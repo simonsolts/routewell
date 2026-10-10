@@ -15,9 +15,7 @@ struct OnboardingArt: View {
     let tile: Bool
     let badge: ArtBadge?
     let size: CGFloat
-    @Environment(\.accessibilityReduceMotion) private var systemReduceMotion
-    private var frozenTime: TimeInterval?
-    private var reduceMotionOverride: Bool?
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     init(motif: ArtMotif, tint: Color, tile: Bool = true, badge: ArtBadge? = nil, size: CGFloat) {
         self.motif = motif
@@ -27,23 +25,12 @@ struct OnboardingArt: View {
         self.size = size
     }
 
-    /// A copy that shows the animation at a fixed time, optionally forcing Reduce Motion on or off.
-    /// For previews and tests.
-    func frozen(at time: TimeInterval, reduceMotion: Bool? = nil) -> OnboardingArt {
-        var copy = self
-        copy.frozenTime = time
-        copy.reduceMotionOverride = reduceMotion
-        return copy
-    }
-
-    private var reduceMotion: Bool { reduceMotionOverride ?? systemReduceMotion }
-
     private var resolvedBadge: ArtBadge? {
         badge ?? (motif == .done ? .check : motif == .warn ? .warn : nil)
     }
 
     private var animates: Bool {
-        (motif == .search || motif == .terminal) && !reduceMotion && frozenTime == nil
+        (motif == .search || motif == .terminal) && !reduceMotion
     }
 
     var body: some View {
@@ -51,7 +38,7 @@ struct OnboardingArt: View {
             if animates {
                 TimelineView(.animation) { art(time: $0.date.timeIntervalSinceReferenceDate) }
             } else {
-                art(time: frozenTime ?? 0)
+                art(time: 0)
             }
         }
         .accessibilityHidden(true)
@@ -78,7 +65,7 @@ struct OnboardingArt: View {
     }
 }
 
-/// The two CSS animations of the design, as pure functions of time.
+/// The two animations, as pure functions of time.
 enum OnboardingArtAnimation {
     static let pulseDuration: TimeInterval = 2.4
     static let blinkDuration: TimeInterval = 1.2

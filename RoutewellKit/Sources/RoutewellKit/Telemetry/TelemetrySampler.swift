@@ -4,7 +4,7 @@ public struct TelemetrySample: Sendable, Equatable {
     public let capturedAt: Date
     /// The 1-minute load average, never a CPU percentage.
     public let cpuLoad: Observed<Double>
-    /// Measured CPU utilization, 0–100. No RPC reports it (chunk 14).
+    /// Measured CPU utilization, 0–100. No RPC reports it.
     public let cpuUtilizationPercent: Observed<Double>
     public let memoryUsedBytes: Observed<Double>
     public let memoryTotalBytes: Observed<Double>

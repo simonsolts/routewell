@@ -108,7 +108,7 @@ private let adGuardURL = URL(string: "http://192.0.2.20:3000/")!
         try await session.beginRevision(token)
         let lease = SessionLease(token: token, backend: backend)
         try await session.installLease(lease)
-        let result = try await session.recentQueries(using: lease, search: "192.168.8.192", limit: 500)
+        let result = try await session.query(lease) { try await $0.queryLog?.recentQueries(search: "192.168.8.192", limit: 500) }
         guard case .success(let page, _, .mock)? = result else { Issue.record("expected mock page"); return }
         // The mock log is longer than one page for every client.
         let activity = ClientQueryActivity.summarize(page, clientIP: "192.168.8.192", fetchedAt: .now)
@@ -116,6 +116,6 @@ private let adGuardURL = URL(string: "http://192.0.2.20:3000/")!
         #expect(activity.windowLimited)
 
         try await session.beginRevision(SessionToken(profileID: "a", revision: 2))
-        await #expect(throws: SessionError.self) { _ = try await session.recentQueries(using: lease, search: nil, limit: 5) }
+        await #expect(throws: SessionError.self) { _ = try await session.query(lease) { try await $0.queryLog?.recentQueries(search: nil, limit: 5) } }
     }
 }

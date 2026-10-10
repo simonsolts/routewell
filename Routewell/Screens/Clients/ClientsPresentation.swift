@@ -221,12 +221,10 @@ enum ClientsFormat {
         let interface = client == nil ? "Not listed by the router" : (connection(client) ?? unknown)
         let connectionGroup = DetailGroupModel(title: "Connection", rows: [
             DetailRowModel(label: "Interface", value: interface),
-            // Radio and channel come from the Router screen's wireless data (chunk 14).
             DetailRowModel(label: "Radio", value: unknown),
             DetailRowModel(label: "Channel · width", value: unknown),
             DetailRowModel(label: "Signal", value: signalValue?.text ?? unknown, tone: signalValue?.tone),
         ])
-        // DHCP lease data arrives with the Network screen (chunk 20).
         let dhcp = DetailGroupModel(title: "DHCP", rows: [
             DetailRowModel(label: "Assignment", value: unknown),
             DetailRowModel(label: "Lease", value: unknown),
@@ -244,7 +242,6 @@ enum ClientsFormat {
             MetricModel(title: "Blocked", value: countOrUnknown(blocked), detail: "Protection actions",
                         emphasised: { if case .value(let count) = blocked { return count > 0 } else { return false } }()),
             MetricModel(title: "Block rate", value: entry.blockRate == .unknown ? unknown : rate(entry.blockRate), detail: lastSeen),
-            // Client-specific VPN routing is read in chunk 28.
             MetricModel(title: "VPN routing", value: unknown, detail: "Read when VPN support arrives", tone: .unknown),
         ]
     }

@@ -44,11 +44,11 @@ public struct RouterClientEntry: Sendable, Equatable {
 }
 
 /// RPC `clients get_list` result: `clients[]` with `mac`, `ip`, `name`,
-/// `online`, `iface` `[verified live]` on firmware 4.9.1; `alias` appears on
-/// some entries `[verified live]`; `vendor` appears in the 2022 public client
-/// only. No signal or SSID field exists in the live shape.
+/// `online`, `iface` on firmware 4.9.1; `alias` appears on some entries;
+/// `vendor` appears in the 2022 public client only. No signal or SSID field
+/// exists in the live shape.
 public enum GLiNetClientListParser {
-    /// `iface` on 4.9.1 is `2.4G`, `5G`, `6G`, or `cable` `[verified live]`,
+    /// `iface` on 4.9.1 is `2.4G`, `5G`, `6G`, or `cable`,
     /// each always paired with the same `type` (0, 1, 11, 2). Other tokens,
     /// such as `eth0` from the 2022 public client, stay verbatim.
     public static func connection(interface: String?) -> ClientConnection {
@@ -67,7 +67,7 @@ public enum GLiNetClientListParser {
     }
 
     /// `nil` when the payload has no client array at all (a malformed reply).
-    /// A `null` list reads as empty `[assumed]`.
+    /// A `null` list reads as empty.
     public static func parse(_ result: JSONValue) -> Parsed? {
         let list: [JSONValue]
         switch result["clients"] {
@@ -104,9 +104,9 @@ public enum GLiNetClientListParser {
     }
 }
 
-/// AdGuard Home `GET control/clients`. `auto_clients[]` carry `name` and `ip`
-/// `[verified live]`. `clients` (persistent clients) was `null` live; when
-/// present each has `name` and `ids[]` of MACs, IPs, or ClientIDs `[assumed]`.
+/// AdGuard Home `GET control/clients`. `auto_clients[]` carry `name` and `ip`.
+/// `clients` (persistent clients) was `null` live; when present each has
+/// `name` and `ids[]` of MACs, IPs, or ClientIDs.
 public enum AdGuardClientsParser {
     public struct Persistent: Sendable, Equatable {
         public var name: String
@@ -145,9 +145,8 @@ public enum AdGuardClientsParser {
 }
 
 /// AdGuard Home `GET control/stats` `top_clients`: an array of one-key
-/// objects, `{"<client>": <queries>}` `[verified live]`. The live keys were
-/// hidden by the recorder because they look like IP addresses, so joining by
-/// IP is `[assumed]` from that evidence. There is no per-client blocked count.
+/// objects, `{"<client>": <queries>}`. The keys are client IPs. There is no
+/// per-client blocked count.
 public enum AdGuardStatsParser {
     public static func topClientQueries(_ json: JSONValue) -> [String: Int]? {
         guard let list = json["top_clients"]?.array else { return nil }

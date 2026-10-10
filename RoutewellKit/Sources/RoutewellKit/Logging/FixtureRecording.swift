@@ -1,7 +1,7 @@
 import Foundation
 
 public struct FixtureCall: Sendable, Equatable {
-    /// `ssh` calls name one fixed `SSHCommand` by key (chunk 15); nothing
+    /// `ssh` calls name one fixed `SSHCommand` by key; nothing
     /// else can be run.
     public enum Transport: String, Sendable { case rpc, adGuard, ssh }
     public let transport: Transport
@@ -18,8 +18,8 @@ public struct FixtureCall: Sendable, Equatable {
 }
 
 public enum FixtureRecordingPlan {
-    /// Candidates beyond the calls already used by Overview are assumed until
-    /// a person records them on their router. Errors are useful evidence.
+    /// Calls beyond the ones Overview uses may be missing on a router. Errors
+    /// are useful evidence.
     public static let calls: [FixtureCall] = [
         .init(.rpc, object: "system", method: "get_status", fileName: "system-get_status.json"),
         .init(.rpc, object: "system", method: "get_info", fileName: "system-get_info.json"),
@@ -27,7 +27,7 @@ public enum FixtureRecordingPlan {
         .init(.rpc, object: "clients", method: "get_list", fileName: "clients-get_list.json"),
         .init(.rpc, object: "adguardhome", method: "get_config", fileName: "adguardhome-get_config.json"),
         .init(.rpc, object: "wifi", method: "get_config", fileName: "wifi-get_config.json"),
-        // Candidate source for per-client signal, radio, and channel (chunks 12 and 14).
+        // Candidate source for per-client signal, radio, and channel.
         .init(.rpc, object: "wifi", method: "get_status", fileName: "wifi-get_status.json"),
         .init(.rpc, object: "dhcp", method: "get_config", fileName: "dhcp-get_config.json"),
         .init(.rpc, object: "sqm", method: "get_config", fileName: "sqm-get_config.json"),
@@ -35,7 +35,7 @@ public enum FixtureRecordingPlan {
         .init(.rpc, object: "vpn-client", method: "get_config", fileName: "vpn-client-get_config.json"),
         .init(.rpc, object: "tailscale", method: "get_config", fileName: "tailscale-get_config.json"),
         .init(.rpc, object: "flow_statistics", method: "get_status", fileName: "flow_statistics-get_status.json"),
-        // Chunk 14: the router asks GL.iNet's server whether newer firmware
+        // The router asks GL.iNet's server whether newer firmware
         // exists. It downloads and installs nothing.
         .init(.rpc, object: "upgrade", method: "check_firmware_online", fileName: "upgrade-check_firmware_online.json"),
         .init(.adGuard, method: "control/status", fileName: "adguard-status.json"),
@@ -43,7 +43,7 @@ public enum FixtureRecordingPlan {
         .init(.adGuard, method: "control/clients", fileName: "adguard-clients.json"),
         .init(.adGuard, method: "control/querylog", fileName: "adguard-querylog.json"),
         .init(.adGuard, method: "control/filtering/status", fileName: "adguard-filtering-status.json"),
-        // Chunk 17: Overview ranges. `recent` is the lookback in ms; an older
+        // Overview ranges. `recent` is the lookback in ms; an older
         // AdGuard Home ignores it or answers 400. Both are useful evidence.
         .init(.adGuard, method: "control/stats?recent=86400000", fileName: "adguard-stats-recent-24h.json"),
         .init(.adGuard, method: "control/stats?recent=604800000", fileName: "adguard-stats-recent-7d.json"),
@@ -52,7 +52,7 @@ public enum FixtureRecordingPlan {
         .init(.adGuard, method: "control/safebrowsing/status", fileName: "adguard-safebrowsing-status.json"),
         .init(.adGuard, method: "control/parental/status", fileName: "adguard-parental-status.json"),
         .init(.adGuard, method: "control/safesearch/status", fileName: "adguard-safesearch-status.json"),
-        // Chunk 18: Query Log pages. The `{…}` values come from the first
+        // Query Log pages. The `{…}` values come from the first
         // page; `resolve` fills them in and checks each one.
         .init(.adGuard, method: "control/querylog?limit=500", fileName: queryLogFirstPage),
         .init(.adGuard, method: "control/querylog?limit=500&older_than={oldest}", fileName: "adguard-querylog-500-older.json"),
@@ -63,7 +63,7 @@ public enum FixtureRecordingPlan {
         // The Instance tab. `version.json` is a POST that only reads.
         .init(.adGuard, method: "control/version.json", fileName: "adguard-version.json"),
         .init(.adGuard, method: "control/querylog/config", fileName: "adguard-querylog-config.json"),
-        // Chunk 15: the SSH reads. Recorded only when SSH is set up for the
+        // The SSH reads. Recorded only when SSH is set up for the
         // profile; otherwise they are skipped.
         .init(.ssh, method: "system-board", fileName: "ssh-ubus-system-board.json"),
         .init(.ssh, method: "log-tail", fileName: "ssh-logread-250.txt"),
@@ -261,9 +261,9 @@ public enum RecordedFixtureRedactor {
     private static let secretFragments = ["token", "password", "sid", "cookie", "hash", "nonce", "salt", "secret", "auth"]
     /// Router and AdGuard enum-like fields whose values are technical tokens,
     /// never personal text: interface names, device class, vendor, AdGuard
-    /// client source, query result reason, DNS status, protocol, record type.
-    /// Chunk 14 adds version, kernel, architecture, radio, and SQM tokens,
-    /// then the DNS upstream and blocking modes.
+    /// client source, query result reason, DNS status, protocol, record type,
+    /// version, kernel, architecture, radio, SQM, and DNS upstream and
+    /// blocking modes.
     private static let tokenFields: Set<String> = ["iface", "class", "vendor", "source", "reason", "status", "client_proto", "type", "band", "time_units",
         "firmware_version", "current_version", "new_firmware_version", "version", "kernel_version", "openwrt_version", "architecture",
         "firmware_type", "htmode", "hwmode", "txpower", "qdisc", "protocol", "device", "state", "interface",

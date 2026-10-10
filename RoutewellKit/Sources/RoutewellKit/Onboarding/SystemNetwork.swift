@@ -3,7 +3,7 @@ import Network
 import SystemConfiguration
 
 /// Reads `State:/Network/Global/IPv4` → `Router`: the gateway of the primary
-/// IPv4 service. `[assumed]` readable in the App Sandbox.
+/// IPv4 service.
 public struct SystemGatewayLocator: GatewayLocating {
     public init() {}
 
@@ -48,7 +48,7 @@ public struct SystemHostResolver: HostResolving {
 }
 
 /// Opens a TCP connection to `host:443` and reports a denial when the path
-/// says `localNetworkDenied` `[assumed]`. Sends no data; gives up after 1.5 s.
+/// says `localNetworkDenied`. Sends no data; gives up after 1.5 s.
 public struct SystemLocalNetworkCheck: LocalNetworkAccessChecking {
     public init() {}
 

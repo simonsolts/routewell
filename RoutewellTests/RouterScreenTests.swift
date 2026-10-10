@@ -132,7 +132,7 @@ private let british = Locale(identifier: "en_GB")
     #expect(RouterSQMModel(capability: Capability(), configuration: nil, failure: .timeout, legacyEnabled: .unknown, writesAvailable: true).controlsDisabled)
     let supported = Capability(.supported, evidence: .successfulResponse)
     #expect(!RouterSQMModel(capability: supported, configuration: SQMConfiguration(enabled: .value(false)), failure: nil, legacyEnabled: .unknown, writesAvailable: true).controlsDisabled)
-    // No writes this chunk: the available state is read-only too.
+    // No SQM writes: the available state is read-only too.
     let available = RouterSQMModel(capability: supported, configuration: SQMConfiguration(enabled: .value(true), queueDiscipline: "cake", upload: "40", download: "450"),
                                    failure: nil, legacyEnabled: .unknown)
     #expect(available.controlsDisabled)

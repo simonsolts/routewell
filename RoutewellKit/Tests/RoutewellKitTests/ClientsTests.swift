@@ -21,7 +21,7 @@ func mac(_ raw: String) -> MACAddress { MACAddress(raw)! }
         #expect(!mac("a4:83:e7:12:9c:01").isLocallyAdministered)
     }
 
-    /// Recorded on firmware 4.9.1 `[verified live]`: 37 entries, 11 online,
+    /// Recorded on firmware 4.9.1: 37 entries, 11 online,
     /// no vendor, signal, or SSID fields; `alias` on 3 entries; `iface` is a
     /// band token or `cable`.
     @Test func liveClientListParses() throws {
@@ -73,7 +73,7 @@ func mac(_ raw: String) -> MACAddress { MACAddress(raw)! }
         #expect(directory.persistent.isEmpty)
         // 22 runtime clients, but only 4 carry a name.
         #expect(directory.automaticNames.count == 4)
-        // `top_clients` keys are client IPs `[verified live]`.
+        // `top_clients` keys are client IPs.
         let stats = try #require(AdGuardStatsParser.topClientQueries(clientFixture("control-stats-4.9.1", "adguard/clients")))
         #expect(stats.count == 14)
         #expect(stats.keys.allSatisfy { IPAddressText.isValid($0) })
@@ -109,7 +109,7 @@ func mac(_ raw: String) -> MACAddress { MACAddress(raw)! }
         #expect(clients[mac("02:00:00:00:00:07")]?.adGuardName == nil)
     }
 
-    /// Two offline router entries share 198.51.100.36 `[verified live]`: no join.
+    /// Two offline router entries share 198.51.100.36: no join.
     @Test func ambiguousIPDoesNotJoin() throws {
         let clients = try mergedLive()
         for raw in ["02:00:00:00:00:1B", "02:00:00:00:00:1C"] {

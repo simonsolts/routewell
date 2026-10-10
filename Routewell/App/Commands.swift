@@ -36,7 +36,7 @@ struct RoutewellCommands: Commands {
             Button("Reconnect WAN") {}.disabled(true)
             Button("Reboot Router…") {}.disabled(true)
             Divider()
-            // Chunk 17: the same writes and items as the Overview banner.
+            // The same writes and items as the Overview banner.
             Button("Enable Protection") { environment.adGuard.runSetting(.protection(.enable)) }
                 .disabled(!canWriteProtection || environment.adGuard.protection == .enabled)
             Menu("Pause Protection") {

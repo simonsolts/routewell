@@ -26,7 +26,7 @@ private func report(_ outcome: MutationOutcome<AdGuardSettingState>, dispatched:
     MutationReport(outcome: outcome, dispatched: dispatched, startedAt: .now, finishedAt: .now, failure: nil)
 }
 
-// MARK: - AdGuardController setting writes (chunk 17; chunk 10's MutationController tests)
+// MARK: - AdGuardController setting writes
 
 @MainActor @Test func secondSettingWriteWhileInFlightIsIgnored() async {
     let backend = BlockingSettingBackend()
@@ -59,7 +59,7 @@ private func report(_ outcome: MutationOutcome<AdGuardSettingState>, dispatched:
     await backend.waitUntilStarted()
 
     // The session moves on while the write is in flight, so
-    // `RouterSession.runAdGuardSetting`'s `validateAfter` throws `.stale`.
+    // `RouterSession.command`'s `validateAfter` throws `.stale`.
     await model.session.switchProfile("second", model: model, refresh: refresh) {
         SessionLease(token: $0, backend: BlockingSettingBackend())
     }.value
@@ -167,7 +167,7 @@ private struct BlockingSettingControl: AdGuardSettingControl {
     }
 }
 
-// MARK: - Fixture recording (chunk 17: the alert names the real reason)
+// MARK: - Fixture recording
 
 @Test func recordingFailureNamesTheRealReason() {
     #expect(AppEnvironment.recordingFailure(SessionError.stale).hasPrefix("The router session changed during the recording"))

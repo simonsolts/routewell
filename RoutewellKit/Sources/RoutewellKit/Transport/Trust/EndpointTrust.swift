@@ -119,6 +119,18 @@ public enum TrustDecision: Sendable, Equatable {
     case trusted
     case untrustedNew(CertificateFingerprint)
     case untrustedChanged(expected: CertificateFingerprint, actual: CertificateFingerprint)
+
+    /// The certificate the server presented. Not for `.trusted`.
+    public var leafFingerprint: CertificateFingerprint {
+        switch self {
+        case .trusted:
+            preconditionFailure("a trusted decision never reaches the trust prompt")
+        case .untrustedNew(let fingerprint):
+            return fingerprint
+        case .untrustedChanged(_, let actual):
+            return actual
+        }
+    }
 }
 
 public enum TrustEvaluator {

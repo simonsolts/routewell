@@ -19,7 +19,7 @@ final class AppModel {
     var mockScenarioID = "healthy"
     private(set) var hasLiveEndpoint = false
     /// `.live` mode with no finished live profile selected. Onboarding runs
-    /// in its own window and the main window stays closed (chunk 15A).
+    /// in its own window and the main window stays closed.
     var needsSetup: Bool { mode == .live && !hasLiveEndpoint }
     func setHasLiveEndpoint(_ value: Bool) { hasLiveEndpoint = value }
     var showInMenuBar = true { didSet { refreshSettingsChanged?(); persistenceSettingsChanged?() } }
@@ -45,7 +45,7 @@ final class AppModel {
         return settings
     }
 
-    // MARK: Clients (chunk 12)
+    // MARK: Clients
 
     /// The last successful inventory in this session. A failed refresh keeps
     /// it; a session switch clears it.
@@ -68,15 +68,7 @@ final class AppModel {
 
     func acceptClients(_ result: AreaRefreshResult<ClientInventory>, observation: DeviceObservation?, token: SessionToken) {
         guard session.isReady, token == session.expectedToken else { return }
-        switch result {
-        case .success(let inventory, let observedAt, let source):
-            clientInventory = inventory
-            clientsFreshness = Freshness(lastSuccess: observedAt, lastAttempt: observedAt, source: source)
-        case .failure(let category, let attemptedAt):
-            clientsFreshness.lastAttempt = attemptedAt
-            clientsFreshness.failure = category
-        }
-        clientsFreshness.isRefreshing = false
+        if let inventory = apply(result, freshness: &clientsFreshness) { clientInventory = inventory }
         if let observation {
             deviceRegistry = observation.state
             switch observation.saveFailure {
@@ -92,7 +84,7 @@ final class AppModel {
         deviceRegistryIssue = issue
     }
 
-    // MARK: Client details (chunk 13)
+    // MARK: Client details
 
     /// The All Clients table selection. Kept here so Known Clients, the
     /// review sheet, and the context menu can open a device in the pane.
@@ -153,7 +145,7 @@ final class AppModel {
         clientsDetailsVisible = true
         clientsDetailsSection = section.rawValue
     }
-    // MARK: Router (chunk 14)
+    // MARK: Router
 
     /// The last successful Wi-Fi and SQM reads in this session. A failed
     /// refresh keeps them; a session switch clears them.
@@ -170,28 +162,17 @@ final class AppModel {
 
     func acceptRouterDetails(_ result: RouterDetailsResult, token: SessionToken) {
         guard session.isReady, token == session.expectedToken else { return }
-        switch result.wireless {
-        case .success(let value, let observedAt, let source):
-            wireless = value
-            wirelessFreshness = Freshness(lastSuccess: observedAt, lastAttempt: observedAt, source: source)
-        case .failure(let category, let attemptedAt):
-            wirelessFreshness.lastAttempt = attemptedAt
-            wirelessFreshness.failure = category
-        }
-        switch result.sqm {
-        case .success(let value, let observedAt, let source):
+        if let value = apply(result.wireless, freshness: &wirelessFreshness) { wireless = value }
+        if let value = apply(result.sqm, freshness: &sqmFreshness) {
             sqm = value
-            sqmFreshness = Freshness(lastSuccess: observedAt, lastAttempt: observedAt, source: source)
-        case .failure(let category, let attemptedAt):
+        } else if result.sqmCapability.state == .unsupported {
             // `-32601` proves the native API is absent: no earlier value stays.
-            if result.sqmCapability.state == .unsupported { sqm = nil }
-            sqmFreshness.lastAttempt = attemptedAt
-            sqmFreshness.failure = category
+            sqm = nil
         }
         sqmCapability = result.sqmCapability
     }
 
-    // MARK: SSH (chunk 15)
+    // MARK: SSH
 
     /// The probe result for this session; `nil` until the probe finishes.
     private(set) var sshProbe: SSHProbeResult?
@@ -380,20 +361,24 @@ final class AppModel {
     }
 
     private func apply<Value>(_ result: AreaRefreshResult<Value>, area: DataArea, value: inout Value) {
-        var state = freshness[area] ?? Freshness()
+        if let newValue = apply(result, freshness: &freshness[area, default: Freshness()]) { value = newValue }
+    }
+
+    /// Updates `state` and returns the new value on success.
+    private func apply<Value>(_ result: AreaRefreshResult<Value>, freshness state: inout Freshness) -> Value? {
         state.isRefreshing = false
         switch result {
         case .success(let newValue, let observedAt, let source):
-            value = newValue
             state.lastSuccess = observedAt
             state.lastAttempt = observedAt
             state.failure = nil
             state.source = source
+            return newValue
         case .failure(let category, let attemptedAt):
             state.lastAttempt = attemptedAt
             state.failure = category
+            return nil
         }
-        freshness[area] = state
     }
 }
 

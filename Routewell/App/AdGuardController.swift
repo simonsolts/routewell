@@ -2,7 +2,7 @@ import Foundation
 import Observation
 import RoutewellKit
 
-/// What AdGuard Home › Query Log opens searching for (chunk 18): a domain
+/// What AdGuard Home › Query Log opens searching for: a domain
 /// from Top blocked or Top queried, or a client IP from Top devices or
 /// Clients' Show DNS Log. AdGuard Home has one search for both.
 struct AdGuardQueryLogFilter: Equatable, Sendable {
@@ -10,8 +10,8 @@ struct AdGuardQueryLogFilter: Equatable, Sendable {
 }
 
 /// The AdGuard Home screen's state: the last service reading, the saved
-/// copy for the selected router, and the writes (chunk 16), plus the
-/// Overview's reads, range, and setting writes (chunk 17). The reading and
+/// copy for the selected router, and the writes, plus the
+/// Overview's reads, range, and setting writes. The reading and
 /// the copy change together, so a cached router never shows the empty
 /// state while its copy loads.
 @MainActor @Observable
@@ -29,7 +29,7 @@ final class AdGuardController {
     private(set) var lastReport: MutationReport<AdGuardServiceState>?
     private(set) var lastIntent: AdGuardServiceIntent?
 
-    // Overview (chunk 17)
+    // Overview
     private(set) var overview: AdGuardOverviewReading?
     private var overviewToken: SessionToken?
     /// The Activity range. Changing it reads that range at once.
@@ -153,7 +153,7 @@ final class AdGuardController {
               version?.token != lease.token, versionReading != lease.token else { return }
         versionReading = lease.token
         defer { if versionReading == lease.token { versionReading = nil } }
-        guard case .success(let check)?? = try? await model.session.routerSession.adGuardVersionCheck(using: lease),
+        guard case .success(let check)? = try? await model.session.routerSession.query(lease, { try await $0.adGuardOverview?.versionCheck() }),
               lease.token == model.session.expectedToken else { return }
         version = (lease.token, check)
         await store.save(version: check, at: Date(), for: profile)
@@ -221,7 +221,7 @@ final class AdGuardController {
         guard availability == .running, let profile = profileID() else { return }
         let range = range
         let generation = overviewGeneration
-        guard let reading = try await model.session.routerSession.adGuardOverview(using: lease, range: range) else { return }
+        guard let reading = try await model.session.routerSession.query(lease, { try await $0.adGuardOverview?.overview(range: range) }) else { return }
         await store.save(reading, for: profile)
         let saved = await store.archive(for: profile)
         guard lease.token == model.session.expectedToken, profile == profileID() else { return }
@@ -307,20 +307,21 @@ final class AdGuardController {
         lastSettingReport = nil
         Task { [weak self] in
             guard let self else { return }
+            let beforeDispatch: @Sendable (AdGuardServiceReading) async -> Void = { reading in
+                // Stop: one final sync, so the copy is as new as possible.
+                guard let profile else { return }
+                await store.save(reading, for: profile, force: true)
+                // At most 5 s: the gate is held, and nothing is sent until
+                // this sync ends.
+                if let service = lease.backend.adGuardOverview,
+                   let overview = await Self.within(.seconds(5), { try? await service.overview(range: range) }) {
+                    await store.save(overview, for: profile, force: true)
+                }
+            }
             let report: MutationReport<AdGuardServiceState>
             do {
-                report = try await self.model.session.routerSession.runAdGuardService(
-                    using: lease, intent: intent, availability: availability
-                ) { reading in
-                    // Stop: one final sync, so the copy is as new as possible.
-                    guard let profile else { return }
-                    await store.save(reading, for: profile, force: true)
-                    // At most 5 s: the gate is held, and nothing is sent until
-                    // this sync ends.
-                    if let service = lease.backend.adGuardOverview,
-                       let overview = await Self.within(.seconds(5), { try? await service.overview(range: range) }) {
-                        await store.save(overview, for: profile, force: true)
-                    }
+                report = try await self.model.session.routerSession.command(lease) {
+                    await $0.adGuardService?.run(intent, availability: availability, beforeDispatch: beforeDispatch) ?? .capabilityUnavailable
                 }
             } catch {
                 // The session changed during the write: its result belongs
@@ -332,7 +333,7 @@ final class AdGuardController {
             self.lastReport = report
             self.inFlight = nil
             if case .turnOn = intent, case .verifiedSuccess = report.outcome {
-                // The design opens Overview once AdGuard Home runs.
+                // Overview opens once AdGuard Home runs.
                 self.model.subpages[.adGuard] = AdGuardTab.overview.rawValue
             }
             self.refresh.refreshNow()
@@ -359,9 +360,9 @@ final class AdGuardController {
             guard let self else { return nil }
             let report: MutationReport<AdGuardSettingState>
             do {
-                report = try await self.model.session.routerSession.runAdGuardSetting(
-                    using: lease, intent: intent, availability: availability
-                )
+                report = try await self.model.session.routerSession.command(lease) {
+                    await $0.adGuardSettings?.run(intent, availability: availability) ?? .capabilityUnavailable
+                }
             } catch {
                 // The session changed during the write: never re-sent; the
                 // new session reads AdGuard Home afresh.
@@ -408,7 +409,9 @@ final class AdGuardController {
     func testUpstreams(_ request: UpstreamTestRequest) async -> Result<UpstreamTestResult, RefreshFailureCategory>? {
         guard let lease = model.session.lease else { return nil }
         let availability = availability
-        return try? await model.session.routerSession.testAdGuardUpstreams(using: lease, request: request, availability: availability)
+        return try? await model.session.routerSession.query(lease) {
+            await $0.adGuardSettings?.testUpstreams(request, availability: availability) ?? .failure(.unavailable)
+        }
     }
 
     /// The value, or `nil` when it takes longer than `limit` (the read is
@@ -423,11 +426,5 @@ final class AdGuardController {
             group.cancelAll()
             return first
         }
-    }
-
-    /// Clears the last result, for example when the screen changes.
-    func dismissReport() {
-        lastReport = nil
-        lastSettingReport = nil
     }
 }

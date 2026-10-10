@@ -1,7 +1,7 @@
 import Foundation
 import RoutewellKit
 
-/// Text for AdGuard Home › Overview (design/adguard-home.md, chunk 17).
+/// Text for AdGuard Home › Overview.
 extension AdGuardPresentation {
     // MARK: Banner
 
@@ -15,8 +15,8 @@ extension AdGuardPresentation {
         let actions: [BannerAction]
     }
 
-    /// The four design variants, plus "Protection is off" for protection
-    /// turned off (from the Pause menu or elsewhere) and an unknown state.
+    /// Four variants, plus "Protection is off" for protection turned off
+    /// (from the Pause menu or elsewhere) and an unknown state.
     static func banner(
         _ availability: AdGuardAvailability, protection: ProtectionState?, handlesDNS: Bool?,
         stats: AdGuardStats?, filtering: AdGuardFilteringStatus?, savedAt: Date?,

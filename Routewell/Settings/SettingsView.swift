@@ -1,7 +1,7 @@
 import SwiftUI
 import RoutewellKit
 
-/// The Settings tabs (chunk 15B). The raw value is the tab's title.
+/// The Settings tabs. The raw value is the tab's title.
 enum SettingsTab: String, CaseIterable, Identifiable {
     case general = "General"
     case router = "Router"

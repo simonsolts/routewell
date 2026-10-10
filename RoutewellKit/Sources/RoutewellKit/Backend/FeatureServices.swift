@@ -8,7 +8,7 @@ public enum CapabilityEvidence: Sendable, Equatable, Codable {
     case successfulResponse
     case methodNotFound(method: String)
     case mockScenario(String)
-    /// Chunk 15: the SSH probe failed for this reason (an `SSHFailure` name).
+    /// The SSH probe failed for this reason (an `SSHFailure` name).
     case sshProbeFailed(String)
 }
 
@@ -31,31 +31,45 @@ public protocol FeatureService: Sendable {
     func probe() async -> Capability
 }
 
-/// The Clients area (chunk 12). `inventory()` reads the router's client list
+/// The Clients area. `inventory()` reads the router's client list
 /// and joins AdGuard Home data. It throws only `CancellationError`; every
 /// other failure is a per-area result, and only a failed router list fails
 /// the area.
 public protocol ClientsService: FeatureService {
     func inventory() async throws -> ClientInventoryResult
 }
-/// The AdGuard Home query log (chunk 13 reads it per client; chunk 18 adds
-/// the Query Log tab). One bounded page per call, never persisted.
+/// The AdGuard Home query log, per client and for the Query Log tab. One
+/// bounded page per call, never persisted.
 public protocol QueryLogService: FeatureService {
-    /// Throws only `CancellationError`; every other failure is a result.
-    func recentQueries(search: String?, limit: Int) async throws -> AreaRefreshResult<QueryLogPage>
     /// One page for the Query Log tab. Throws only `CancellationError`.
     func page(_ query: QueryLogQuery) async throws -> AreaRefreshResult<QueryLogPage>
 }
 
-public enum QueryLogLimits {
-    /// One fetch never asks for more than this many entries.
-    public static let maximum = 500
-    /// The Query Log tab keeps at most this many entries in memory.
-    public static let loadedCap = 5_000
-    /// A Live read asks for this many of the newest entries.
-    public static let liveLimit = 100
+public extension QueryLogService {
+    /// Throws only `CancellationError`; every other failure is a result.
+    func recentQueries(search: String?, limit: Int) async throws -> AreaRefreshResult<QueryLogPage> {
+        try await page(QueryLogQuery(search: search, limit: limit))
+    }
 }
-/// The Router screen's RPC reads beyond the Overview areas (chunk 14).
+
+/// AdGuard Home › Overview's reads, behind
+/// `RouterBackend.adGuardOverview`. `nil` without an AdGuard Home connection.
+public protocol AdGuardOverviewService: Sendable {
+    /// Stats for `range`, the stats retention, the three switches, the
+    /// blocklists, the DNS settings, and the query log retention. Throws only `CancellationError`; every other failure is
+    /// a part of the reading.
+    func overview(range: AdGuardStatsRange) async throws -> AdGuardOverviewReading
+    /// `version.json` with `recheck_now` false. It can make AdGuard Home
+    /// ask the internet, so the app reads it once per session, not on
+    /// every refresh. Throws only `CancellationError`.
+    func versionCheck() async throws -> Result<AdGuardVersionCheck, RefreshFailureCategory>
+}
+
+public extension AdGuardOverviewService {
+    func versionCheck() async throws -> Result<AdGuardVersionCheck, RefreshFailureCategory> { .failure(.unavailable) }
+}
+
+/// The Router screen's RPC reads beyond the Overview areas.
 /// Both calls throw only `CancellationError`; every other failure is a result.
 public protocol RouterService: FeatureService {
     /// Wi-Fi radios and SSIDs, and the native SQM configuration.
@@ -79,7 +93,7 @@ public struct RouterDetailsResult: Sendable {
     }
 }
 
-/// SSH to the router (chunk 15), behind `RouterBackend.ssh`. The backend
+/// SSH to the router, behind `RouterBackend.ssh`. The backend
 /// has one only when the profile has SSH set up and its host key trusted.
 /// Every call throws only `CancellationError`; every other failure is a
 /// result. The app reads nothing until `check()` has reported supported.

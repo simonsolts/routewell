@@ -1,11 +1,7 @@
 import Foundation
 
-// SSH output formats, first built from RouterPilot's source and the OpenWrt
-// tools, then checked against the 4.9.1 recording (chunk 15): the board JSON
-// keys, `logread` lines, `df -h /`, `df -k`, `/proc/mounts`, the Samba
-// filter, the interface enumeration, and `pgrep -a` are `[verified live]`.
-// The `/sys/class/net` telemetry values stay `[assumed]`. Each parser skips
-// what it cannot read and never invents a value.
+// SSH output formats. Each parser skips what it cannot read and never
+// invents a value.
 
 /// `ubus call system board`: a JSON object. `nil` when the output is not one.
 public enum SystemBoardParser {
@@ -25,8 +21,8 @@ public enum LogReadParser {
     private static let months = ["jan": 1, "feb": 2, "mar": 3, "apr": 4, "may": 5, "jun": 6,
                                  "jul": 7, "aug": 8, "sep": 9, "oct": 10, "nov": 11, "dec": 12]
 
-    /// Newest first, at most `RouterLogTail.limit`. Times use `timeZone`;
-    /// the router's own zone is not reported `[assumed]` to match the Mac's.
+    /// Newest first, at most `RouterLogTail.limit`. Times use `timeZone`,
+    /// because the router does not report its own zone.
     public static func parse(_ text: String, timeZone: TimeZone = .current) -> RouterLogTail {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = timeZone

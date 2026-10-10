@@ -2,7 +2,7 @@ import Foundation
 
 /// Live Clients service: RPC `clients get_list` is the primary source; AdGuard
 /// Home `control/clients` and `control/stats` are read at the same time and
-/// joined. The area fails only when the router list fails (decision 9).
+/// joined. The area fails only when the router list fails.
 public actor LiveClientsService: ClientsService {
     private let rpc: GLiNetRPCClient
     private let adGuard: AdGuardClient?
@@ -16,7 +16,7 @@ public actor LiveClientsService: ClientsService {
 
     public func probe() async -> Capability {
         do {
-            _ = try await rpc.call(Self.listCall)
+            _ = try await rpc.call(.clientList)
             return Capability(.supported, evidence: .successfulResponse, observedAt: clock())
         } catch GLiNetRPCError.methodNotFound {
             return Capability(.unsupported, evidence: .methodNotFound(method: "clients.get_list"), observedAt: clock())
@@ -27,7 +27,7 @@ public actor LiveClientsService: ClientsService {
 
     public func inventory() async throws -> ClientInventoryResult {
         let attemptedAt = clock()
-        async let list = fetchList()
+        async let list = rpc.checkedCall(.clientList)
         async let directory = fetchAdGuard(.clients)
         async let stats = fetchAdGuard(.stats)
         let listResult = try await list
@@ -42,7 +42,7 @@ public actor LiveClientsService: ClientsService {
                 capability: Capability(.unsupported, evidence: .methodNotFound(method: "clients.get_list"), observedAt: attemptedAt)
             )
         case .failure(let error):
-            return ClientInventoryResult(area: .failure(LiveRouterBackend.category(for: error), attemptedAt: attemptedAt), capability: Capability())
+            return ClientInventoryResult(area: .failure(FailureMapping.category(for: error), attemptedAt: attemptedAt), capability: Capability())
         case .success(let json):
             listJSON = json
         }
@@ -81,25 +81,9 @@ public actor LiveClientsService: ClientsService {
         }
     }
 
-    private static let listCall = GLiNetRPCCall(object: "clients", method: "get_list", params: .object([:]))
-
-    private func fetchList() async throws -> Result<JSONValue, GLiNetRPCError> {
-        do {
-            return .success(try await rpc.call(Self.listCall))
-        } catch let error as GLiNetRPCError {
-            try LiveRouterBackend.rethrowIfCancelled(error)
-            return .failure(error)
-        }
-    }
-
     /// `nil` when no AdGuard Home instance is configured for the profile.
     private func fetchAdGuard(_ path: AdGuardReadPath) async throws -> Result<JSONValue, RefreshFailureCategory>? {
         guard let adGuard else { return nil }
-        do {
-            return .success(try await adGuard.read(path))
-        } catch let error as AdGuardClientError {
-            try LiveRouterBackend.rethrowIfCancelled(error)
-            return .failure(LiveRouterBackend.category(for: error))
-        }
+        return try await FailureMapping.adGuardResult { try await adGuard.read(path) }
     }
 }

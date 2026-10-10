@@ -2,7 +2,7 @@ import Foundation
 import Testing
 @testable import RoutewellKit
 
-/// Chunk 17: AdGuard Home › Overview's models, reads, and saved copy.
+/// AdGuard Home › Overview's models, reads, and saved copy.
 @Suite struct AdGuardOverviewTests {
     private static func json(_ text: String) -> JSONValue {
         try! JSONDecoder().decode(JSONValue.self, from: Data(text.utf8))
@@ -65,7 +65,7 @@ import Testing
         #expect(stats.bucketStarts(now: Date()) == nil)
     }
 
-    /// "Threats blocked" `[decision]`: Safe Browsing plus Parental.
+    /// "Threats blocked": Safe Browsing plus Parental.
     @Test func threatsAreSafeBrowsingPlusParental() {
         var stats = AdGuardStats.parse(Self.hourly)
         #expect(stats.threatsBlocked == 3)
@@ -249,8 +249,8 @@ import Testing
         #expect(!stats.matches(.week))
     }
 
-    /// A chunk 16 file has no Overview sections and still loads.
-    @Test func chunk16ArchiveStillDecodes() throws {
+    /// An older file has no Overview sections and still loads.
+    @Test func olderArchiveStillDecodes() throws {
         let old = #"{"status":{"savedAt":0,"value":{"dnsAddresses":[],"version":"0.107.73"}},"config":{"savedAt":0,"value":{"enabled":true}}}"#
         let archive = try JSONDecoder().decode(AdGuardArchive.self, from: Data(old.utf8))
         #expect(archive.status?.value.version == "0.107.73")
@@ -258,14 +258,14 @@ import Testing
         #expect(!archive.isEmpty)
     }
 
-    // MARK: Recorded on the router (chunk 17, AdGuard Home v1.0.0-b.1)
+    // MARK: Recorded on the router (AdGuard Home v1.0.0-b.1)
 
     private static func fixture(_ name: String) throws -> JSONValue {
         let url = try #require(Bundle.module.url(forResource: name, withExtension: "json", subdirectory: "Fixtures/adguard/overview"))
         return try JSONDecoder().decode(JSONValue.self, from: Data(contentsOf: url))
     }
 
-    /// `[verified live]`: 24 hourly buckets, totals, and the top lists.
+    /// 24 hourly buckets, totals, and the top lists.
     @Test func recordedStatsParse() throws {
         let stats = AdGuardStats.parse(try Self.fixture("stats-24h"))
         #expect(stats.timeUnits == .hours)

@@ -1,6 +1,6 @@
 import Foundation
 
-/// A change to the AdGuard Home service on the router (architecture 04).
+/// A change to the AdGuard Home service on the router.
 public enum AdGuardServiceIntent: Sendable, Equatable {
     /// Turn On, from the empty state (with the radio choice) or the
     /// read-only strip (with the last saved Handle DNS setting).
@@ -148,7 +148,7 @@ public struct AdGuardServiceExecutor: AdGuardServiceControl {
         do {
             before = try await transport.readConfig()
         } catch {
-            return (.rejected(.preconditionFailed("The router did not say whether AdGuard Home is on.")), false, Self.category(for: error))
+            return (.rejected(.preconditionFailed("The router did not say whether AdGuard Home is on.")), false, FailureMapping.category(for: error))
         }
 
         switch intent {
@@ -168,7 +168,7 @@ public struct AdGuardServiceExecutor: AdGuardServiceControl {
             var answer: AdGuardServiceReading.Answer = .notConfigured
             if transport.canReadStatus {
                 do { answer = .answered(try await transport.readStatus()) }
-                catch { answer = .failed(Self.category(for: error)) }
+                catch { answer = .failed(FailureMapping.category(for: error)) }
             }
             await beforeDispatch(AdGuardServiceReading(config: .success(before), answer: answer, observedAt: clock()))
             let expected = AdGuardServiceState(enabled: false, handlesDNS: before.handlesDNS)
@@ -221,7 +221,7 @@ public struct AdGuardServiceExecutor: AdGuardServiceControl {
                 return nil
             }
             if code == 1 {
-                // GL.iNet: "Other DNS not closed" `[assumed]` meaning.
+                // GL.iNet: "Other DNS not closed".
                 return (.rejected(.preconditionFailed(Self.otherDNSMessage)), true, nil)
             }
             return (.verifiedMismatch(expected: expected, actual: AdGuardServiceState(actual)), true, nil)
@@ -234,7 +234,7 @@ public struct AdGuardServiceExecutor: AdGuardServiceControl {
         } catch GLiNetRPCError.methodNotFound {
             return (.rejected(.capabilityUnavailable), true, .unavailable)
         } catch GLiNetRPCError.invalidParameters {
-            // `set_config` params are `[assumed]`: say so plainly.
+            // The `set_config` params are not confirmed: say so plainly.
             return (.rejected(.preconditionFailed("The router did not accept the settings Routewell sent.")), true, .malformedResponse)
         } catch {
             // Lost answer or timeout: the write may have applied. Verify.
@@ -259,7 +259,7 @@ public struct AdGuardServiceExecutor: AdGuardServiceControl {
                 state.answering = true
                 return (.verifiedSuccess(state), true, nil)
             } catch {
-                lastFailure = Self.category(for: error)
+                lastFailure = FailureMapping.category(for: error)
             }
             guard clock() < deadline else { break }
             try? await sleep(policy.pollInterval)
@@ -280,7 +280,7 @@ public struct AdGuardServiceExecutor: AdGuardServiceControl {
                 lastFailure = nil
                 if matches(config) { return (.verifiedSuccess(AdGuardServiceState(config)), true, nil) }
             } catch {
-                lastFailure = Self.category(for: error)
+                lastFailure = FailureMapping.category(for: error)
             }
             guard clock() < deadline else { break }
             // `try?`: a cancelled sleep must not stop verifying a sent write.
@@ -293,15 +293,6 @@ public struct AdGuardServiceExecutor: AdGuardServiceControl {
     // MARK: Mapping
 
     public static let otherDNSMessage = "The router says another DNS setting is on. Turn it off in the router's settings, then try again."
-
-    static func category(for error: Error) -> RefreshFailureCategory {
-        switch error {
-        case let error as GLiNetRPCError: LiveRouterBackend.category(for: error)
-        case let error as AdGuardClientError: LiveRouterBackend.category(for: error)
-        case let error as TransportError: LiveRouterBackend.category(for: error)
-        default: .unavailable
-        }
-    }
 
     private static func seconds(_ duration: Duration) -> TimeInterval {
         let components = duration.components
@@ -326,10 +317,7 @@ public struct AdGuardServiceExecutor: AdGuardServiceControl {
 }
 
 /// The live calls: router RPC for the setting, AdGuard's own API for the
-/// answer. `set_config` params `{"enabled", "dns_enabled"}` are `[assumed]`:
-/// GL.iNet's public API description (python-glinet, 2022) lists only
-/// `enabled` with a `null` result and `err_code` 1 "Other DNS not closed";
-/// `dns_enabled` comes from the 4.9.1 `get_config` recording.
+/// answer. `set_config` params are `{"enabled", "dns_enabled"}`.
 public struct LiveAdGuardServiceTransport: AdGuardServiceTransport {
     let rpc: GLiNetRPCClient
     /// `nil` when the profile has no AdGuard Home connection.

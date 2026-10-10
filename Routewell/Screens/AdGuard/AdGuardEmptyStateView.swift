@@ -2,7 +2,7 @@ import SwiftUI
 import RoutewellKit
 
 /// AdGuard Home is off on the router and Routewell has no saved copy: what
-/// it does, how it should run, and Turn On (design/adguard-home.md).
+/// it does, how it should run, and Turn On.
 struct AdGuardEmptyStateView: View {
     @Environment(AppModel.self) private var model
     @Environment(AppEnvironment.self) private var environment
@@ -40,7 +40,7 @@ struct AdGuardEmptyStateView: View {
         return false
     }
 
-    /// "your Flint 4" in the design: the model when Routewell knows it.
+    /// "your Flint 4": the model when Routewell knows it.
     private var routerName: String {
         model.snapshot?.router.model.map { "your \($0)" } ?? "your router"
     }

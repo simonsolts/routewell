@@ -32,8 +32,8 @@ public enum TransportError: Error, Equatable, Sendable {
     case localNetworkDenied
 }
 
-/// A minimal HTTP transport. Chunk 09 backends talk to routers through this
-/// protocol so tests can substitute a stub instead of real sockets.
+/// A minimal HTTP transport. Backends talk to routers through this protocol
+/// so tests can substitute a stub instead of real sockets.
 public protocol HTTPTransport: Sendable {
     func send(_ request: URLRequest, limits: HTTPRequestLimits) async throws -> (Data, HTTPURLResponse)
 }

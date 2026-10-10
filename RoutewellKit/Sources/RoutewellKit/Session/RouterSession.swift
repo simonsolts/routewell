@@ -53,230 +53,34 @@ public actor RouterSession {
         try validateBefore(lease)
     }
 
-    public func overview(using lease: SessionLease) async throws -> OverviewRefreshResult {
-        try validateBefore(lease)
-        let result: Result<OverviewRefreshResult, any Error>
-        do { result = .success(try await lease.backend.overview()) }
-        catch { result = .failure(error) }
-        try validateAfter(lease)
-        return try result.get()
+    /// Runs one read against `lease.backend`. It is validated before it
+    /// starts and after it ends, so a result from an old lease is dropped:
+    /// the call throws `.stale` or `.switching` instead. Return `nil` from
+    /// `body` when the backend has no service for the read.
+    public func query<Value: Sendable>(
+        _ lease: SessionLease, _ body: @Sendable (any RouterBackend) async throws -> Value
+    ) async throws -> Value {
+        try await fenced(lease, body)
     }
 
-    /// Reads the client inventory, fenced like `overview(using:)`. `nil` when
-    /// the backend has no Clients service.
-    public func clientInventory(using lease: SessionLease) async throws -> ClientInventoryResult? {
-        try validateBefore(lease)
-        guard let service = lease.backend.clients else { return nil }
-        let result: Result<ClientInventoryResult, any Error>
-        do { result = .success(try await service.inventory()) }
-        catch { result = .failure(error) }
-        try validateAfter(lease)
-        return try result.get()
+    /// Runs one write against `lease.backend`, fenced like `query`. If the
+    /// check after `body` throws `.stale`, the write may still have reached
+    /// the router: no report comes back, so the caller must treat the outcome
+    /// as unknown and refresh rather than send it again.
+    public func command<Value: Sendable>(
+        _ lease: SessionLease, _ body: @Sendable (any RouterBackend) async throws -> Value
+    ) async throws -> Value {
+        try await fenced(lease, body)
     }
 
-    /// Reads one query-log page, fenced like `overview(using:)`. `nil` when
-    /// the backend has no query-log service (no AdGuard Home configured).
-    public func recentQueries(using lease: SessionLease, search: String?, limit: Int) async throws -> AreaRefreshResult<QueryLogPage>? {
-        try validateBefore(lease)
-        guard let service = lease.backend.queryLog else { return nil }
-        let result: Result<AreaRefreshResult<QueryLogPage>, any Error>
-        do { result = .success(try await service.recentQueries(search: search, limit: min(max(limit, 1), QueryLogLimits.maximum))) }
-        catch { result = .failure(error) }
-        try validateAfter(lease)
-        return try result.get()
-    }
-
-    /// Reads one Query Log tab page (chunk 18), fenced like `overview(using:)`.
-    /// `nil` when the backend has no query-log service.
-    public func queryLogPage(using lease: SessionLease, query: QueryLogQuery) async throws -> AreaRefreshResult<QueryLogPage>? {
-        try validateBefore(lease)
-        guard let service = lease.backend.queryLog else { return nil }
-        let result: Result<AreaRefreshResult<QueryLogPage>, any Error>
-        do { result = .success(try await service.page(query)) }
-        catch { result = .failure(error) }
-        try validateAfter(lease)
-        return try result.get()
-    }
-
-    /// Reads the Router screen's Wi-Fi and SQM, fenced like `overview(using:)`.
-    /// `nil` when the backend has no Router service.
-    public func routerDetails(using lease: SessionLease) async throws -> RouterDetailsResult? {
-        try validateBefore(lease)
-        guard let service = lease.backend.router else { return nil }
-        let result: Result<RouterDetailsResult, any Error>
-        do { result = .success(try await service.details()) }
-        catch { result = .failure(error) }
-        try validateAfter(lease)
-        return try result.get()
-    }
-
-    /// One on-demand firmware check, fenced like a read. `nil` when the
-    /// backend has no Router service.
-    public func checkFirmware(using lease: SessionLease) async throws -> FirmwareCheck? {
-        try validateBefore(lease)
-        guard let service = lease.backend.router else { return nil }
-        let result: Result<FirmwareCheck, any Error>
-        do { result = .success(try await service.checkFirmware()) }
-        catch { result = .failure(error) }
-        try validateAfter(lease)
-        return try result.get()
-    }
-
-    /// Runs one fenced read against `lease.backend`: validated before it
-    /// starts and after it ends, so a result from an old lease is dropped.
-    private func fenced<Value: Sendable>(_ lease: SessionLease, _ body: @Sendable () async throws -> Value) async throws -> Value {
+    private func fenced<Value: Sendable>(
+        _ lease: SessionLease, _ body: @Sendable (any RouterBackend) async throws -> Value
+    ) async throws -> Value {
         try validateBefore(lease)
         let result: Result<Value, any Error>
-        do { result = .success(try await body()) }
+        do { result = .success(try await body(lease.backend)) }
         catch { result = .failure(error) }
         try validateAfter(lease)
         return try result.get()
-    }
-
-    /// The SSH probe (chunk 15). `nil` when SSH is not set up.
-    public func sshProbe(using lease: SessionLease) async throws -> SSHProbeResult? {
-        guard let service = lease.backend.ssh else { try validateBefore(lease); return nil }
-        return try await fenced(lease) { try await service.check() }
-    }
-
-    /// Router › Ports over SSH. `nil` when SSH is not set up.
-    public func routerPorts(using lease: SessionLease) async throws -> AreaRefreshResult<RouterPortsStatus>? {
-        guard let service = lease.backend.ssh else { try validateBefore(lease); return nil }
-        return try await fenced(lease) { try await service.ports() }
-    }
-
-    /// Router › Storage over SSH. `nil` when SSH is not set up.
-    public func routerStorage(using lease: SessionLease) async throws -> AreaRefreshResult<StorageStatus>? {
-        guard let service = lease.backend.ssh else { try validateBefore(lease); return nil }
-        return try await fenced(lease) { try await service.storage() }
-    }
-
-    /// Router › Logs over SSH. `nil` when SSH is not set up.
-    public func routerLogs(using lease: SessionLease) async throws -> AreaRefreshResult<RouterLogTail>? {
-        guard let service = lease.backend.ssh else { try validateBefore(lease); return nil }
-        return try await fenced(lease) { try await service.logTail() }
-    }
-
-    /// The AdGuard Home process ID over SSH. `nil` when SSH is not set up.
-    public func adGuardProcess(using lease: SessionLease) async throws -> Observed<Int>? {
-        guard let service = lease.backend.ssh else { try validateBefore(lease); return nil }
-        return try await fenced(lease) { try await service.adGuardProcess() }
-    }
-
-    /// AdGuard Home's memory and query log size over SSH. `nil` when SSH is
-    /// not set up.
-    public func adGuardResources(using lease: SessionLease) async throws -> AdGuardResources? {
-        guard let service = lease.backend.ssh else { try validateBefore(lease); return nil }
-        return try await fenced(lease) { try await service.adGuardResources() }
-    }
-
-    /// Pings one client from the router, fenced like a read. `nil` when the
-    /// backend offers no client actions.
-    public func ping(using lease: SessionLease, address: IPv4Literal) async throws -> Result<PingResult, RefreshFailureCategory>? {
-        try validateBefore(lease)
-        guard let service = lease.backend.clientActions else { return nil }
-        let result: Result<Result<PingResult, RefreshFailureCategory>, any Error>
-        do { result = .success(try await service.ping(address)) }
-        catch { result = .failure(error) }
-        try validateAfter(lease)
-        return try result.get()
-    }
-
-    /// Sends one Wake-on-LAN packet. Like `setProtection`, a `.stale` from
-    /// `validateAfter` means the packet may have been sent.
-    public func wake(using lease: SessionLease, mac: MACAddress) async throws -> MutationReport<WakeResult>? {
-        try validateBefore(lease)
-        guard let service = lease.backend.clientActions else { return nil }
-        let report = await service.wake(mac)
-        try validateAfter(lease)
-        return report
-    }
-
-    /// Runs one AdGuard Home service write (chunk 16). Fenced like
-    /// `setProtection`: a `.stale` from `validateAfter` means the write may
-    /// have reached the router.
-    public func runAdGuardService(
-        using lease: SessionLease, intent: AdGuardServiceIntent, availability: AdGuardAvailability,
-        beforeDispatch: @escaping @Sendable (AdGuardServiceReading) async -> Void = { _ in }
-    ) async throws -> MutationReport<AdGuardServiceState> {
-        try validateBefore(lease)
-        let report: MutationReport<AdGuardServiceState>
-        if let service = lease.backend.adGuardService {
-            report = await service.run(intent, availability: availability, beforeDispatch: beforeDispatch)
-        } else {
-            let now = Date()
-            report = MutationReport(outcome: .rejected(.capabilityUnavailable), dispatched: false, startedAt: now, finishedAt: now, failure: nil)
-        }
-        try validateAfter(lease)
-        return report
-    }
-
-    /// Runs one AdGuard Home setting write (chunk 17: protection and the
-    /// three switches). `validateBefore` fences it against a lease that's
-    /// already stale or mid-switch; `validateAfter` fences the result. If
-    /// `validateAfter` throws `.stale`, the write may still have reached
-    /// AdGuard Home — the caller must treat the outcome as unknown and
-    /// refresh rather than re-send, since no report is returned then.
-    public func runAdGuardSetting(
-        using lease: SessionLease, intent: AdGuardSettingIntent, availability: AdGuardAvailability
-    ) async throws -> MutationReport<AdGuardSettingState> {
-        try validateBefore(lease)
-        let report: MutationReport<AdGuardSettingState>
-        if let settings = lease.backend.adGuardSettings {
-            report = await settings.run(intent, availability: availability)
-        } else {
-            let now = Date()
-            report = MutationReport(outcome: .rejected(.capabilityUnavailable), dispatched: false, startedAt: now, finishedAt: now, failure: nil)
-        }
-        try validateAfter(lease)
-        return report
-    }
-
-    /// Test Upstreams, fenced like the reads. A failure when the backend has
-    /// no AdGuard Home connection.
-    public func testAdGuardUpstreams(
-        using lease: SessionLease, request: UpstreamTestRequest, availability: AdGuardAvailability
-    ) async throws -> Result<UpstreamTestResult, RefreshFailureCategory> {
-        guard let settings = lease.backend.adGuardSettings else { try validateBefore(lease); return .failure(.unavailable) }
-        return try await fenced(lease) { await settings.testUpstreams(request, availability: availability) }
-    }
-
-    /// The update check, fenced like the reads. `nil` without an AdGuard
-    /// Home connection.
-    public func adGuardVersionCheck(using lease: SessionLease) async throws -> Result<AdGuardVersionCheck, RefreshFailureCategory>? {
-        guard let service = lease.backend.adGuardOverview else { try validateBefore(lease); return nil }
-        return try await fenced(lease) { try await service.versionCheck() }
-    }
-
-    /// Back Up Now's read of `config.yaml`, fenced like the reads.
-    public func readAdGuardConfig(using lease: SessionLease, availability: AdGuardAvailability)
-        async throws -> Result<AdGuardConfigFile, AdGuardBackupFailure> {
-        guard let backups = lease.backend.adGuardBackups else { try validateBefore(lease); return .failure(.unreadable(.unavailable)) }
-        return try await fenced(lease) { await backups.readConfig(availability: availability) }
-    }
-
-    /// Restore…, fenced like the other writes: a `.stale` from
-    /// `validateAfter` means the file may have reached the router.
-    public func restoreAdGuardConfig(
-        using lease: SessionLease, file: AdGuardConfigFile, availability: AdGuardAvailability,
-        saveCurrent: @escaping @Sendable (AdGuardConfigFile) async -> Bool
-    ) async throws -> MutationReport<AdGuardRestoreState> {
-        try validateBefore(lease)
-        let report: MutationReport<AdGuardRestoreState>
-        if let backups = lease.backend.adGuardBackups {
-            report = await backups.restore(file, availability: availability, saveCurrent: saveCurrent)
-        } else {
-            let now = Date()
-            report = MutationReport(outcome: .rejected(.capabilityUnavailable), dispatched: false, startedAt: now, finishedAt: now, failure: nil)
-        }
-        try validateAfter(lease)
-        return report
-    }
-
-    /// AdGuard Home › Overview's reads, fenced like the others. `nil` when
-    /// the backend has no AdGuard Home connection.
-    public func adGuardOverview(using lease: SessionLease, range: AdGuardStatsRange) async throws -> AdGuardOverviewReading? {
-        guard let service = lease.backend.adGuardOverview else { try validateBefore(lease); return nil }
-        return try await fenced(lease) { try await service.overview(range: range) }
     }
 }

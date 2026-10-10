@@ -22,13 +22,11 @@ public actor MockRouterService: RouterService {
 
     private var sqmBehavior: SQMBehavior = .unavailable
     private var firmwareBehavior: FirmwareBehavior = .unableToCheck
-    private var wirelessFails = false
 
     public init() {}
 
     public func setSQMBehavior(_ value: SQMBehavior) { sqmBehavior = value }
     public func setFirmwareBehavior(_ value: FirmwareBehavior) { firmwareBehavior = value }
-    public func setWirelessFails(_ value: Bool) { wirelessFails = value }
 
     public func probe() async -> Capability {
         Capability(.supported, evidence: .mockScenario("router"), observedAt: .now)
@@ -37,9 +35,7 @@ public actor MockRouterService: RouterService {
     public func details() async throws -> RouterDetailsResult {
         try Task.checkCancellation()
         let now = Date()
-        let wireless: AreaRefreshResult<WirelessStatus> = wirelessFails
-            ? .failure(.timeout, attemptedAt: now)
-            : .success(Self.wireless, observedAt: now, source: .mock)
+        let wireless: AreaRefreshResult<WirelessStatus> = .success(Self.wireless, observedAt: now, source: .mock)
         switch sqmBehavior {
         case .available:
             return RouterDetailsResult(wireless: wireless,

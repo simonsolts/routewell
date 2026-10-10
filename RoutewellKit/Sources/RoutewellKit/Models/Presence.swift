@@ -4,19 +4,6 @@ public enum PresenceState: String, Sendable, Equatable, Codable {
     case online, offline, unknown
 }
 
-/// One observation: the state a refresh saw for one MAC.
-public struct PresenceSample: Sendable, Equatable {
-    public let mac: MACAddress
-    public let at: Date
-    public let state: PresenceState
-
-    public init(mac: MACAddress, at: Date, state: PresenceState) {
-        self.mac = mac
-        self.at = at
-        self.state = state
-    }
-}
-
 /// Consecutive samples with the same state and no gap longer than the
 /// continuity limit, stored as one run so a week of 30-second samples stays
 /// small. `start` and `end` are the first and last sample times.

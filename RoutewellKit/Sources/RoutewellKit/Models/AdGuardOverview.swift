@@ -1,6 +1,6 @@
 import Foundation
 
-/// The Activity range pop-up (chunk 17). AdGuard Home reads a range with
+/// The Activity range pop-up. AdGuard Home reads a range with
 /// `GET control/stats?recent=<ms>`; a range longer than the stats retention
 /// is not offered.
 public enum AdGuardStatsRange: String, CaseIterable, Sendable, Codable {
@@ -74,7 +74,7 @@ public struct AdGuardStats: Sendable, Equatable, Codable {
     public var blockedSeries: [Int] = []
     public var topQueried: [Entry] = []
     public var topBlocked: [Entry] = []
-    /// Keys are client IPs `[verified live]`.
+    /// Keys are client IPs.
     public var topClients: [Entry] = []
     public var topUpstreams: [Entry] = []
     /// `top_upstreams_avg_time`, in seconds. Optional so
@@ -131,7 +131,7 @@ public struct AdGuardStats: Sendable, Equatable, Codable {
         }
     }
 
-    /// "Threats blocked" `[decision]`: Safe Browsing plus Parental
+    /// "Threats blocked": Safe Browsing plus Parental
     /// replacements. Unknown when either is missing.
     public var threatsBlocked: Int? {
         guard let replacedSafeBrowsing, let replacedParental else { return nil }
@@ -154,7 +154,7 @@ public struct AdGuardStats: Sendable, Equatable, Codable {
     }
 
     /// The shape of a reply to `recent`: one bar per hour up to 24 hours,
-    /// else one per day `[assumed]` from AdGuard Home's stats code.
+    /// else one per day, as AdGuard Home's stats code builds it.
     public static func expectedShape(recentMilliseconds: Int) -> (units: TimeUnits, count: Int) {
         let hours = recentMilliseconds / 3_600_000
         return hours <= 24 ? (.hours, hours) : (.days, hours / 24)
@@ -167,7 +167,7 @@ public struct AdGuardStats: Sendable, Equatable, Codable {
     }
 
     /// One bucket more or less still matches: AdGuard Home builds days from
-    /// aligned hours `[assumed]`. A version that ignores `recent` answers with
+    /// aligned hours. A version that ignores `recent` answers with
     /// its whole retention, which differs by more (or in units).
     public func matches(recentMilliseconds: Int) -> Bool {
         let shape = Self.expectedShape(recentMilliseconds: recentMilliseconds)
@@ -189,7 +189,7 @@ public struct AdGuardStats: Sendable, Equatable, Codable {
     }
 }
 
-/// `GET control/stats/config` (`GetStatsConfigResponse`) `[assumed]`.
+/// `GET control/stats/config` (`GetStatsConfigResponse`).
 public struct AdGuardStatsConfig: Sendable, Equatable, Codable {
     public var enabled: Bool?
     /// Retention in milliseconds.
@@ -245,14 +245,6 @@ public struct ProtectionOptions: Sendable, Equatable, Codable {
 /// A Protection switch and its AdGuard Home calls.
 public enum AdGuardFeature: String, CaseIterable, Sendable, Codable {
     case safeBrowsing, parental, safeSearch
-
-    public var statusPath: String {
-        switch self {
-        case .safeBrowsing: "control/safebrowsing/status"
-        case .parental: "control/parental/status"
-        case .safeSearch: "control/safesearch/status"
-        }
-    }
 }
 
 /// One blocklist or allowlist from `control/filtering/status`.
@@ -292,14 +284,13 @@ public struct AdGuardFilterList: Sendable, Equatable, Codable {
     }
 }
 
-/// `GET control/filtering/status`. Chunk 17 shows only the Blocklists row;
-/// chunk 19 edits the lists and adds the custom rules.
+/// `GET control/filtering/status`.
 public struct AdGuardFilteringStatus: Sendable, Equatable, Codable {
     public var enabled: Bool?
     /// Update check interval, in hours.
     public var intervalHours: Int?
     public var blocklists: [AdGuardFilterList] = []
-    /// `whitelist_filters`; `null` on 4.9.1 when there are none `[verified live]`.
+    /// `whitelist_filters`; `null` on 4.9.1 when there are none.
     public var allowlists: [AdGuardFilterList] = []
     /// `null` is an empty list, `nil` when the field is missing.
     public var userRules: [String]?
@@ -373,9 +364,8 @@ public struct AdGuardOverviewReading: Sendable, Equatable {
     }
 }
 
-/// The banner's Pause menu (design): 30 seconds, 1 minute, 10 minutes,
-/// 1 hour, then until tomorrow at 08:00 local time `[decision]`. The Router
-/// menu uses the same items.
+/// The banner's Pause menu: 30 seconds, 1 minute, 10 minutes, 1 hour, then
+/// until tomorrow at 08:00 local time. The Router menu uses the same items.
 public enum ProtectionPauseChoice: String, CaseIterable, Sendable {
     case thirtySeconds, oneMinute, tenMinutes, oneHour, untilTomorrow
 

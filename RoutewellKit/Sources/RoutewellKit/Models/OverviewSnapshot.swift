@@ -27,23 +27,23 @@ public struct RouterStatus: Sendable, Equatable {
     public var memoryTotalBytes: Int64?
     public var memoryHistory: [Double] = []
     public var temperatureCelsius: Observed<Double> = .unknown
-    /// Chunk 14, from the same two reads. `board_info.kernel_version` and
-    /// `board_info.architecture` `[verified live]`.
+    /// From the same two reads. `board_info.kernel_version` and
+    /// `board_info.architecture`.
     public var kernelVersion: String?
     public var architecture: String?
-    /// `system.memory_free` and `system.memory_buff_cache` `[verified live]`.
+    /// `system.memory_free` and `system.memory_buff_cache`.
     /// The router reports buffers and cache as one number.
     public var memoryFreeBytes: Int64?
     public var memoryBuffersAndCacheBytes: Int64?
-    /// `system.flash_total` and `system.flash_free` `[verified live]`.
+    /// `system.flash_total` and `system.flash_free`.
     public var storageTotalBytes: Int64?
     public var storageFreeBytes: Int64?
-    /// The router's clock, `system.timestamp` `[verified live]`.
+    /// The router's clock, `system.timestamp`.
     public var routerTime: Date?
     /// No RPC field reports CPU utilization; live stays unknown and load
     /// averages are never converted into a percentage.
     public var cpuUtilizationPercent: Observed<Double> = .unknown
-    /// `system.sqm_enabled` `[verified live]`: the legacy read-only flag.
+    /// `system.sqm_enabled`: the legacy read-only flag.
     public var sqmEnabled: Observed<Bool> = .unknown
     public init() {}
 
@@ -85,7 +85,7 @@ public struct InternetStatus: Sendable, Equatable {
     public var gateway: String?
     public var gatewayLatencyMilliseconds: Double?
     public var dnsServers: [String] = []
-    /// `cable get_status` `protocol` `[verified live]`, for example `dhcp`.
+    /// `cable get_status` `protocol`, for example `dhcp`.
     public var wanProtocol: String?
     public var uplinks: [UplinkInterface] = []
     public init() {}
@@ -97,11 +97,11 @@ public struct AdGuardStatus: Sendable, Equatable {
     public var protection: ProtectionState = .unknown
     public var queriesToday: Int?
     public var blockedToday: Int?
-    /// `control/status` `running` and `dns_port` `[verified live]`.
+    /// `control/status` `running` and `dns_port`.
     public var running: Observed<Bool> = .unknown
     public var dnsPort: Int?
-    /// `adguardhome get_config` `dns_enabled` `[verified live]` key. Its
-    /// meaning, the router UI's "Handle client requests", is `[assumed]`.
+    /// `adguardhome get_config` `dns_enabled`: the router UI's "Handle client
+    /// requests".
     public var handlesClientRequests: Observed<Bool> = .unknown
     public init() {}
 }

@@ -1,8 +1,7 @@
 import SwiftUI
 import RoutewellKit
 
-/// Settings › Router (chunk 15B, `design/router-settings.md`): everything
-/// about the router in one scrolling tab.
+/// Settings › Router: everything about the router in one scrolling tab.
 struct RouterSettingsTab: View {
     let environment: AppEnvironment
     @State private var model: RouterSettingsModel

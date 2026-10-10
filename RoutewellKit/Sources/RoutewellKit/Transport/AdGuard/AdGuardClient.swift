@@ -8,10 +8,9 @@ public struct AdGuardStatusResponse: Sendable, Equatable, Codable {
     public var protectionEnabled: Bool?
     public var protectionDisabledDurationMilliseconds: Int?
     public var dnsAddresses: [String] = []
-    /// `dns_port` `[verified live]`: 3053 on 4.9.1, behind the router's dnsmasq.
+    /// `dns_port`: 3053 on 4.9.1, behind the router's dnsmasq.
     public var dnsPort: Int?
-    /// `start_time` `[verified live]`: when AdGuard Home started, in
-    /// milliseconds since 1970 (fractional on 4.9.1).
+    /// `start_time`: when AdGuard Home started, in milliseconds since 1970 (fractional on 4.9.1).
     public var startTime: Date?
 
     public init(
@@ -49,7 +48,7 @@ public struct AdGuardStatsResponse: Sendable, Equatable {
 public enum AdGuardReadPath: String, Sendable, CaseIterable {
     case clients = "control/clients"
     case stats = "control/stats"
-    // Chunk 17: the Overview tab.
+    // The Overview tab.
     case statsConfig = "control/stats/config"
     case safeBrowsingStatus = "control/safebrowsing/status"
     case parentalStatus = "control/parental/status"
@@ -82,7 +81,7 @@ public enum AdGuardReadPath: String, Sendable, CaseIterable {
     }
 }
 
-/// The AdGuard Home writes Routewell sends (architecture 04). Every other
+/// The AdGuard Home writes Routewell sends. Every other
 /// path is out of reach of `AdGuardClient.write`.
 public enum AdGuardWrite: Sendable, Equatable {
     /// `POST control/protection {"enabled", "duration"}`.
@@ -94,11 +93,11 @@ public enum AdGuardWrite: Sendable, Equatable {
     /// `enabled` replaced, so the engine flags go back unchanged.
     case safeSearchSettings(JSONValue)
     /// `POST control/filtering/config {"enabled", "interval"}`: AdGuard
-    /// Home's "Filter requests" (chunk 17, user request). The interval goes
-    /// back as read. The web UI sends this shape (user, 2026-10-08).
+    /// Home's "Filter requests". The interval goes back as read. The web UI
+    /// sends this shape.
     case filteringConfig(enabled: Bool, intervalHours: Int)
     /// `POST control/filtering/set_rules {"rules": [...]}`: the whole custom
-    /// rules list (chunk 18, Block or Unblock Domain) `[assumed]`.
+    /// rules list (Block or Unblock Domain).
     case setRules([String])
     /// `POST control/filtering/add_url {"name", "url", "whitelist"}`.
     case addList(name: String, url: String, whitelist: Bool)
@@ -267,7 +266,7 @@ public actor AdGuardClient {
         try await get(path: path.rawValue, method: path.logName)
     }
 
-    /// `GET control/stats?recent=<ms>` (chunk 17). `recent` is the lookback,
+    /// `GET control/stats?recent=<ms>`. `recent` is the lookback,
     /// a whole number of hours, at most the stats retention; `nil` is the
     /// plain read. A version without `recent` may ignore it or answer 400.
     public func stats(recentMilliseconds: Int?) async throws -> JSONValue {
@@ -276,14 +275,14 @@ public actor AdGuardClient {
     }
 
     /// `GET control/querylog?limit=<N>[&search=<text>]`: one bounded page of
-    /// the newest entries. `search` narrows the page on the server
-    /// `[assumed]`; callers still filter the result exactly.
+    /// the newest entries. `search` narrows the page on the server; callers
+    /// still filter the result exactly.
     public func queryLog(search: String?, limit: Int) async throws -> JSONValue {
         try await queryLog(QueryLogQuery(search: search, limit: limit))
     }
 
     /// `GET control/querylog?limit=<N>[&older_than=…][&search=…][&response_status=…]`
-    /// (chunk 18). `all` is not sent.
+    ///. `all` is not sent.
     public func queryLog(_ request: QueryLogQuery) async throws -> JSONValue {
         var query = [URLQueryItem(name: "limit", value: String(request.limit))]
         if let olderThan = request.olderThan { query.append(URLQueryItem(name: "older_than", value: olderThan)) }

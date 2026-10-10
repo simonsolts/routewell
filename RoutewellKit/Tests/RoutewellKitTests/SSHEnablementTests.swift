@@ -3,12 +3,9 @@ import Testing
 @testable import RoutewellKit
 import RoutewellMock
 
-// Chunk 15. The SSH fixtures under `Fixtures/ssh/router/` follow the formats
-// recorded on firmware 4.9.1 (`recorded-chunk-15`, kept local) with neutral
-// values: documentation addresses, `02:00:…` MACs, example names, PIDs, and
-// sizes. Log tags the recording did not contain (hostapd, netifd, odhcpd,
-// firewall, AdGuardHome, openvpn, block, procd) and the telemetry values
-// stay `[assumed]`. No test starts `ssh` or `ssh-keyscan`.
+// The SSH fixtures under `Fixtures/ssh/router/` follow the formats recorded
+// on firmware 4.9.1, with neutral values: documentation addresses, `02:00:…`
+// MACs, example names, PIDs, and sizes. No test starts `ssh` or `ssh-keyscan`.
 
 private func sshFixture(_ name: String, subdirectory: String = "Fixtures/ssh/router") throws -> String {
     let url = try #require(Bundle.module.url(forResource: name, withExtension: "txt", subdirectory: subdirectory))
@@ -96,7 +93,7 @@ private func keyscanOutput(ed25519: String = keyA) -> Data {
     #expect(decoded.ssh?.keyFileBookmark == Data([1, 2, 3]))
     #expect(decoded.ssh?.identity == .keyFile(URL(fileURLWithPath: "/Users/me/.ssh/id_ed25519")))
 
-    // Saved before chunk 15 added `useAgent`.
+    // Saved before `useAgent` existed.
     let old = try JSONDecoder().decode(SSHSettings.self, from: Data(#"{"enabled":false,"port":22,"user":"root"}"#.utf8))
     #expect(old == SSHSettings())
     #expect(old.identity == nil)
@@ -107,45 +104,81 @@ private func keyscanOutput(ed25519: String = keyA) -> Data {
     #expect(Set(keys) == ["enabled", "port", "user", "useAgent"])
 }
 
-// MARK: - Host-key trust
+// MARK: - Host keys
 
-@Test func hostKeyNewKeyIsStoredOnlyWhenAccepted() async throws {
-    let directory = try temporaryDirectory()
-    defer { try? FileManager.default.removeItem(at: directory) }
-    let store = SSHHostKeyStore(directory: directory)
-    let candidates = SSHHostKeyScanner.parse(keyscanOutput(), host: "192.0.2.1", port: 22)
-    #expect(candidates.count == 2)
+struct SSHHostKeyStoreTests {
+    @Test func hostKeyStoreApproveReplaceAndRevokeRoundTrip() async throws {
+        let directory = try temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let store = SSHHostKeyStore(directory: directory)
 
-    let evaluation = try #require(SSHHostKeyTrust.evaluate(candidates, trustedKeyLine: nil))
-    guard case .new(let candidate) = evaluation else { Issue.record("expected a new key"); return }
-    #expect(candidate.algorithm == "ssh-ed25519")
-    #expect(candidate.fingerprintSHA256.hasPrefix("SHA256:"))
+        #expect(try await store.storedKeyLine(host: "router.lan", port: 22) == nil)
 
-    // Reject: nothing is stored.
-    #expect(SSHHostKeyTrust.decide(evaluation, approved: false) == .rejected)
-    #expect(try await store.storedKeyLine(host: "192.0.2.1", port: 22) == nil)
+        try await store.approve(host: "router.lan", port: 22, keyLine: "router.lan ssh-ed25519 AAAA")
+        #expect(try await store.storedKeyLine(host: "router.lan", port: 22) == "router.lan ssh-ed25519 AAAA")
 
-    // Accept: the exact key is stored with the host field ssh looks up.
-    #expect(SSHHostKeyTrust.decide(evaluation, approved: true) == .trusted)
-    try await SSHHostKeyTrust.store(candidate, host: "192.0.2.1", port: 22, in: store)
-    #expect(try await store.storedKeyLine(host: "192.0.2.1", port: 22) == "192.0.2.1 ssh-ed25519 \(keyA)")
-    #expect(candidate.normalized(host: "router.lan", port: 2222) == "[router.lan]:2222 ssh-ed25519 \(keyA)")
+        try await store.approve(host: "router.lan", port: 22, keyLine: "router.lan ssh-ed25519 BBBB")
+        #expect(try await store.storedKeyLine(host: "router.lan", port: 22) == "router.lan ssh-ed25519 BBBB")
 
-    let again = SSHHostKeyTrust.evaluate(candidates, trustedKeyLine: "192.0.2.1 ssh-ed25519 \(keyA)")
-    #expect(again == .matches(candidate))
-    #expect(SSHHostKeyTrust.decide(again!, approved: false) == .trusted)
-}
+        let attributes = try FileManager.default.attributesOfItem(atPath: store.knownHostsFile.path)
+        #expect((attributes[.posixPermissions] as? NSNumber)?.uint16Value == 0o600)
 
-@Test func hostKeyMismatchAlwaysRejectsWhateverTheAnswer() throws {
-    let trusted = "192.0.2.1 ssh-ed25519 \(keyA)"
-    let changed = SSHHostKeyScanner.parse(keyscanOutput(ed25519: keyB), host: "192.0.2.1", port: 22)
-    let evaluation = try #require(SSHHostKeyTrust.evaluate(changed, trustedKeyLine: trusted))
-    guard case .changed(let old, let presented) = evaluation else { Issue.record("expected a changed key"); return }
-    #expect(old == SSHHostKeyCandidate(keyLine: trusted)?.fingerprintSHA256)
-    #expect(presented.key == keyB)
-    #expect(old != presented.fingerprintSHA256)
-    #expect(SSHHostKeyTrust.decide(evaluation, approved: true) == .rejected)
-    #expect(SSHHostKeyTrust.decide(evaluation, approved: false) == .rejected)
+        try await store.revoke(host: "router.lan", port: 22)
+        #expect(try await store.storedKeyLine(host: "router.lan", port: 22) == nil)
+    }
+
+    @Test func hostKeyStoreDistinguishesNonDefaultPort() async throws {
+        let directory = try temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let store = SSHHostKeyStore(directory: directory)
+
+        try await store.approve(host: "router.lan", port: 2222, keyLine: "[router.lan]:2222 ssh-ed25519 AAAA")
+        #expect(try await store.storedKeyLine(host: "router.lan", port: 2222) == "[router.lan]:2222 ssh-ed25519 AAAA")
+        #expect(try await store.storedKeyLine(host: "router.lan", port: 22) == nil)
+
+        try await store.approve(host: "router.lan", port: 22, keyLine: "router.lan ssh-ed25519 BBBB")
+        #expect(try await store.storedKeyLine(host: "router.lan", port: 2222) == "[router.lan]:2222 ssh-ed25519 AAAA")
+        #expect(try await store.storedKeyLine(host: "router.lan", port: 22) == "router.lan ssh-ed25519 BBBB")
+    }
+
+    @Test func hostKeyNewKeyIsStoredOnlyWhenAccepted() async throws {
+        let directory = try temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let store = SSHHostKeyStore(directory: directory)
+        let candidates = SSHHostKeyScanner.parse(keyscanOutput(), host: "192.0.2.1", port: 22)
+        #expect(candidates.count == 2)
+
+        let evaluation = try #require(SSHHostKeyTrust.evaluate(candidates, trustedKeyLine: nil))
+        guard case .new(let candidate) = evaluation else { Issue.record("expected a new key"); return }
+        #expect(candidate.algorithm == "ssh-ed25519")
+        #expect(candidate.fingerprintSHA256.hasPrefix("SHA256:"))
+
+        // Reject: nothing is stored.
+        #expect(SSHHostKeyTrust.decide(evaluation, approved: false) == .rejected)
+        #expect(try await store.storedKeyLine(host: "192.0.2.1", port: 22) == nil)
+
+        // Accept: the exact key is stored with the host field ssh looks up.
+        #expect(SSHHostKeyTrust.decide(evaluation, approved: true) == .trusted)
+        try await SSHHostKeyTrust.store(candidate, host: "192.0.2.1", port: 22, in: store)
+        #expect(try await store.storedKeyLine(host: "192.0.2.1", port: 22) == "192.0.2.1 ssh-ed25519 \(keyA)")
+        #expect(candidate.normalized(host: "router.lan", port: 2222) == "[router.lan]:2222 ssh-ed25519 \(keyA)")
+
+        let again = SSHHostKeyTrust.evaluate(candidates, trustedKeyLine: "192.0.2.1 ssh-ed25519 \(keyA)")
+        #expect(again == .matches(candidate))
+        #expect(SSHHostKeyTrust.decide(again!, approved: false) == .trusted)
+    }
+
+    @Test func hostKeyMismatchAlwaysRejectsWhateverTheAnswer() throws {
+        let trusted = "192.0.2.1 ssh-ed25519 \(keyA)"
+        let changed = SSHHostKeyScanner.parse(keyscanOutput(ed25519: keyB), host: "192.0.2.1", port: 22)
+        let evaluation = try #require(SSHHostKeyTrust.evaluate(changed, trustedKeyLine: trusted))
+        guard case .changed(let old, let presented) = evaluation else { Issue.record("expected a changed key"); return }
+        #expect(old == SSHHostKeyCandidate(keyLine: trusted)?.fingerprintSHA256)
+        #expect(presented.key == keyB)
+        #expect(old != presented.fingerprintSHA256)
+        #expect(SSHHostKeyTrust.decide(evaluation, approved: true) == .rejected)
+        #expect(SSHHostKeyTrust.decide(evaluation, approved: false) == .rejected)
+    }
 }
 
 @Test func liveScannerRunsKeyscanWithoutCredentialsAndMapsFailures() async throws {
@@ -238,7 +271,7 @@ private func trustedRunner(processes: FakeProcesses, identity: SSHIdentity = .ke
     #expect(try await pingRunner.run(.systemBoard, limits: .init()).exitStatus == 1)
 }
 
-/// The block OpenSSH 10 prints on every connection to the router's Dropbear `[verified live]`.
+/// The block OpenSSH 10 prints on every connection to the router's Dropbear.
 private let postQuantumWarning = """
 ** WARNING: connection is not using a post-quantum key exchange algorithm.
 ** This session may be vulnerable to "store now, decrypt later" attacks.
@@ -404,7 +437,7 @@ private let postQuantumWarning = """
     let entries = InterfaceParser.parseEnumeration(try sshFixture("interfaces", subdirectory: "Fixtures/ssh/router/sys-class-net-sample"))
     #expect(!entries.contains { $0.name.description.contains(";") })
     let ports = entries.filter(\.isEthernetPort).map(\.name.description)
-    // 4.9.1 enumerates these seven Ethernet ports `[verified live]`; the
+    // 4.9.1 enumerates these seven Ethernet ports; the
     // VLAN `eth1.1`, radios, the bridge, `lo`, and `pppoe-wan` are left out.
     #expect(ports == ["eth0", "eth1", "eth2", "lan5", "lan6", "lan7", "lan8"])
 
@@ -557,13 +590,13 @@ private let postQuantumWarning = """
     try await session.beginRevision(token)
     let lease = SessionLease(token: token, backend: backend)
     try await session.installLease(lease)
-    #expect(try await session.sshProbe(using: lease)?.capability.state == .supported)
-    #expect(try await session.adGuardProcess(using: lease) == .value(4321))
+    #expect(try await session.query(lease) { try await $0.ssh?.check() }?.capability.state == .supported)
+    #expect(try await session.query(lease) { try await $0.ssh?.adGuardProcess() } == .value(4321))
     backend.mockSSH.setScenario(.off)
-    #expect(try await session.routerPorts(using: lease) == nil)
+    #expect(try await session.query(lease) { try await $0.ssh?.ports() } == nil)
     backend.mockSSH.setScenario(.populated)
     try await session.beginRevision(SessionToken(profileID: "a", revision: 2))
-    await #expect(throws: SessionError.self) { _ = try await session.routerLogs(using: lease) }
+    await #expect(throws: SessionError.self) { _ = try await session.query(lease) { try await $0.ssh?.logTail() } }
 }
 
 // MARK: - Recording

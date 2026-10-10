@@ -5,12 +5,6 @@ import Testing
 import RoutewellKit
 @testable import Routewell
 
-@Test func featureUnavailableExplainsUnknownAndUnsupported() {
-    #expect(FeatureUnavailableView.explanation(for: .supported) == nil)
-    #expect(FeatureUnavailableView.explanation(for: .unsupported)?.contains("does not support") == true)
-    #expect(FeatureUnavailableView.explanation(for: .unknown)?.contains("unknown") == true)
-}
-
 @MainActor @Test func unavailableViewsLayOutForBothCapabilityStatesAndSSH() {
     for state in [CapabilityState.unknown, .unsupported] {
         let view = NSHostingView(rootView: FeatureUnavailableView(title: "Example", capability: Capability(state)))

@@ -67,7 +67,9 @@ final class AdGuardInstanceController {
         message = nil
         Task {
             defer { self.activity = nil }
-            guard let result = try? await self.model.session.routerSession.readAdGuardConfig(using: lease, availability: availability),
+            guard let result = try? await self.model.session.routerSession.query(lease, {
+                await $0.adGuardBackups?.readConfig(availability: availability) ?? .failure(.unreadable(.unavailable))
+            }),
                   lease.token == self.model.session.expectedToken else { return }
             switch result {
             case .success(let file):
@@ -114,10 +116,11 @@ final class AdGuardInstanceController {
             }
             let report: MutationReport<AdGuardRestoreState>
             do {
-                report = try await self.model.session.routerSession.restoreAdGuardConfig(
-                    using: lease, file: file, availability: availability
-                ) { current in
+                let saveCurrent: @Sendable (AdGuardConfigFile) async -> Bool = { current in
                     (try? await store.save(current, kind: .beforeRestore, version: version, for: profile)) != nil
+                }
+                report = try await self.model.session.routerSession.command(lease) {
+                    await $0.adGuardBackups?.restore(file, availability: availability, saveCurrent: saveCurrent) ?? .capabilityUnavailable
                 }
             } catch {
                 // The session changed: the new session reads AdGuard Home afresh.

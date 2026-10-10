@@ -1,9 +1,9 @@
 import Foundation
 
-// MARK: - System board (chunk 15 SSH probe)
+// MARK: - System board
 
 /// `ubus call system board`: `model`, `hostname`, `board_name`,
-/// `release.version/kernel/target` `[verified in source: RouterInfoService.cs:38-97]`.
+/// `release.version/kernel/target`.
 public struct SystemBoard: Sendable, Equatable {
     public var model: String?
     public var hostname: String?
@@ -23,7 +23,7 @@ public struct SystemBoard: Sendable, Equatable {
     }
 }
 
-// MARK: - Ports (chunk 15)
+// MARK: - Ports
 
 public enum LinkState: Sendable, Equatable, Hashable {
     case up, down, unknown
@@ -49,7 +49,7 @@ public struct NetworkInterfaceEntry: Sendable, Equatable {
     /// A physical Ethernet port: Ethernet type, backed by a device, not a
     /// radio and not a bridge. On 4.9.1 this keeps `eth0`–`eth2` and
     /// `lan5`–`lan8`, and drops the VLAN `eth1.1`, the radios, `br-lan`,
-    /// `lo`, and `pppoe-wan` `[verified live]`.
+    /// `lo`, and `pppoe-wan`.
     public var isEthernetPort: Bool { type == 1 && hasDevice && !isWireless && !isBridge }
 }
 
@@ -106,7 +106,7 @@ public struct LinkChange: Sendable, Equatable {
     }
 }
 
-/// Link changes seen while Routewell runs. Session-only by design: it is
+/// Link changes seen while Routewell runs. Session-only: it is
 /// not `Codable`, and a session switch starts a new one. The first reading
 /// of an interface, and any reading that is unknown, is not a change.
 public struct LinkChangeLog: Sendable, Equatable {
@@ -128,7 +128,7 @@ public struct LinkChangeLog: Sendable, Equatable {
     }
 }
 
-// MARK: - Storage (chunk 15)
+// MARK: - Storage
 
 /// `df -h /`, verbatim human sizes (`7.2G`) as the router prints them.
 public struct RootFilesystem: Sendable, Equatable {
@@ -169,7 +169,7 @@ public struct MountedVolume: Sendable, Equatable {
     }
 
     /// A USB, SD, or NVMe block device mounted under `/mnt` or `/tmp/mountd`
-    /// `[assumed]` for GL.iNet's automount.
+    /// (GL.iNet's automount).
     public var isExternal: Bool {
         let blockDevice = ["/dev/sd", "/dev/mmcblk", "/dev/nvme", "/dev/usb"].contains { device.hasPrefix($0) }
         let mounted = mountPoint.hasPrefix("/mnt/") || mountPoint.hasPrefix("/tmp/mountd/")
@@ -210,7 +210,7 @@ public struct StorageStatus: Sendable, Equatable {
     }
 }
 
-// MARK: - Logs (chunk 15)
+// MARK: - Logs
 
 /// Syslog priorities, most severe first.
 public enum RouterLogSeverity: Int, Sendable, Equatable, Comparable, CaseIterable {
@@ -281,7 +281,7 @@ public enum RouterLogSeverityFilter: String, Sendable, Equatable, CaseIterable {
 }
 
 /// One `logread` line. `line` is the raw text after the timestamp, shown
-/// as-is on screen; redaction applies only on export (a later chunk).
+/// as-is on screen.
 public struct RouterLogEntry: Sendable, Equatable, Identifiable {
     /// Position in the tail, newest first, so it is unique within one read.
     public var id: Int

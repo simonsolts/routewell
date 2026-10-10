@@ -1,6 +1,6 @@
 import Foundation
 
-/// Checks for what the person types in Settings › Router (chunk 15B).
+/// Checks for what the person types in Settings › Router.
 public enum RouterSettingsInput {
     public enum AddressProblem: Error, Sendable, Equatable {
         case invalid(EndpointParseError)

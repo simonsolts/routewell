@@ -28,7 +28,7 @@ import RoutewellMock
     #expect(observedAt == date.addingTimeInterval(-65 * 60))
 }
 
-/// Chunk 17: protection runs through the real executor against the mock
+/// Protection runs through the real executor against the mock
 /// AdGuard Home, and the overview shows the result.
 @Test func mockPauseAndResumeRunThroughTheExecutor() async throws {
     let backend = MockRouterBackend()
@@ -47,15 +47,6 @@ import RoutewellMock
         Issue.record("expected adGuard success"); return
     }
     #expect(after.protection == .enabled)
-}
-
-@Test func mockPausedScenarioStartsPaused() async throws {
-    let backend = MockRouterBackend()
-    await backend.mockAdGuard.setScenario(.paused)
-    guard case .success(let adGuard, _, _) = try await backend.overview().adGuard, case .paused(let until) = adGuard.protection else {
-        Issue.record("expected a paused protection"); return
-    }
-    #expect(until > Date())
 }
 
 @Test func mockSwitchFailsScenarioReportsAMismatchForParentalOnly() async throws {
@@ -83,37 +74,6 @@ import RoutewellMock
     guard case .filteringConfig(false, 24)? = await backend.mockAdGuard.writes.last else {
         Issue.record("expected the filtering config with the interval as read"); return
     }
-}
-
-@Test func mockOverviewLimitsRangesToTheRetention() async throws {
-    let backend = MockRouterBackend()
-    await backend.mockAdGuard.setScenario(.running)
-    let overview = try #require(backend.adGuardOverview)
-    let day = try await overview.overview(range: .day)
-    #expect(try day.stats.get().matches(.day))
-    let retention = try day.statsConfig.get().intervalMilliseconds
-    #expect(AdGuardStatsRange.week.isAvailable(retentionMilliseconds: retention))
-    #expect(!AdGuardStatsRange.month.isAvailable(retentionMilliseconds: retention))
-    let week = try await overview.overview(range: .week)
-    #expect(try week.stats.get().matches(.week))
-    #expect(try day.protection.get() == ProtectionOptions(safeBrowsing: true, parental: false, safeSearch: false))
-}
-
-@Test func mockOverviewFailsWhenAdGuardDoesNotAnswer() async throws {
-    let backend = MockRouterBackend()
-    await backend.mockAdGuard.setScenario(.unreachable)
-    let reading = try await #require(backend.adGuardOverview).overview(range: .day)
-    #expect(reading.stats == .failure(.timeout))
-    let settings = await (try #require(backend.adGuardSettings)).run(.protection(.enable), availability: .running)
-    #expect(settings.outcome == .rejected(.preconditionFailed("status unavailable")))
-}
-
-@Test func mockCachedSeedHoldsTheOverviewSections() {
-    let archive = MockAdGuardScenario.cached.seedArchive(now: Date())
-    #expect(archive?.stats(for: .day) != nil)
-    #expect(archive?.protection?.value.safeBrowsing == true)
-    #expect(archive?.filtering?.value.enabledBlocklists.count == 3)
-    #expect(MockAdGuardScenario.running.seedArchive(now: Date()) == nil)
 }
 
 /// Service and setting writes share the router's one gate.

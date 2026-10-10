@@ -239,7 +239,7 @@ private func successfulResult(at date: Date = .distantPast) -> OverviewRefreshRe
     let clock = TestRefreshClock()
     let model = AppModel(mode: .mock)
     var refresh: RefreshController? = RefreshController(model: model, clock: clock)
-    weak var weakRefresh = refresh
+    weak let weakRefresh = refresh
     refresh?.setWindowVisible(true)
     await model.session.switchProfile("test", model: model, refresh: refresh!) {
         SessionLease(token: $0, backend: CountingRefreshBackend())

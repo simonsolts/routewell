@@ -9,9 +9,7 @@ public enum MutationRejection: Sendable, Equatable {
     case invalidIntent(String)
 }
 
-/// The terminal result of a verified mutation. See
-/// `../../../../../../routewell-private-docs/architecture/04-mutations.md`
-/// for the contract this implements.
+/// The terminal result of a verified mutation.
 public enum MutationOutcome<State: Sendable & Equatable>: Sendable, Equatable {
     case rejected(MutationRejection)
     case verifiedSuccess(State)
@@ -43,5 +41,13 @@ public struct MutationReport<State: Sendable & Equatable>: Sendable, Equatable {
         self.startedAt = startedAt
         self.finishedAt = finishedAt
         self.failure = failure
+    }
+}
+
+public extension MutationReport {
+    /// A write that was not sent because the backend has no service for it.
+    static var capabilityUnavailable: MutationReport {
+        let now = Date()
+        return MutationReport(outcome: .rejected(.capabilityUnavailable), dispatched: false, startedAt: now, finishedAt: now, failure: nil)
     }
 }

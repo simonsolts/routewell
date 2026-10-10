@@ -3,7 +3,7 @@ import Testing
 import RoutewellKit
 @testable import Routewell
 
-/// Chunk 15A: the onboarding flow, driven through the mock services, plus the
+/// The onboarding flow, driven through the mock services, plus the
 /// live sign-in mapping, first-run launch, and "closed before Finish".
 
 @MainActor

@@ -1,22 +1,5 @@
 import Foundation
 
-/// AdGuard Home › Overview's reads (chunk 17), behind
-/// `RouterBackend.adGuardOverview`. `nil` without an AdGuard Home connection.
-public protocol AdGuardOverviewService: Sendable {
-    /// Stats for `range`, the stats retention, the three switches, the
-    /// blocklists, the DNS settings, and the query log retention. Throws only `CancellationError`; every other failure is
-    /// a part of the reading.
-    func overview(range: AdGuardStatsRange) async throws -> AdGuardOverviewReading
-    /// `version.json` with `recheck_now` false. It can make AdGuard Home
-    /// ask the internet, so the app reads it once per session, not on
-    /// every refresh. Throws only `CancellationError`.
-    func versionCheck() async throws -> Result<AdGuardVersionCheck, RefreshFailureCategory>
-}
-
-public extension AdGuardOverviewService {
-    func versionCheck() async throws -> Result<AdGuardVersionCheck, RefreshFailureCategory> { .failure(.unavailable) }
-}
-
 /// Reads the retention first, because `recent` must not exceed it, then the
 /// stats for the range. The other reads run alongside.
 public struct LiveAdGuardOverviewService: AdGuardOverviewService {
@@ -31,16 +14,16 @@ public struct LiveAdGuardOverviewService: AdGuardOverviewService {
     public func overview(range: AdGuardStatsRange) async throws -> AdGuardOverviewReading {
         let observedAt = clock()
         let adGuard = adGuard
-        async let config = Self.part { AdGuardStatsConfig.parse(try await adGuard.read(.statsConfig)) }
-        async let safeBrowsing = Self.part { try await adGuard.read(.safeBrowsingStatus) }
-        async let parental = Self.part { try await adGuard.read(.parentalStatus) }
-        async let safeSearch = Self.part { try await adGuard.read(.safeSearchStatus) }
-        async let filtering = Self.part { AdGuardFilteringStatus.parse(try await adGuard.read(.filteringStatus)) }
-        async let dns = Self.part {
+        async let config = FailureMapping.adGuardResult { AdGuardStatsConfig.parse(try await adGuard.read(.statsConfig)) }
+        async let safeBrowsing = FailureMapping.adGuardResult { try await adGuard.read(.safeBrowsingStatus) }
+        async let parental = FailureMapping.adGuardResult { try await adGuard.read(.parentalStatus) }
+        async let safeSearch = FailureMapping.adGuardResult { try await adGuard.read(.safeSearchStatus) }
+        async let filtering = FailureMapping.adGuardResult { AdGuardFilteringStatus.parse(try await adGuard.read(.filteringStatus)) }
+        async let dns = FailureMapping.adGuardResult {
             guard let settings = AdGuardDNSSettings.parse(try await adGuard.read(.dnsInfo)) else { throw AdGuardClientError.malformedResponse }
             return settings
         }
-        async let queryLog = Self.part { AdGuardQueryLogConfig.parse(try await adGuard.read(.queryLogConfig)) }
+        async let queryLog = FailureMapping.adGuardResult { AdGuardQueryLogConfig.parse(try await adGuard.read(.queryLogConfig)) }
 
         let statsConfig = try await config
         let retention = try? statsConfig.get().intervalMilliseconds
@@ -62,7 +45,7 @@ public struct LiveAdGuardOverviewService: AdGuardOverviewService {
 
     public func versionCheck() async throws -> Result<AdGuardVersionCheck, RefreshFailureCategory> {
         let adGuard = adGuard
-        return try await Self.part { AdGuardVersionCheck.parse(try await adGuard.versionCheck()) }
+        return try await FailureMapping.adGuardResult { AdGuardVersionCheck.parse(try await adGuard.versionCheck()) }
     }
 
     /// The stats for `range`, and whether the reply honoured `recent`.
@@ -79,28 +62,14 @@ public struct LiveAdGuardOverviewService: AdGuardOverviewService {
             // `recent` was within the retention, so a 400 means this version
             // does not know it: read the plain stats. Any other failure (or a
             // 400 with an unknown retention) stays a failure of this read.
-            return (try await part { AdGuardStats.parse(try await adGuard.stats(recentMilliseconds: nil)) }, false)
+            return (try await FailureMapping.adGuardResult { AdGuardStats.parse(try await adGuard.stats(recentMilliseconds: nil)) }, false)
         } catch let error as AdGuardClientError {
-            try LiveRouterBackend.rethrowIfCancelled(error)
-            return (.failure(LiveRouterBackend.category(for: error)), true)
+            try FailureMapping.rethrowIfCancelled(error)
+            return (.failure(FailureMapping.category(for: error)), true)
         } catch is CancellationError {
             throw CancellationError()
         } catch {
             return (.failure(.unavailable), true)
-        }
-    }
-
-    /// One read as a result. Cancellation propagates.
-    private static func part<Value: Sendable>(_ read: @Sendable () async throws -> Value) async throws -> Result<Value, RefreshFailureCategory> {
-        do {
-            return .success(try await read())
-        } catch let error as AdGuardClientError {
-            try LiveRouterBackend.rethrowIfCancelled(error)
-            return .failure(LiveRouterBackend.category(for: error))
-        } catch is CancellationError {
-            throw CancellationError()
-        } catch {
-            return .failure(.unavailable)
         }
     }
 }

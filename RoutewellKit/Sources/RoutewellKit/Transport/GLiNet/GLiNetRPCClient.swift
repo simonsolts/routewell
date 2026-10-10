@@ -76,21 +76,6 @@ public actor GLiNetRPCClient: RouterSessionTokenProvider {
         }
     }
 
-    /// Calls `alive`. Returns true when the sid is still valid.
-    public func keepAlive() async throws -> Bool {
-        let currentSID = try await sessionID()
-        do {
-            _ = try await performRPC(
-                name: "alive", method: "alive",
-                params: .object(["sid": .string(currentSID)]), cookie: currentSID
-            )
-            return true
-        } catch GLiNetRPCError.accessDenied {
-            await invalidateSession()
-            return false
-        }
-    }
-
     // MARK: Login
 
     private func login() async throws -> String {

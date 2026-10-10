@@ -1,8 +1,7 @@
 import Foundation
 import RoutewellKit
 
-// Router › Ports, Storage, and Logs (chunk 15): read over SSH, transcribed
-// from design/router-screen.md.
+// Router › Ports, Storage, and Logs: read over SSH.
 
 extension RouterFormat {
     /// Decimal units with one decimal, as the Ports and Storage mockups show

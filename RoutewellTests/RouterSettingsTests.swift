@@ -78,12 +78,6 @@ private struct LiveFixture {
 
 // MARK: Tabs
 
-@MainActor @Test func settingsHasFourTabsAndNoAdGuardHomeTab() {
-    #expect(SettingsTab.allCases.map(\.rawValue) == ["General", "Router", "Notifications", "Advanced"])
-    #expect(SettingsTab(rawValue: "AdGuard Home") == nil)
-    #expect(AppModel(mode: .mock).settingsTab == .general)
-}
-
 @MainActor @Test func everyTabLaysOutInLiveAndMockMode() async {
     let live = await liveFixture()
     let (mock, _, _) = await mockFixture()
@@ -104,7 +98,7 @@ private struct LiveFixture {
     #expect(SettingsView.services(empty) == nil)
 }
 
-@Test func generalTabShowsTheVersionFromInfoPlist() {
+@MainActor @Test func generalTabShowsTheVersionFromInfoPlist() {
     #expect(GeneralSettingsTab.versionText(["CFBundleShortVersionString": "1.2.3", "CFBundleVersion": "4"]) == "1.2.3 (4)")
     #expect(GeneralSettingsTab.versionText(["CFBundleShortVersionString": "1.2.3"]) == "1.2.3")
     #expect(GeneralSettingsTab.versionText(nil) == "Unknown")

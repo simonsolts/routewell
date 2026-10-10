@@ -31,7 +31,7 @@ private func lease(_ revision: UInt64) -> SessionLease {
 @Test func requestsDuringSwitchingAreRejected() async throws {
     let session = RouterSession(), pending = lease(1)
     try await session.beginRevision(pending.token)
-    await #expect(throws: SessionError.switching) { try await session.overview(using: pending) }
+    await #expect(throws: SessionError.switching) { try await session.query(pending) { try await $0.overview() } }
 }
 
 @Test func leaseCannotBeReplacedWithinRevision() async throws {
@@ -58,7 +58,7 @@ func allLateCompletionsAreStaleBeforeNewResult(_ event: String) async throws {
     let old = SessionLease(token: SessionToken(profileID: "old", revision: 1), backend: backend)
     try await session.beginRevision(old.token)
     try await session.installLease(old)
-    let request = Task { try await session.overview(using: old) }
+    let request = Task { try await session.query(old) { try await $0.overview() } }
     await backend.waitForStart()
     request.cancel()
     try await session.beginRevision(lease(2).token)
@@ -72,7 +72,7 @@ func allLateCompletionsAreStaleBeforeNewResult(_ event: String) async throws {
     let old = SessionLease(token: SessionToken(profileID: "old", revision: 1), backend: backend)
     try await session.beginRevision(old.token)
     try await session.installLease(old)
-    let request = Task { try await session.runAdGuardSetting(using: old, intent: .protection(.enable), availability: .running) }
+    let request = Task { try await session.command(old) { await $0.adGuardSettings?.run(.protection(.enable), availability: .running) } }
     await backend.waitForStart()
     try await session.beginRevision(lease(2).token)
     let finishedReport = MutationReport<AdGuardSettingState>(
@@ -90,10 +90,12 @@ func allLateCompletionsAreStaleBeforeNewResult(_ event: String) async throws {
     let current = lease(1)
     try await session.beginRevision(current.token)
     try await session.installLease(current)
-    let report = try await session.runAdGuardSetting(using: current, intent: .feature(.parental, enabled: true), availability: .running)
+    let report = try await session.command(current) {
+        await $0.adGuardSettings?.run(.feature(.parental, enabled: true), availability: .running) ?? .capabilityUnavailable
+    }
     #expect(report.outcome == .rejected(.capabilityUnavailable))
     #expect(!report.dispatched)
-    #expect(try await session.adGuardOverview(using: current, range: .day) == nil)
+    #expect(try await session.query(current) { try await $0.adGuardOverview?.overview(range: .day) } == nil)
 }
 
 private actor HeldSettingBackend: RouterBackend {

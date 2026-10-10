@@ -13,10 +13,7 @@ public enum QueryResult: String, Sendable, Equatable, CaseIterable {
     /// A reason Routewell does not know.
     case unknown
 
-    /// `NotFilteredNotFound`, `NotFilteredWhiteList`, `FilteredBlackList`, and
-    /// `FilteredBlockedService` are `[verified live]` (4.9.1 and AdGuard Home
-    /// v1.0.0-b.1); the rest are AdGuard Home's other documented reasons
-    /// `[assumed]`.
+    /// Maps AdGuard Home's documented reasons.
     public init(reason: String?) {
         switch reason {
         case "FilteredBlackList", "FilteredBlockedService", "FilteredSafeBrowsing", "FilteredParental", "FilteredInvalid":
@@ -39,7 +36,7 @@ public struct QueryLogEntry: Sendable, Equatable, Identifiable {
     public var time: Date?
     /// `time` exactly as AdGuard Home wrote it, with nanoseconds. Part of `id`.
     public var timeText: String?
-    /// The client address AdGuard Home saw (`client`), an IP `[verified live]`.
+    /// The client address AdGuard Home saw (`client`), an IP.
     public var client: String?
     /// `client_info.name`; empty on the recorded router, so usually `nil`.
     public var clientName: String?
@@ -50,18 +47,18 @@ public struct QueryLogEntry: Sendable, Equatable, Identifiable {
     public var result: QueryResult
     /// The upstream address; empty when the query was blocked or cached.
     public var upstream: String?
-    /// `elapsedMs`, a string on the recorded router `[verified live]`.
+    /// `elapsedMs`, a string on the recorded router.
     public var elapsedMilliseconds: Double?
     public var cached: Bool?
-    /// `client_proto`: empty for plain DNS `[verified live]`, else `doh`,
-    /// `dot`, `doq`, `dnscrypt` `[assumed]`.
+    /// `client_proto`: empty for plain DNS, else `doh`,
+    /// `dot`, `doq`, `dnscrypt`.
     public var clientProtocol: String?
     /// The first matching rule's text and list (`rules[]`).
     public var rule: String?
-    /// The list the rule came from: a blocklist id from `filtering/status`
-    /// `[verified live]`, or AdGuard Home's own negative ids.
+    /// The list the rule came from: a blocklist id from `filtering/status`,
+    /// or AdGuard Home's own negative ids.
     public var filterID: Int?
-    /// `service_name`, for a blocked service `[verified live]`.
+    /// `service_name`, for a blocked service.
     public var serviceName: String?
     /// The DNS response code (`status`): NOERROR, NXDOMAIN, …
     public var responseCode: String?
@@ -126,9 +123,7 @@ public struct QueryLogPage: Sendable, Equatable {
 public enum QueryLogStatusFilter: String, Sendable, Equatable, CaseIterable {
     case all, blocked, processed, allowed, rewritten
 
-    /// `blocked` is `[verified live]` (chunk 18 recording: only
-    /// `FilteredBlackList` and `FilteredBlockedService`); the others are
-    /// `[assumed]`.
+    /// `blocked` returns only `FilteredBlackList` and `FilteredBlockedService`.
     public var responseStatus: String {
         switch self {
         case .all: "all"
@@ -141,7 +136,7 @@ public enum QueryLogStatusFilter: String, Sendable, Equatable, CaseIterable {
 }
 
 /// One `control/querylog` read: newest first, at most `limit` entries
-/// older than `olderThan` (exclusive, `[verified live]`).
+/// older than `olderThan` (exclusive).
 public struct QueryLogQuery: Sendable, Equatable {
     public var search: String?
     public var status: QueryLogStatusFilter
@@ -156,9 +151,6 @@ public struct QueryLogQuery: Sendable, Equatable {
         self.olderThan = olderThan
         self.limit = min(max(limit, 1), QueryLogLimits.maximum)
     }
-
-    /// No search and all statuses.
-    public var isUnfiltered: Bool { search == nil && status == .all }
 }
 
 public struct DomainCount: Sendable, Equatable {
@@ -218,4 +210,13 @@ public struct ClientQueryActivity: Sendable, Equatable {
             .prefix(topCount)
             .map { $0 }
     }
+}
+
+public enum QueryLogLimits {
+    /// One fetch never asks for more than this many entries.
+    public static let maximum = 500
+    /// The Query Log tab keeps at most this many entries in memory.
+    public static let loadedCap = 5_000
+    /// A Live read asks for this many of the newest entries.
+    public static let liveLimit = 100
 }

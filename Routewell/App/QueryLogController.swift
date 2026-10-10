@@ -2,7 +2,7 @@ import Foundation
 import Observation
 import RoutewellKit
 
-/// AdGuard Home › Query Log (chunk 18): a live view of AdGuard Home's own
+/// AdGuard Home › Query Log: a live view of AdGuard Home's own
 /// log. The tab runs `follow` in a view task while it is visible and
 /// AdGuard Home runs; a new search, status, session, or Refresh restarts it
 /// from page one. Nothing is saved.
@@ -166,7 +166,7 @@ final class QueryLogController {
         guard let lease = model.session.lease, model.session.isReady else { return nil }
         let result: AreaRefreshResult<QueryLogPage>?
         do {
-            result = try await model.session.routerSession.queryLogPage(using: lease, query: query)
+            result = try await model.session.routerSession.query(lease) { try await $0.queryLog?.page(query) }
         } catch {
             // Cancelled, or the session changed: the result belongs to no one.
             return nil
