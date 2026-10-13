@@ -55,8 +55,21 @@ extension HeaderInset where Accessory == EmptyView {
 /// status dot on the right.
 struct RouterRow: View {
     let row: RouterRowModel
+    @Environment(AppModel.self) private var model
 
     var body: some View {
+        if let destination = row.opens {
+            Button { model.selection = destination } label: {
+                content(chevron: true).contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityHint("Opens \(destination.title)")
+        } else {
+            content(chevron: false)
+        }
+    }
+
+    private func content(chevron: Bool) -> some View {
         HStack(alignment: .center, spacing: 12) {
             VStack(alignment: .leading, spacing: 2) {
                 Text(row.label)
@@ -73,6 +86,9 @@ struct RouterRow: View {
                 .monospacedDigit()
                 .multilineTextAlignment(.trailing)
                 .textSelection(.enabled)
+            if chevron {
+                Image(systemName: "chevron.right").font(.caption.weight(.semibold)).foregroundStyle(.tertiary).accessibilityHidden(true)
+            }
         }
         .padding(.horizontal, 12).padding(.vertical, 8)
         .frame(minHeight: 38)

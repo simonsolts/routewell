@@ -9,6 +9,7 @@ struct DetailRouter: View {
         case .analytics: AnalyticsScreen()
         case .network: NetworkScreen()
         case .router: RouterScreen()
+        case .wifi: WiFiScreen()
         case .vpn: VPNScreen()
         case .applications: ApplicationsScreen()
         case .maintenance: MaintenanceScreen()

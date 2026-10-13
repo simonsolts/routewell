@@ -110,10 +110,12 @@ struct MainWindow: View {
         Label(destination.title, systemImage: destination.symbol)
     }
 
-    /// Clients counts devices awaiting review. Notifications has a mock count only.
+    /// Clients counts devices awaiting review; Wi-Fi counts the Wi-Fi
+    /// devices online. Notifications has a mock count only.
     private func badge(for destination: SidebarDestination) -> Int {
         switch destination {
         case .clients: model.newDeviceCount
+        case .wifi: model.wifiDevicesOnline ?? 0
         case .notifications: model.mode == .mock ? 1 : 0
         default: 0
         }
@@ -123,7 +125,7 @@ struct MainWindow: View {
     private var subtitle: String {
         if !model.selection.showsSubtitle { return "" }
         // AdGuard Home's subtitle is the router model.
-        if model.selection == .adGuard { return model.snapshot?.router.model ?? "" }
+        if model.selection == .adGuard || model.selection == .wifi { return model.snapshot?.router.model ?? "" }
         return model.mode == .mock ? (model.session.expectedToken?.profileID ?? "Sample router") : "Not connected"
     }
 

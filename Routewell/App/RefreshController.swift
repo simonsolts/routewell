@@ -211,11 +211,12 @@ final class RefreshController {
                         for request in requests where !ScreenRefreshPlan.overviewAreas.contains(request.area) || request.area == .clients {
                             if !force, (self?.featureElapsed[request.area] ?? .zero) < request.interval { continue }
                             if request.area == .clients {
-                                // The inventory is read only while the Clients screen, or
-                                // AdGuard Home › Overview (Top devices' names), is visible.
+                                // The inventory is read only while the Clients screen, Wi-Fi
+                                // (device names and bands), or AdGuard Home › Overview (Top
+                                // devices' names) is visible.
                                 let topDevices = model.selection == .adGuard
                                     && (model.subpages[.adGuard] ?? AdGuardTab.overview.rawValue) == AdGuardTab.overview.rawValue
-                                guard model.selection == .clients || topDevices else { continue }
+                                guard model.selection == .clients || model.selection == .wifi || topDevices else { continue }
                                 guard let result = try await model.session.routerSession.query(lease, { try await $0.clients?.inventory() }) else { continue }
                                 guard !Task.isCancelled, model.session.expectedToken == lease.token else { return }
                                 model.acceptCapability(result.capability, area: .clients, token: lease.token)
@@ -246,8 +247,20 @@ final class RefreshController {
                                 self?.featureElapsed[.adGuardOverview] = .zero
                                 continue
                             }
+                            if request.area == .wifi {
+                                guard let result = try await model.session.routerSession.query(lease, { try await $0.wifi?.snapshot() }) else { continue }
+                                guard !Task.isCancelled, model.session.expectedToken == lease.token else { return }
+                                model.acceptWiFi(result, token: lease.token)
+                                self?.featureElapsed[.wifi] = .zero
+                                continue
+                            }
+                            if request.area == .wifiAir {
+                                self?.requestSSH(lease: lease, reads: self?.visibleSSHReads(includeLogs: false) ?? [])
+                                self?.featureElapsed[.wifiAir] = .zero
+                                continue
+                            }
                             if request.area == .routerDetail {
-                                // Wi-Fi and SQM are read only while the Router screen is visible.
+                                // SQM is read only while the Router screen is visible.
                                 guard model.selection == .router else { continue }
                                 guard let result = try await model.session.routerSession.query(lease, { try await $0.router?.details() }) else { continue }
                                 guard !Task.isCancelled, model.session.expectedToken == lease.token else { return }
@@ -302,16 +315,17 @@ final class RefreshController {
 
     // MARK: SSH
 
-    enum SSHRead: Hashable { case ports, storage, logs, adGuardProcess, adGuardResources }
+    enum SSHRead: Hashable { case ports, storage, logs, adGuardProcess, adGuardResources, wifiAir }
 
     private struct SSHWork {
         let lease: SessionLease
         var reads: Set<SSHRead>
     }
 
-    /// The SSH reads the visible Router segment needs.
+    /// The SSH reads the visible screen needs.
     private func visibleSSHReads(includeLogs: Bool) -> Set<SSHRead> {
         guard windowVisible else { return [] }
+        if model.selection == .wifi { return [.wifiAir] }
         if model.selection == .adGuard {
             return model.subpages[.adGuard] == AdGuardTab.instance.rawValue ? [.adGuardResources] : []
         }
@@ -361,7 +375,7 @@ final class RefreshController {
                 model.acceptSSHProbe(result, token: token)
             }
             guard model.sshProbe?.capability.state == .supported else { return }
-            for read in [SSHRead.adGuardProcess, .adGuardResources, .ports, .storage, .logs] where reads.contains(read) {
+            for read in [SSHRead.adGuardProcess, .adGuardResources, .wifiAir, .ports, .storage, .logs] where reads.contains(read) {
                 switch read {
                 case .ports:
                     guard let result = try await session.query(lease, { try await $0.ssh?.ports() }) else { return }
@@ -379,6 +393,10 @@ final class RefreshController {
                     guard let result = try await session.query(lease, { try await $0.ssh?.adGuardProcess() }) else { return }
                     guard !Task.isCancelled else { return }
                     model.acceptAdGuardProcess(result, token: token)
+                case .wifiAir:
+                    guard let result = try await session.query(lease, { try await $0.wifi?.air() }) else { return }
+                    guard !Task.isCancelled else { return }
+                    model.acceptWiFiAir(result, token: token)
                 case .adGuardResources:
                     guard let result = try await session.query(lease, { try await $0.ssh?.adGuardResources() }) else { return }
                     guard !Task.isCancelled else { return }

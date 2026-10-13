@@ -38,6 +38,15 @@ extension AppEnvironment {
 
     /// SSH off, probe pending, fails, times out, host key
     /// changed, or populated. The probe runs again for the new scenario.
+    /// "SSH off" also takes the backend's SSH service away, so the probe runs again.
+    func setMockWiFiScenario(_ scenario: MockWiFiService.Scenario) {
+        guard model.mode == .mock, let mockBackend else { return }
+        mockWiFiScenario = scenario
+        mockBackend.mockWiFi.setScenario(scenario)
+        refresh.reprobeSSH()
+        refresh.refreshNow()
+    }
+
     func setMockSSHScenario(_ scenario: MockSSHService.Scenario) {
         guard model.mode == .mock, let mockBackend else { return }
         mockSSHScenario = scenario
@@ -139,6 +148,7 @@ extension AppEnvironment {
         let backend = MockRouterBackend(scenario: scenario, hostname: hostname)
         backend.mockClientActions.setMechanism(mockClientActionsMechanism)
         backend.mockSSH.setScenario(mockSSHScenario)
+        backend.mockWiFi.setScenario(mockWiFiScenario)
         mockBackend = backend
         let clientsScenario = mockClientsScenario
         let sqm = mockSQMBehavior

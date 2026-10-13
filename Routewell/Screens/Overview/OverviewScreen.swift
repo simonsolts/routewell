@@ -82,7 +82,7 @@ struct OverviewScreen: View {
                 healthRow("Router", value: snapshot.router.reachability.label,
                           tone: snapshot.router.reachability.tone, destination: .router)
                 Divider()
-                healthRow("Wi-Fi", value: "Not observed", tone: .unknown, destination: .network)
+                healthRow("Wi-Fi", value: "Not observed", tone: .unknown, destination: .wifi)
                 Divider()
                 healthRow("LAN", value: "Not observed", tone: .unknown, destination: .clients)
                 Divider()
