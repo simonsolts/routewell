@@ -397,3 +397,27 @@ private enum WiFiStub {
         #expect(backend.ssh == nil)
     }
 }
+
+@Suite struct WiFiMultiLinkClientTests {
+    @Test func multiLinkClientCountsAsWiFi() throws {
+        let url = try #require(Bundle.module.url(forResource: "clients-get_list-mld", withExtension: "json", subdirectory: "Fixtures/glinet/clients"))
+        let list = try JSONDecoder().decode(JSONValue.self, from: Data(contentsOf: url))
+        let status = GLiNetStatusParser.clientStatus(getStatus: nil, clientList: list)
+        #expect(status.onlineByBand == [.ghz2_4: 1])
+        #expect(status.onlineMultiLink == 1)
+        #expect(status.onlineWiFi == 2)
+
+        let connection = GLiNetClientListParser.connection(interface: "mld")
+        #expect(connection.medium == .value(.wifi) && connection.band == ClientConnection.multiLink)
+
+        // Without SSH the client is a multi-link device with no band.
+        let clients = [
+            WiFiClientInfo(mac: MACAddress("02:00:00:00:01:01")!, band: .ghz2_4),
+            WiFiClientInfo(mac: MACAddress("02:00:00:00:01:02")!, multiLink: true),
+        ]
+        let overview = WiFiOverview(wireless: MockWiFiService.wireless(.today), mlo: MockWiFiService.mlo(.multiLinkOn), air: nil, clients: clients)
+        #expect(overview.devices.count == 2)
+        let linked = try #require(overview.devices.first { $0.viaLink })
+        #expect(linked.band == nil && linked.network == MockWiFiService.multiLink)
+    }
+}

@@ -173,6 +173,11 @@ struct WiFiNetworkCards: View {
                     Button { environment.wifi.openMultiLink() } label: { row(card, chevron: true) }
                         .buttonStyle(.plain)
                         .accessibilityHint("Opens Multi-link")
+                } else if let group = card.group {
+                    Button { environment.wifi.openNetwork(group) } label: { row(card, chevron: true) }
+                        .buttonStyle(.plain)
+                        .disabled(!environment.wifi.canEdit)
+                        .accessibilityHint("Opens the network's settings")
                 } else {
                     row(card, chevron: false)
                 }
@@ -287,6 +292,7 @@ struct WiFiSuggestions: View {
                             switch action.target {
                             case .radios: controller.openRadios(.ghz5)
                             case .multiLink: controller.openMultiLink()
+                            case .useOneName: controller.openUseOneName()
                             }
                         }
                         .controlSize(.small)

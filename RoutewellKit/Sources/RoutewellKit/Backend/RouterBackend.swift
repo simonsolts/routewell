@@ -15,6 +15,8 @@ public protocol RouterBackend: Sendable {
     var router: (any RouterService)? { get }
     /// The Wi-Fi screen's reads.
     var wifi: (any WiFiService)? { get }
+    /// The Wi-Fi screen's writes.
+    var wifiControl: (any WiFiControl)? { get }
     /// SSH reads. `nil` means SSH is not set up for this profile:
     /// SSH-only segments show `SSHRequiredView` and nothing attempts SSH.
     var ssh: (any SSHService)? { get }
@@ -44,6 +46,7 @@ public extension RouterBackend {
     var clientActions: (any ClientActionsService)? { nil }
     var router: (any RouterService)? { nil }
     var wifi: (any WiFiService)? { nil }
+    var wifiControl: (any WiFiControl)? { nil }
     var ssh: (any SSHService)? { nil }
     var adGuardService: (any AdGuardServiceControl)? { nil }
     var adGuardSettings: (any AdGuardSettingControl)? { nil }

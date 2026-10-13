@@ -1,8 +1,8 @@
 import SwiftUI
 import RoutewellKit
 
-/// Wi-Fi: Overview, Radios, and Multi-link, read-only. The toolbar's tab
-/// bar lives in `MainWindow`.
+/// Wi-Fi: Overview, Radios, and Multi-link, with the network sheet, Use One
+/// Name, and Review and apply. The toolbar's tab bar lives in `MainWindow`.
 struct WiFiScreen: View {
     @Environment(AppModel.self) private var model
     @Environment(AppEnvironment.self) private var environment
@@ -44,6 +44,9 @@ struct WiFiScreen: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .sheet(item: Binding(get: { environment.wifi.sheet }, set: { if $0 == nil { environment.wifi.closeSheet() } })) { sheet in
+            WiFiSheetHost(sheet: sheet)
+        }
     }
 }
 

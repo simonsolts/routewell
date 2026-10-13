@@ -49,7 +49,8 @@ public struct RouterClientEntry: Sendable, Equatable {
 /// exists in the live shape.
 public enum GLiNetClientListParser {
     /// `iface` on 4.9.1 is `2.4G`, `5G`, `6G`, or `cable`,
-    /// each always paired with the same `type` (0, 1, 11, 2). Other tokens,
+    /// each always paired with the same `type` (0, 1, 11, 2); `mld` is a
+    /// multi-link client, on Wi-Fi with no one band. Other tokens,
     /// such as `eth0` from the 2022 public client, stay verbatim.
     public static func connection(interface: String?) -> ClientConnection {
         switch interface?.lowercased() {
@@ -57,6 +58,7 @@ public enum GLiNetClientListParser {
         case "2.4g": ClientConnection(medium: .value(.wifi), band: "2.4 GHz")
         case "5g": ClientConnection(medium: .value(.wifi), band: "5 GHz")
         case "6g": ClientConnection(medium: .value(.wifi), band: "6 GHz")
+        case "mld": ClientConnection(medium: .value(.wifi), band: ClientConnection.multiLink)
         default: ClientConnection(interface: interface)
         }
     }

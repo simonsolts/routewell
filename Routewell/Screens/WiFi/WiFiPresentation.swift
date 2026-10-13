@@ -116,6 +116,8 @@ struct WiFiOverviewPresentation {
         let secured: Bool
         let bands: [WirelessBand]
         let count: String
+        /// The main network the card opens in the network sheet.
+        var group: WiFiNetworkGroup?
         var id: String { "\(kind)-\(multiLink)-\(name)" }
     }
 
@@ -130,7 +132,7 @@ struct WiFiOverviewPresentation {
     }
 
     struct SuggestionLine: Equatable, Identifiable {
-        enum Action: Equatable { case radios, multiLink }
+        enum Action: Equatable { case radios, multiLink, useOneName }
         let suggestion: WiFiSuggestion
         let title: String
         let action: (label: String, target: Action)?
@@ -181,11 +183,12 @@ struct WiFiOverviewPresentation {
 
         var cards = overview.groups.map { group in
             NetworkCard(name: group.name, kind: group.kind, multiLink: false, secured: group.security?.isSecured ?? true, bands: group.bands,
-                        count: group.deviceCount.map(String.init) ?? WiFiFormat.dash)
+                        count: group.deviceCount.map(String.init) ?? WiFiFormat.dash, group: group.kind == .main ? group : nil)
         }
         if let link = overview.multiLink {
             let members = devices.filter(\.viaLink).count
-            let count = overview.hasStations ? String(members) : WiFiFormat.dash
+            // Without stations, the client list still names multi-link clients.
+            let count = overview.hasStations || members > 0 ? String(members) : WiFiFormat.dash
             let card = NetworkCard(name: link.ssid ?? WiFiFormat.dash, kind: .main, multiLink: true,
                                    secured: link.encryption?.isSecured ?? true, bands: link.bands, count: count)
             let lastMain = cards.lastIndex { $0.kind == .main }
@@ -199,7 +202,7 @@ struct WiFiOverviewPresentation {
         self.suggestions = suggestions.map { suggestion in
             let who = WiFiFormat.names(suggestion.devices.compactMap { names[$0] })
             return switch suggestion {
-            case .fasterBand: SuggestionLine(suggestion: suggestion, title: "\(who) can use a faster band", action: nil)
+            case .fasterBand: SuggestionLine(suggestion: suggestion, title: "\(who) can use a faster band", action: ("Use One Name…", .useOneName))
             case .multiLinkReady(let macs):
                 SuggestionLine(suggestion: suggestion, title: "Multi-link is ready for \(macs.count) Wi-Fi 7 \(macs.count == 1 ? "device" : "devices")",
                                action: ("Set Up…", .multiLink))

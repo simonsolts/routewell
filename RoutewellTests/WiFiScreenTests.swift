@@ -110,8 +110,8 @@ import RoutewellMock
         "Watch can move to its own network",
         "5 GHz can use more channels with DFS",
     ])
-    // Actions that open a later sheet stay hidden.
-    #expect(today.suggestions.map { $0.action?.label } == [nil, "Set Up…", nil, "Review"])
+    // The IoT sheet comes later; its action stays hidden.
+    #expect(today.suggestions.map { $0.action?.label } == ["Use One Name…", "Set Up…", nil, "Review"])
     #expect(today.radios.map(\.now) == ["Ch 9 · Auto width", "Ch 44 · 80 MHz", "Ch 37 · 160 MHz"])
     #expect(today.radios.map(\.mode) == ["Auto", "Auto", "Auto"])
     #expect(today.radios[1].dfs != nil)

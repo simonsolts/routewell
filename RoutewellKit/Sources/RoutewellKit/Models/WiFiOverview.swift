@@ -6,12 +6,15 @@ public struct WiFiClientInfo: Sendable, Equatable {
     public var name: String?
     public var band: WirelessBand?
     public var online: Bool
+    /// On the multi-link network: on Wi-Fi with no one band.
+    public var multiLink: Bool
 
-    public init(mac: MACAddress, name: String? = nil, band: WirelessBand? = nil, online: Bool = true) {
+    public init(mac: MACAddress, name: String? = nil, band: WirelessBand? = nil, online: Bool = true, multiLink: Bool = false) {
         self.mac = mac
         self.name = name
         self.band = band
         self.online = online
+        self.multiLink = multiLink
     }
 
     /// The band from the list's `iface` token (`2.4 GHz`, `5 GHz`, `6 GHz`).
@@ -22,7 +25,8 @@ public struct WiFiClientInfo: Sendable, Equatable {
         case "6 GHz"?: .ghz6
         default: nil
         }
-        self.init(mac: client.mac, name: name, band: band, online: client.online == .value(true))
+        self.init(mac: client.mac, name: name, band: band, online: client.online == .value(true),
+                  multiLink: client.connection.band == ClientConnection.multiLink)
     }
 }
 
@@ -172,7 +176,11 @@ public struct WiFiOverview: Sendable, Equatable {
             }
         } else {
             hasStations = false
-            devices = (clients ?? []).filter { $0.online && $0.band != nil }.map { client in
+            let linked = mlo?.main.flatMap { $0.isOn ? $0 : nil }
+            devices = (clients ?? []).filter { $0.online && ($0.band != nil || $0.multiLink) }.map { client in
+                if client.multiLink {
+                    return WiFiDevice(mac: client.mac, name: client.name, network: linked?.ssid, kind: .main, viaLink: true)
+                }
                 // The band's network is known only when one network is on there.
                 let only = bandNetworks[client.band].flatMap { $0.count == 1 ? $0[0].1 : nil }
                 return WiFiDevice(mac: client.mac, name: client.name, band: client.band, network: only?.ssid, kind: only?.kind)
