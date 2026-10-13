@@ -23,6 +23,10 @@ public actor MockRouterBackend: RouterBackend {
     public nonisolated var ssh: (any SSHService)? { sshOff ? nil : mockSSH }
     public nonisolated let mockWiFi = MockWiFiService()
     public nonisolated var wifi: (any WiFiService)? { mockWiFi }
+    /// Network edits through the real executor.
+    public nonisolated var wifiControl: (any WiFiControl)? {
+        WiFiApplyExecutor(transport: mockWiFi, gate: gate, policy: .mock)
+    }
     private nonisolated var sshOff: Bool { mockSSH.scenario == .off || mockWiFi.scenario == .sshOff }
     public nonisolated let network: (any NetworkService)?
     public nonisolated let maintenance: (any MaintenanceService)?

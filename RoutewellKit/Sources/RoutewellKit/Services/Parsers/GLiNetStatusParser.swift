@@ -93,10 +93,13 @@ public enum GLiNetStatusParser {
             if let parsed = clientList.flatMap(GLiNetClientListParser.parse) {
                 status.listed = Dictionary(parsed.entries.map { ($0.mac, $0.online) }, uniquingKeysWith: { first, _ in first })
                 var byBand: [WirelessBand: Int] = [:]
+                var multiLink = 0
                 for entry in parsed.entries where entry.online == .value(true) {
                     if let band = WirelessBand.parse(entry.interface) { byBand[band, default: 0] += 1 }
+                    if entry.interface?.lowercased() == "mld" { multiLink += 1 }
                 }
                 status.onlineByBand = byBand
+                status.onlineMultiLink = multiLink
             }
         } else if let entry = getStatus?["client"]?.array?.first,
                   let wireless = entry["wireless_total"]?.int,

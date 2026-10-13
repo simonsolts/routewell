@@ -7,7 +7,7 @@ import RoutewellKit
 /// mock client list's Wi-Fi devices, so the screen shows their names. The
 /// scenario is readable without `await`, so `MockRouterBackend.ssh` can
 /// answer `nil` for "SSH off".
-public final class MockWiFiService: WiFiService {
+public final class MockWiFiService: WiFiService, WiFiApplyTransport {
     public enum Scenario: String, CaseIterable, Sendable {
         case today
         /// One name on all bands, and multi-link on as "Flint Home 7".
@@ -22,12 +22,103 @@ public final class MockWiFiService: WiFiService {
         case methodNotFound
     }
 
+    /// How a network edit goes. The Mac is the MacBook Air on "Flint Home
+    /// Fast" (6 GHz), except on Ethernet.
+    public enum ApplyScenario: String, CaseIterable, Sendable {
+        case success
+        /// The reply is lost; the change applied.
+        case replyLost
+        /// The router does not answer again after the restart.
+        case macNotBack
+        /// The router answers but keeps the old values.
+        case mismatch
+        /// The first call comes back with an `err_code`.
+        case refused
+        case macOnEthernet
+    }
+
+    private struct Edits {
+        var wireless: WirelessStatus?
+        var subnets: [SubnetPolicy]?
+    }
+
     private let selected = Mutex<Scenario>(.today)
+    private let applySelected = Mutex<ApplyScenario>(.success)
+    private let edits = Mutex(Edits())
 
     public init() {}
 
     public var scenario: Scenario { selected.withLock { $0 } }
-    public func setScenario(_ value: Scenario) { selected.withLock { $0 = value } }
+    public func setScenario(_ value: Scenario) {
+        selected.withLock { $0 = value }
+        edits.withLock { $0 = Edits() }
+    }
+
+    public var applyScenario: ApplyScenario { applySelected.withLock { $0 } }
+    public func setApplyScenario(_ value: ApplyScenario) { applySelected.withLock { $0 = value } }
+
+    /// This Mac's Wi-Fi address in the mock: the MacBook Air's.
+    public static let thisMac = MACAddress("a4:83:e7:12:9c:01")!
+    public var thisMacOnWiFi: Bool { applyScenario != .macOnEthernet }
+
+    private func currentWireless(_ scenario: Scenario) -> WirelessStatus {
+        edits.withLock { $0.wireless } ?? Self.wireless(scenario)
+    }
+
+    private func currentSubnets(_ scenario: Scenario) -> [SubnetPolicy] {
+        edits.withLock { $0.subnets } ?? Self.subnets(scenario)
+    }
+
+    // MARK: - Apply
+
+    public func readWireless() async throws -> WirelessStatus {
+        try Task.checkCancellation()
+        return currentWireless(scenario)
+    }
+
+    public func readSubnets() async throws -> [SubnetPolicy] {
+        try Task.checkCancellation()
+        return currentSubnets(scenario)
+    }
+
+    public func readRadioStates() async throws -> [WirelessBand: RadioState] {
+        if applyScenario == .macNotBack { throw GLiNetRPCError.transport(.unreachable(code: -1004)) }
+        return Dictionary(currentWireless(scenario).radios.compactMap { radio in radio.band.map { ($0, RadioState.ready) } },
+                          uniquingKeysWith: { first, _ in first })
+    }
+
+    public func send(_ call: WiFiCall) async throws -> Int? {
+        try await Task.sleep(for: .milliseconds(300))
+        let apply = applyScenario
+        if apply == .refused { return -1 }
+        if apply != .mismatch { store(call) }
+        if apply == .replyLost { throw GLiNetRPCError.transport(.timedOut) }
+        return nil
+    }
+
+    private func store(_ call: WiFiCall) {
+        let scenario = scenario
+        var wireless = currentWireless(scenario)
+        var subnets = currentSubnets(scenario)
+        switch call {
+        case .network(let slot, _):
+            for radio in wireless.radios.indices {
+                for index in wireless.radios[radio].networks.indices where wireless.radios[radio].networks[index].interface == slot.interface {
+                    var network = wireless.radios[radio].networks[index]
+                    network.ssid = slot.ssid
+                    network.encryption = slot.security
+                    network.password = slot.password
+                    network.hidden = slot.hidden
+                    network.randomBSSID = slot.randomBSSID
+                    if let enabled = slot.enabled { network.enabled = .value(enabled) }
+                    wireless.radios[radio].networks[index] = network
+                }
+            }
+        case .subnet(let subnet, let isolate):
+            for index in subnets.indices where subnets[index].name == subnet.name { subnets[index].isolate = isolate }
+        }
+        edits.withLock { $0 = Edits(wireless: wireless, subnets: subnets) }
+    }
 
     public func probe() async -> Capability {
         scenario == .methodNotFound
@@ -44,9 +135,9 @@ public final class MockWiFiService: WiFiService {
                                       capability: Capability(.unsupported, evidence: .methodNotFound(method: "wifi.get_config"), observedAt: now))
         }
         let snapshot = WiFiSnapshot(
-            wireless: .success(Self.wireless(scenario)),
+            wireless: .success(currentWireless(scenario)),
             mlo: scenario == .multiLinkFails ? .failure(.timeout) : .success(Self.mlo(scenario)),
-            subnets: .success(Self.subnets(scenario)))
+            subnets: .success(currentSubnets(scenario)))
         return WiFiSnapshotResult(area: .success(snapshot, observedAt: now, source: .mock),
                                   capability: Capability(.supported, evidence: .mockScenario(scenario.rawValue), observedAt: now))
     }
@@ -165,5 +256,17 @@ public final class MockWiFiService: WiFiService {
             WirelessSectionOptions(section: "wifi6g", type: "wifi-iface", ifname: "rax0", emlMode: "emlsr", ieee80211k: true, bssTransition: true, ieee80211r: false),
         ]
         return WiFiAir(interfaces: interfaces, stations: stations, sections: sections)
+    }
+}
+
+extension WiFiApplyPolicy {
+    /// Short waits, so each step of the trail shows for a moment.
+    static var mock: WiFiApplyPolicy {
+        var policy = WiFiApplyPolicy()
+        policy.settle = .seconds(1)
+        policy.pollInterval = .milliseconds(500)
+        policy.reconnectWindow = .seconds(4)
+        policy.verifyDeadline = .seconds(3)
+        return policy
     }
 }

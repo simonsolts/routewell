@@ -1,0 +1,7 @@
+{
+ "clients": [
+  {"blocked": false, "iface": "2.4G", "ip": "198.51.100.20", "mac": "02:00:00:00:01:01", "name": "", "online": true, "type": 0},
+  {"blocked": false, "iface": "mld", "ip": "198.51.100.21", "mac": "02:00:00:00:01:02", "name": "", "online": true, "type": 12},
+  {"blocked": false, "iface": "cable", "ip": "198.51.100.22", "mac": "02:00:00:00:01:03", "name": "", "online": true, "type": 2}
+ ]
+}

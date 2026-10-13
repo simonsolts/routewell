@@ -64,6 +64,9 @@ public struct ClientConnection: Sendable, Equatable {
     public var ssid: String?
     public var interface: String?
 
+    /// The `band` text of a multi-link client.
+    public static let multiLink = "Multi-link"
+
     public init(medium: Observed<ClientMedium> = .unknown, band: String? = nil, ssid: String? = nil, interface: String? = nil) {
         self.medium = medium
         self.band = band

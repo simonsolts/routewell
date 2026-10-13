@@ -114,7 +114,14 @@ public struct ClientStatus: Sendable, Equatable {
     /// Online Wi-Fi clients per band, from the list's `iface` tokens. `nil`
     /// when the full list was not read.
     public var onlineByBand: [WirelessBand: Int]?
+    /// Online multi-link clients (`iface` `mld`); they have no one band.
+    public var onlineMultiLink: Int?
     public init() {}
+
+    /// Every online Wi-Fi client, multi-link ones included.
+    public var onlineWiFi: Int? {
+        onlineByBand.map { $0.values.reduce(0, +) + (onlineMultiLink ?? 0) }
+    }
 }
 
 public struct OverviewSnapshot: Sendable, Equatable {

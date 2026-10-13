@@ -180,7 +180,7 @@ final class AppModel {
 
     var wireless: WirelessStatus? { try? wifi?.wireless.get() }
     /// Wi-Fi devices online, from the Overview's client list.
-    var wifiDevicesOnline: Int? { snapshot?.clients.onlineByBand.map { $0.values.reduce(0, +) } }
+    var wifiDevicesOnline: Int? { snapshot?.clients.onlineWiFi }
 
     func acceptWiFi(_ result: WiFiSnapshotResult, token: SessionToken) {
         guard session.isReady, token == session.expectedToken else { return }

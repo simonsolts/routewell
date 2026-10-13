@@ -185,7 +185,8 @@ struct WiFiOverviewPresentation {
         }
         if let link = overview.multiLink {
             let members = devices.filter(\.viaLink).count
-            let count = overview.hasStations ? String(members) : WiFiFormat.dash
+            // Without stations, the client list still names multi-link clients.
+            let count = overview.hasStations || members > 0 ? String(members) : WiFiFormat.dash
             let card = NetworkCard(name: link.ssid ?? WiFiFormat.dash, kind: .main, multiLink: true,
                                    secured: link.encryption?.isSecured ?? true, bands: link.bands, count: count)
             let lastMain = cards.lastIndex { $0.kind == .main }
