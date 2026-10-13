@@ -19,8 +19,11 @@ public actor MockRouterBackend: RouterBackend {
     public nonisolated let mockRouter = MockRouterService()
     public nonisolated var router: (any RouterService)? { mockRouter }
     public nonisolated let mockSSH = MockSSHService()
-    /// `nil` in the "SSH off" scenario, so SSH-only segments ask for SSH.
-    public nonisolated var ssh: (any SSHService)? { mockSSH.scenario == .off ? nil : mockSSH }
+    /// `nil` in the "SSH off" scenarios, so SSH-only segments ask for SSH.
+    public nonisolated var ssh: (any SSHService)? { sshOff ? nil : mockSSH }
+    public nonisolated let mockWiFi = MockWiFiService()
+    public nonisolated var wifi: (any WiFiService)? { mockWiFi }
+    private nonisolated var sshOff: Bool { mockSSH.scenario == .off || mockWiFi.scenario == .sshOff }
     public nonisolated let network: (any NetworkService)?
     public nonisolated let maintenance: (any MaintenanceService)?
     public nonisolated let vpn: (any VPNService)?
@@ -46,7 +49,7 @@ public actor MockRouterBackend: RouterBackend {
     public nonisolated var adGuardOverview: (any AdGuardOverviewService)? { mockAdGuard }
     /// Backups need SSH, as live.
     public nonisolated var adGuardBackups: (any AdGuardBackupControl)? {
-        guard mockSSH.scenario != .off else { return nil }
+        guard !sshOff else { return nil }
         return AdGuardBackupExecutor(files: mockAdGuard, service: mockAdGuard, settings: mockAdGuard, gate: gate, policy: .mock)
     }
 
@@ -201,7 +204,7 @@ public actor MockRouterBackend: RouterBackend {
 
         var clients = ClientStatus()
         clients.activeCount = .value(MockClientsService.defaultOnlineCount)
-        clients.onlineByBand = [.ghz2_4: 5, .ghz6: 3]
+        clients.onlineByBand = [.ghz2_4: 3, .ghz6: 2]
         return OverviewSnapshot(router: router, internet: internet, adGuard: adGuard,
                                 clients: clients, observedAt: date)
     }

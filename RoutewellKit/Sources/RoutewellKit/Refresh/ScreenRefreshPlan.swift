@@ -43,6 +43,10 @@ public enum ScreenRefreshPlan {
             intervals[.adGuardOverview] = defaultInterval
         }
         if destination == "adGuard", segment == "Instance" { intervals[.ssh] = defaultInterval }
+        // Wi-Fi's RPC and SSH reads; Router › Overview and Firmware show the
+        // radio and network counts.
+        if destination == "wifi" { intervals[.wifi] = defaultInterval; intervals[.wifiAir] = defaultInterval }
+        if destination == "router", segment == nil || ["Overview", "Firmware"].contains(segment) { intervals[.wifi] = defaultInterval }
         return intervals.map { AreaCadence($0.key, every: $0.value) }.sorted { $0.area.rawValue < $1.area.rawValue }
     }
 }

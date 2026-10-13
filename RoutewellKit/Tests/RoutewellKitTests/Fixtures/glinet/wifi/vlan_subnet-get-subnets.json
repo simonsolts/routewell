@@ -1,0 +1,52 @@
+{
+ "subnets": [
+  {
+   "dhcp_enable": true,
+   "dhcp_end_ip": "192.168.8.249",
+   "dhcp_start_ip": "192.168.8.100",
+   "display_name": "main",
+   "dns": "",
+   "enabled": true,
+   "gateway": "192.168.8.1",
+   "ip": "192.168.8.1",
+   "isolate": false,
+   "leasetime": "12h",
+   "lpr": false,
+   "netmask": "255.255.255.0"
+  },
+  {
+   "dhcp_enable": true,
+   "dhcp_end_ip": "192.168.9.249",
+   "dhcp_start_ip": "192.168.9.100",
+   "display_name": "guest",
+   "dns": "",
+   "enabled": false,
+   "gateway": "192.168.9.1",
+   "ip": "192.168.9.1",
+   "isolate": true,
+   "leasetime": "12h",
+   "lpr": false,
+   "netmask": "255.255.255.0",
+   "transfer_enable": false,
+   "vlan_id": 9,
+   "wan_access_mode": 1
+  },
+  {
+   "dhcp_enable": true,
+   "dhcp_end_ip": "192.168.10.249",
+   "dhcp_start_ip": "192.168.10.100",
+   "display_name": "iot",
+   "dns": "",
+   "enabled": false,
+   "gateway": "192.168.10.1",
+   "ip": "192.168.10.1",
+   "isolate": true,
+   "leasetime": "12h",
+   "lpr": false,
+   "netmask": "255.255.255.0",
+   "transfer_enable": false,
+   "vlan_id": 10,
+   "wan_access_mode": 1
+  }
+ ]
+}

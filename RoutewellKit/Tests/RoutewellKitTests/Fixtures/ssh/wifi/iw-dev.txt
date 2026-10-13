@@ -1,0 +1,6 @@
+ra0 AP 9 2452
+ra1 AP - -
+rai0 AP 44 5220
+rax0 AP 37 6135
+apcli0 managed - -
+ra15 AP 9 2452

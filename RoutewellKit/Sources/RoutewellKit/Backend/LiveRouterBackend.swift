@@ -63,8 +63,10 @@ public actor LiveRouterBackend: RouterBackend, FixtureRecordableBackend, AdGuard
     /// Ports, Storage, Logs, and the AdGuard process ID. `nil` without an
     /// SSH runner, so nothing attempts SSH.
     public nonisolated let ssh: (any SSHService)?
-    /// Wi-Fi, SQM, and the firmware check for the Router screen.
+    /// SQM and the firmware check for the Router screen.
     public nonisolated let router: (any RouterService)?
+    /// The Wi-Fi screen: RPC, and SSH when it is set up.
+    public nonisolated let wifi: (any WiFiService)?
     /// Turn On, Stop, Handle DNS, Restart, under the same gate as
     /// Protection and Wake. Without an AdGuard Home connection, writes are
     /// verified with the router's setting only.
@@ -92,6 +94,7 @@ public actor LiveRouterBackend: RouterBackend, FixtureRecordableBackend, AdGuard
         self.clients = LiveClientsService(rpc: rpc, adGuard: adGuard, clock: clock)
         self.queryLog = adGuard.map { LiveQueryLogService(adGuard: $0, clock: clock) }
         self.router = LiveRouterService(rpc: rpc, clock: clock)
+        self.wifi = LiveWiFiService(rpc: rpc, runner: sshRunner, clock: clock)
         // One gate per router, shared by every write this backend runs.
         let gate = MutationGate()
         self.clientActions = sshRunner.map { SSHClientActions(runner: $0, gate: gate, clock: clock) } ?? SSHRequiredClientActions()

@@ -13,6 +13,8 @@ public protocol RouterBackend: Sendable {
     /// The Router screen's own reads. `nil` shows the RPC segments from the
     /// Overview areas only.
     var router: (any RouterService)? { get }
+    /// The Wi-Fi screen's reads.
+    var wifi: (any WiFiService)? { get }
     /// SSH reads. `nil` means SSH is not set up for this profile:
     /// SSH-only segments show `SSHRequiredView` and nothing attempts SSH.
     var ssh: (any SSHService)? { get }
@@ -41,6 +43,7 @@ public extension RouterBackend {
     var telemetry: (any TelemetryService)? { nil }
     var clientActions: (any ClientActionsService)? { nil }
     var router: (any RouterService)? { nil }
+    var wifi: (any WiFiService)? { nil }
     var ssh: (any SSHService)? { nil }
     var adGuardService: (any AdGuardServiceControl)? { nil }
     var adGuardSettings: (any AdGuardSettingControl)? { nil }
@@ -57,6 +60,7 @@ public extension RouterBackend {
         case .plugins: plugins
         case .telemetry: telemetry
         case .routerDetail: router
+        case .wifi: wifi
         case .ssh: ssh
         default: nil
         }

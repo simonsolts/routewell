@@ -1,0 +1,25 @@
+{
+ "ifaces": [
+  {
+   "encryption": "sae",
+   "guest": false,
+   "hidden": false,
+   "init": true,
+   "key": "[REDACTED]",
+   "mlo_band": [
+    "6g",
+    "5g"
+   ],
+   "mlo_enable": false,
+   "name": "mld0",
+   "random_bssid": true,
+   "ssid": "Flint Home Fast"
+  }
+ ],
+ "mlo_bandsupport": [
+  "2g",
+  "5g",
+  "6g"
+ ],
+ "random_bssid": true
+}

@@ -27,8 +27,9 @@ public enum FixtureRecordingPlan {
         .init(.rpc, object: "clients", method: "get_list", fileName: "clients-get_list.json"),
         .init(.rpc, object: "adguardhome", method: "get_config", fileName: "adguardhome-get_config.json"),
         .init(.rpc, object: "wifi", method: "get_config", fileName: "wifi-get_config.json"),
-        // Candidate source for per-client signal, radio, and channel.
         .init(.rpc, object: "wifi", method: "get_status", fileName: "wifi-get_status.json"),
+        .init(.rpc, object: "wifi", method: "get_mlo_config", fileName: "wifi-get_mlo_config.json"),
+        .init(.rpc, object: "vlan_subnet", method: "get_subnets", fileName: "vlan_subnet-get_subnets.json"),
         .init(.rpc, object: "dhcp", method: "get_config", fileName: "dhcp-get_config.json"),
         .init(.rpc, object: "sqm", method: "get_config", fileName: "sqm-get_config.json"),
         .init(.rpc, object: "firmware", method: "get_info", fileName: "firmware-get_info.json"),
@@ -77,6 +78,9 @@ public enum FixtureRecordingPlan {
         .init(.ssh, method: "adguard-memory", fileName: "ssh-adguardhome-vmrss.txt"),
         .init(.ssh, method: "adguard-querylog-size", fileName: "ssh-du-querylog.txt"),
         .init(.ssh, method: "adguard-files", fileName: "ssh-ls-adguardhome.txt"),
+        .init(.ssh, method: "wifi-interfaces", fileName: "ssh-iw-dev.txt"),
+        .init(.ssh, method: wifiStationsKey, fileName: "ssh-iw-station-dump.txt"),
+        .init(.ssh, method: "wifi-radio-options", fileName: "ssh-uci-wireless-options.txt"),
     ]
 
     /// The fixed SSH reads the recorder may run, by key. The interface
@@ -93,8 +97,12 @@ public enum FixtureRecordingPlan {
         "adguard-memory": .adGuardMemory,
         "adguard-querylog-size": .adGuardQueryLogSize,
         "adguard-files": .adGuardFiles,
+        "wifi-interfaces": .wifiInterfaces,
+        "wifi-radio-options": .wifiRadioOptions,
     ]
     public static let interfaceTelemetryKey = "interface-telemetry"
+    /// The station dump: its names come from `wifiInterfaces` first.
+    public static let wifiStationsKey = "wifi-stations"
     public static let queryLogFirstPage = "adguard-querylog-500.json"
 
     /// The call with each `{…}` value taken from the first Query Log page:
@@ -149,7 +157,7 @@ public enum FixtureRecordingPlan {
         case .adGuard:
             return call.method.hasPrefix("control/") && !["set", "update", "clear", "reset"].contains { call.method.contains($0) }
         case .ssh:
-            return call.object == nil && (sshReads[call.method] != nil || call.method == interfaceTelemetryKey)
+            return call.object == nil && (sshReads[call.method] != nil || call.method == interfaceTelemetryKey || call.method == wifiStationsKey)
         }
     }
 }
@@ -267,7 +275,7 @@ public enum RecordedFixtureRedactor {
     private static let tokenFields: Set<String> = ["iface", "class", "vendor", "source", "reason", "status", "client_proto", "type", "band", "time_units",
         "firmware_version", "current_version", "new_firmware_version", "version", "kernel_version", "openwrt_version", "architecture",
         "firmware_type", "htmode", "hwmode", "txpower", "qdisc", "protocol", "device", "state", "interface",
-        "upstream_mode", "blocking_mode"]
+        "upstream_mode", "blocking_mode", "hwmodes", "encryptions", "encryption", "mlo_band", "mlo_bandsupport"]
     private static let numericFields: Set<String> = ["total_rx", "total_tx", "total_rx_init", "total_tx_init", "online_time", "elapsedms", "upload", "download"]
     private static let timeFields: Set<String> = ["time", "oldest", "last_updated"]
     /// Only a catalog URL, exactly as the catalog has it, is public; any
