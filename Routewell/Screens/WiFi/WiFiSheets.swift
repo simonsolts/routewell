@@ -32,7 +32,7 @@ struct WiFiNetworkSheet: View {
 
     var body: some View {
         let controller = environment.wifi
-        if let draft = controller.draft, let wireless = model.wireless {
+        if let draft = controller.draft, let wireless = controller.base {
             let devices = controller.overview?.devices ?? []
             let plan = controller.plan(for: draft.change)
             let problems = draft.edit.problems
@@ -319,7 +319,7 @@ struct WiFiApplySheet: View {
             } else {
                 progress(run)
             }
-        } else if let change = controller.pending, let wireless = model.wireless, let plan = controller.plan(for: change) {
+        } else if let change = controller.pending, let wireless = controller.base, let plan = controller.plan(for: change) {
             review(WiFiReviewPresentation(change: change, plan: plan, wireless: wireless))
         }
     }

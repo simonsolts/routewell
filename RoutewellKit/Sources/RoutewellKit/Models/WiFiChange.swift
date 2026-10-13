@@ -298,16 +298,20 @@ public struct WiFiApplyPlan: Sendable, Equatable {
         }
 
         for edit in change.networks {
+            // The edit's fields come from its first slot. Its other slots can
+            // differ; they keep each field the edit leaves as that slot had it.
+            let read = edit.interfaces.first.flatMap { slots[$0] }
             var targets: [(WiFiSlotState, Bool)] = []
             for band in edit.bands.sorted() {
                 guard let radio = wireless.radio(band), let network = radio.mainNetwork, let interface = network.interface,
                       let before = slots[interface] else { continue }
+                let own = edit.interfaces.contains(interface) ? read : nil
                 var after = before
                 after.ssid = edit.name
-                after.security = edit.security
-                after.password = edit.password ?? before.password
-                after.hidden = edit.hidden
-                after.randomBSSID = edit.randomBSSID
+                if own == nil || own?.security != edit.security { after.security = edit.security }
+                if let password = edit.password, own == nil || own?.password != password { after.password = password }
+                if own == nil || own?.hidden != edit.hidden { after.hidden = edit.hidden }
+                if own == nil || own?.randomBSSID != edit.randomBSSID { after.randomBSSID = edit.randomBSSID }
                 after.enabled = true
                 targets.append((after, network.initialised ?? true))
             }
@@ -331,11 +335,16 @@ public struct WiFiApplyPlan: Sendable, Equatable {
                 }
                 for device in affected where !mustJoin.contains(device.mac) { reconnect.insert(device.mac) }
 
-                let macHere = macOn(after.interface, band: band) || (scope == .radio(band) && { if case .wifi(band, _) = mac { true } else { false } }())
-                guard macHere, before.enabled == true else { continue }
+                let onThisSlot = macOn(after.interface, band: band)
+                let onThisRadio = scope == .radio(band) && { if case .wifi(band, _) = mac { true } else { false } }()
+                guard onThisSlot || onThisRadio, before.enabled == true else { continue }
                 let name = after.ssid ?? edit.name
                 let impact: ThisMacImpact
-                if after.enabled == false {
+                if !onThisSlot {
+                    // Another network on the radio: its settings stay.
+                    let macSSID: String? = if case .wifi(_, let interface?) = mac { slots[interface]?.ssid } else { nil }
+                    impact = macSSID.map(ThisMacImpact.dropsThenJoins) ?? .unknown
+                } else if after.enabled == false {
                     let stays = wireless.radios.contains { $0.band != band && $0.mainNetwork?.ssid == before.ssid && $0.mainNetwork?.isOn == true }
                         || edit.bands.contains { $0 != band } && edit.name == before.ssid
                     impact = stays ? .dropsThenJoins(before.ssid ?? name) : .unknown

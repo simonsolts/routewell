@@ -258,11 +258,9 @@ import RoutewellMock
 @MainActor @Test func macOnEthernetStaysOnEthernet() async throws {
     let (environment, _) = await editEnvironment(.macOnEthernet)
     #expect(environment.wifi.thisMacLink == .ethernet)
-    let change = WiFiChangeSet(networks: [WiFiNetworkDraft(group: try group(environment, MockWiFiService.fast),
-                                                           wireless: try #require(environment.model.wireless), isolate: nil).edit])
-    var edited = change
-    edited.networks[0].hidden = true
-    #expect(environment.wifi.plan(for: edited)?.thisMac == .staysOnEthernet)
+    environment.wifi.openNetwork(try group(environment, MockWiFiService.fast))
+    environment.wifi.draft?.visible = false
+    #expect(environment.wifi.plan(for: try #require(environment.wifi.draft?.change))?.thisMac == .staysOnEthernet)
 }
 
 @MainActor @Test func refreshSkipsWiFiAndHidesFailuresWhileApplying() async throws {
@@ -299,11 +297,31 @@ import RoutewellMock
     await model.session.switchProfile("second", model: model, refresh: environment.refresh) {
         SessionLease(token: $0, backend: MockRouterBackend())
     }.value
-    let deadline = ContinuousClock.now + .seconds(15)
-    // The new session clears the flag at once; the old apply's report is dropped when it ends.
+    // The new session clears the flag and the sheet at once, and the staged
+    // change no longer plans.
     #expect(!controller.isApplying)
-    while controller.run != nil, ContinuousClock.now < deadline { try await Task.sleep(for: .milliseconds(50)) }
-    #expect(controller.run == nil && controller.sheet == nil)
+    #expect(controller.sheet == nil)
+    #expect(controller.plan(for: try #require(controller.pending)) == nil)
+    // The old apply's progress and report do not reach the new session.
+    try await Task.sleep(for: .seconds(2))
+    #expect(!controller.isApplying && controller.sheet == nil && controller.run?.outcome == nil)
+}
+
+@MainActor @Test func outsideEditAfterTheSheetOpensIsAConflict() async throws {
+    let (environment, backend) = await editEnvironment()
+    let controller = environment.wifi
+    controller.openNetwork(try group(environment, MockWiFiService.home))
+    controller.draft?.visible = false
+    let network = try #require(environment.model.wireless?.networks.first { $0.interface == "ra0" })
+    _ = try await backend.mockWiFi.send(.network(WiFiSlotState(
+        interface: "ra0", band: .ghz2_4, ssid: network.ssid, security: network.encryption, password: WiFiPassword("another-password"),
+        hidden: network.hidden, randomBSSID: network.randomBSSID, enabled: true), initialised: true))
+    environment.refresh.refreshNow()
+    await environment.refresh.waitForRefresh()
+    #expect(environment.model.wireless?.networks.first { $0.interface == "ra0" }?.password == WiFiPassword("another-password"))
+    controller.review(try #require(controller.draft?.change))
+    controller.apply()
+    guard case .conflictingExternalEdit = await waitForOutcome(environment) else { Issue.record("not a conflict"); return }
 }
 
 @MainActor @Test func writeWiFiEditSnapshotsWhenAsked() async throws {

@@ -162,6 +162,29 @@ private enum Sample {
         #expect(Sample.plan(visible, mac: .wifi(band: .ghz6, interface: nil)).thisMac == .dropsThenJoins(MockWiFiService.fast))
     }
 
+    @Test func macOnAnotherNetworkOfTheRadioRejoinsItsOwn() {
+        let guest = WiFiChangeSet(networks: [Sample.home { $0.hidden = true; $0.name = "Flint Home Up"; $0.password = WiFiPassword("another-password") }])
+        let wireless = MockWiFiService.wireless(.guestAndIoT)
+        let plan = WiFiApplyPlan(change: guest, wireless: wireless, subnets: nil, devices: [], thisMac: .wifi(band: .ghz2_4, interface: "ra1"))
+        #expect(plan.thisMac == .dropsThenJoins(MockWiFiService.guest))
+    }
+
+    @Test func otherBandsKeepFieldsTheEditLeaves() throws {
+        var wireless = Sample.wireless
+        let other = WiFiPassword("second-password")
+        for radio in wireless.radios.indices {
+            for index in wireless.radios[radio].networks.indices where wireless.radios[radio].networks[index].interface == "rax0" {
+                wireless.radios[radio].networks[index].password = other
+            }
+        }
+        let plan = WiFiApplyPlan(change: WiFiChangeSet(networks: [Sample.fast { $0.hidden = true }]), wireless: wireless,
+                                 subnets: nil, devices: Sample.devices, thisMac: .ethernet)
+        let slots = plan.calls.compactMap { call -> WiFiSlotState? in if case .network(let slot, _) = call { slot } else { nil } }
+        #expect(slots.map(\.interface) == ["rai0", "rax0"])
+        #expect(slots.allSatisfy { $0.hidden == true })
+        #expect(slots.map(\.password) == [Sample.password, other])
+    }
+
     @Test func useOneNameMovesTheBands() {
         // "Flint Home" on every band: with 6 GHz it must be WPA3.
         let edit = Sample.home { $0.bands = [.ghz2_4, .ghz5, .ghz6]; $0.security = .wpa3 }
@@ -304,6 +327,15 @@ private enum Sample {
         #expect(actual.slots.first?.ssid == "Renamed Elsewhere")
         #expect(!report.dispatched)
         #expect(await router.sent.isEmpty)
+    }
+
+    @Test func missingRadioStateIsNotSuccess() async {
+        let router = FakeRouter()
+        await router.edit { wireless in
+            for index in wireless.radios.indices { wireless.radios[index].state = nil }
+        }
+        let report = await Sample.executor(router).apply(visible)
+        guard case .verifiedMismatch = report.outcome else { Issue.record("\(report.outcome)"); return }
     }
 
     @Test func mismatchIsNotSentAgain() async {

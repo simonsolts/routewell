@@ -178,10 +178,14 @@ public struct WiFiApplyExecutor: WiFiControl {
         }
     }
 
-    /// Every changed field equal, and the changed radios up.
+    /// Every changed field equal, and the changed radios up. A radio whose
+    /// changed networks are all turned off may report no state.
     private func verify(_ plan: WiFiApplyPlan, calls: [WiFiCall]) async -> Step {
         let expected = Self.expected(calls)
         let bands = Set(plan.steps.compactMap(\.scope.band))
+        let staysOn = Set(plan.steps.compactMap { step in
+            if case .network(let slot, _) = step.call, slot.enabled == true { step.scope.band } else { nil }
+        })
         let deadline = clock().addingTimeInterval(Self.seconds(policy.verifyDeadline))
         var last: WiFiApplyState?
         var lastFailure: RefreshFailureCategory?
@@ -194,7 +198,8 @@ public struct WiFiApplyExecutor: WiFiControl {
                 lastFailure = nil
                 let up = bands.allSatisfy { band in
                     switch wireless?.radio(band)?.state {
-                    case .ready?, .cac?, nil: true
+                    case .ready?, .cac?: true
+                    case nil: !staysOn.contains(band)
                     default: false
                     }
                 }

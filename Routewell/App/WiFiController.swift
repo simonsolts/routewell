@@ -13,7 +13,17 @@ final class WiFiController {
     private var dismissed: (token: SessionToken?, kinds: Set<WiFiSuggestion.Kind>) = (nil, [])
     var highlighted: Set<MACAddress> = []
     var selectedBand: WirelessBand = .ghz5
-    var sheet: WiFiSheet?
+    /// The open sheet; none once the session it opened in has ended.
+    var sheet: WiFiSheet? {
+        get { editToken == model.session.expectedToken ? openSheet : nil }
+        set { openSheet = newValue }
+    }
+    private var openSheet: WiFiSheet?
+    /// The session the sheet opened in.
+    private var editToken: SessionToken?
+    /// The `get_config` read the sheet opened with. Plans compare against
+    /// it, so an outside edit after that is a conflict, not a new baseline.
+    private(set) var base: WirelessStatus?
     /// The network sheet's fields.
     var draft: WiFiNetworkDraft?
     /// Use One Name's "Keep the name".
@@ -89,26 +99,36 @@ final class WiFiController {
 
     func openNetwork(_ group: WiFiNetworkGroup) {
         guard canEdit, let wireless = model.wireless else { return }
+        begin(wireless)
         draft = WiFiNetworkDraft(group: group, wireless: wireless, isolate: subnets?.first { $0.name == "main" }?.isolate)
         sheet = .network
     }
 
     func openUseOneName() {
-        guard canEdit else { return }
+        guard canEdit, let wireless = model.wireless else { return }
+        begin(wireless)
         keepName = overview?.groups.first { $0.kind == .main }?.name
         sheet = .useOneName
     }
 
-    /// The plan for a change against the values on screen.
+    private func begin(_ wireless: WirelessStatus) {
+        editToken = model.session.expectedToken
+        base = wireless
+        draft = nil
+        pending = nil
+        run = nil
+    }
+
+    /// The plan for a change against the values the sheet opened with.
     func plan(for change: WiFiChangeSet) -> WiFiApplyPlan? {
-        guard let wireless = model.wireless else { return nil }
+        guard editToken == model.session.expectedToken, let wireless = base else { return nil }
         return WiFiApplyPlan(change: change, wireless: wireless, subnets: subnets, devices: overview?.devices ?? [], thisMac: thisMacLink)
     }
 
     /// Use One Name: every main band under the kept name, with its password,
     /// and WPA3 when 6 GHz is among the bands.
     func useOneNameChange(keeping name: String) -> WiFiChangeSet? {
-        guard let wireless = model.wireless, let groups = overview?.groups.filter({ $0.kind == .main }),
+        guard let wireless = base, let groups = overview?.groups.filter({ $0.kind == .main }),
               let kept = groups.first(where: { $0.name == name }) else { return nil }
         let draft = WiFiNetworkDraft(group: kept, wireless: wireless, isolate: nil)
         var edit = draft.original
@@ -130,6 +150,7 @@ final class WiFiController {
         draft = nil
         pending = nil
         run = nil
+        base = nil
     }
 
     func apply() {
@@ -141,20 +162,22 @@ final class WiFiController {
             do {
                 report = try await model.session.routerSession.command(lease) { backend in
                     await backend.wifiControl?.apply(plan) { step in
-                        await MainActor.run { self.run?.step = step }
+                        await MainActor.run {
+                            if lease.token == self.model.session.expectedToken { self.run?.step = step }
+                        }
                     } ?? .capabilityUnavailable
                 }
             } catch {
-                // The session changed: the new session reads Wi-Fi afresh.
                 report = nil
             }
+            // After a session switch the new session owns the Wi-Fi state and
+            // reads Wi-Fi afresh.
+            guard lease.token == model.session.expectedToken else { return }
             model.setWiFiApplying(false)
-            if let report, lease.token == model.session.expectedToken {
+            if let report {
                 run?.outcome = report.outcome
             } else {
-                sheet = nil
-                run = nil
-                pending = nil
+                closeSheet()
             }
             refresh.refreshNow()
         }
