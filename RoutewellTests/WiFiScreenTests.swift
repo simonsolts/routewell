@@ -122,6 +122,26 @@ import RoutewellMock
     #expect(WiFiOverviewPresentation.accessibilityLabel(phone) == "iPhone, 2.4 GHz, -61 dBm")
 }
 
+@MainActor @Test func missingSignalsAreNotCountedAsHealthy() async throws {
+    let environment = await wifiEnvironment()
+    var overview = try #require(environment.wifi.overview)
+    let wireless = try #require(environment.model.wireless)
+    overview.devices[0].signal = nil
+    #expect(WiFiOverviewPresentation(overview: overview, wireless: wireless, suggestions: []).signalLine == "No weak signals · 1 not measured")
+    for index in overview.devices.indices { overview.devices[index].signal = nil }
+    #expect(WiFiOverviewPresentation(overview: overview, wireless: wireless, suggestions: []).signalLine == nil)
+}
+
+@MainActor @Test func aFailedSSHReadShowsItsNoteWhileOldSignalsStay() async throws {
+    let environment = await wifiEnvironment()
+    let model = environment.model
+    #expect(WiFiNotes.freshness(model, airState: .available).failure == nil)
+    model.acceptWiFiAir(.failure(.timeout, attemptedAt: Date()), token: try #require(model.session.expectedToken))
+    #expect(model.wifiAir != nil)
+    #expect(WiFiNotes.freshness(model, airState: .available).failure == .timeout)
+    #expect(WiFiNotes.freshness(model, airState: .notWorking).failure == nil)
+}
+
 @MainActor @Test func otherScenariosChangeCardsAndSuggestions() async throws {
     let after = try page(await wifiEnvironment(.afterSuggestions))
     #expect(after.cards.map(\.name) == ["Flint Home", "Flint Home 7"])
@@ -207,7 +227,10 @@ import RoutewellMock
 
     let lane = WiFiLane(radio: try #require(wireless.radio(.ghz2_4)), autoSkips: air?.autoSkips(device: "MT7990_1_1"))
     #expect(lane.skipped(12) && lane.skipped(13) && !lane.skipped(11))
-    #expect(lane.block == [7, 8, 9, 10, 11])
+    // "auto" gives no width, so no block is drawn.
+    #expect(lane.block == nil)
+    let fiveLane = WiFiLane(radio: try #require(wireless.radio(.ghz5)), autoSkips: nil)
+    #expect(fiveLane.block == [36, 40, 44, 48])
 }
 
 @Test func laneBlocksFollowTheBondingGroups() {

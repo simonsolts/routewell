@@ -148,7 +148,8 @@ struct WiFiOverviewPresentation {
     static let unknownRadius = 120.0
 
     let deviceCount: Int
-    /// "No weak signals", "2 weak signals", or `nil` without signal.
+    /// "No weak signals", "2 weak signals", "No weak signals · 1 not
+    /// measured", or `nil` without signal.
     let signalLine: String?
     let hasWeak: Bool
     let showsRings: Bool
@@ -164,8 +165,17 @@ struct WiFiOverviewPresentation {
         deviceCount = devices.count
         showsRings = overview.hasStations
         let weak = devices.filter { $0.strength == .weak }.count
+        let unmeasured = devices.filter { $0.signal == nil }.count
         hasWeak = weak > 0
-        signalLine = overview.hasStations ? (weak == 0 ? "No weak signals" : "\(weak) weak \(weak == 1 ? "signal" : "signals")") : nil
+        signalLine = if !overview.hasStations || (unmeasured == devices.count && !devices.isEmpty) {
+            nil
+        } else if weak > 0 {
+            "\(weak) weak \(weak == 1 ? "signal" : "signals")"
+        } else if unmeasured > 0 {
+            "No weak signals · \(unmeasured) not measured"
+        } else {
+            "No weak signals"
+        }
         sectorLabels = WirelessBand.allCases.map { band in Sector(band: band, count: devices.filter { $0.band == band }.count) }
         dots = Self.layout(devices)
 
@@ -174,7 +184,7 @@ struct WiFiOverviewPresentation {
                         count: group.deviceCount.map(String.init) ?? WiFiFormat.dash)
         }
         if let link = overview.multiLink {
-            let members = devices.filter { $0.network == link.ssid && $0.kind == .main }.count
+            let members = devices.filter(\.viaLink).count
             let count = overview.hasStations ? String(members) : WiFiFormat.dash
             let card = NetworkCard(name: link.ssid ?? WiFiFormat.dash, kind: .main, multiLink: true,
                                    secured: link.encryption?.isSecured ?? true, bands: link.bands, count: count)
@@ -247,6 +257,7 @@ struct WiFiOverviewPresentation {
 struct WiFiLane: Equatable {
     let band: WirelessBand?
     let channels: [WirelessChannel]
+    /// `nil` when the channel or its width is unknown.
     let block: [Int]?
     let autoSkips: Set<Int>
     let isAuto: Bool
@@ -256,7 +267,9 @@ struct WiFiLane: Equatable {
         channels = radio.channels
         isAuto = radio.isAutoChannel ?? false
         self.autoSkips = Set(autoSkips ?? [])
-        block = WiFiFormat.channel(radio).flatMap { Self.block(band: radio.band, channel: $0, width: radio.widthMHz ?? 20, channels: radio.channels.map(\.number)) }
+        block = WiFiFormat.channel(radio).flatMap { channel in
+            radio.widthMHz.flatMap { Self.block(band: radio.band, channel: channel, width: $0, channels: radio.channels.map(\.number)) }
+        }
     }
 
     /// The channels a width covers around `channel`, as GL's bonding groups
@@ -387,7 +400,7 @@ struct WiFiMultiLinkPresentation: Equatable {
         let bands = network?.bands ?? []
         self.bands = bands
         let wifi7 = devices.filter { $0.generation == .wifi7 }
-        let members = on ? devices.filter { $0.network == network?.ssid && $0.kind == .main } : wifi7
+        let members = on ? devices.filter(\.viaLink) : wifi7
         cards = members.map { device in
             let megabits = device.rate?.megabitsPerSecond
             let rate = megabits.map { String(format: "%.1f", $0 / 1000) } ?? WiFiFormat.dash

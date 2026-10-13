@@ -162,10 +162,10 @@ public enum SSHCommand: Sendable, Hashable {
         case .writeAdGuardConfig:
             "umask 077 && cat > \(Self.adGuardConfigPath).routewell && mv \(Self.adGuardConfigPath).routewell \(Self.adGuardConfigPath)"
         case .wifiInterfaces:
-            "iw dev | awk '$1==\"Interface\"{if(n!=\"\")print n,t,c,f;n=$2;t=\"-\";c=\"-\";f=\"-\"} $1==\"type\"{t=$2} "
+            "o=$(iw dev) || exit; printf '%s\\n' \"$o\" | awk '$1==\"Interface\"{if(n!=\"\")print n,t,c,f;n=$2;t=\"-\";c=\"-\";f=\"-\"} $1==\"type\"{t=$2} "
                 + "$1==\"channel\"{c=$2;f=$3;gsub(/[^0-9]/,\"\",f)} END{if(n!=\"\")print n,t,c,f}'"
         case .wifiStations(let names):
-            "for i in \(names.map(\.description).joined(separator: " ")); do echo \"== $i\"; iw dev \"$i\" station dump; done"
+            "r=0; for i in \(names.map(\.description).joined(separator: " ")); do echo \"== $i\"; iw dev \"$i\" station dump || r=1; done; exit $r"
         case .wifiRadioOptions:
             "uci -q show wireless | grep -E '^wireless\\.[A-Za-z0-9_@-]+(=wifi-(device|iface)$|\\.(ifname|acs_skiplist|dfs_enable|eml_mode|ieee80211k|bss_transition|ieee80211r)=)'; true"
         }

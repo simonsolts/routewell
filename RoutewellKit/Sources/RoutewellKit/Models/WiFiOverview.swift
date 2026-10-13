@@ -51,6 +51,8 @@ public struct WiFiDevice: Sendable, Equatable, Identifiable {
     /// The network name the device uses, when the router says.
     public var network: String?
     public var kind: WiFiNetworkKind?
+    /// True when the device uses the multi-link network.
+    public var viaLink = false
     /// dBm; `nil` without SSH.
     public var signal: Int?
     public var rate: WiFiRate?
@@ -61,13 +63,14 @@ public struct WiFiDevice: Sendable, Equatable, Identifiable {
     public var strength: SignalStrength? { signal.map(SignalStrength.init(dBm:)) }
 
     public init(mac: MACAddress, name: String? = nil, band: WirelessBand? = nil, interface: String? = nil, network: String? = nil,
-                kind: WiFiNetworkKind? = nil, signal: Int? = nil, rate: WiFiRate? = nil, canUseFasterBand: Bool = false) {
+                kind: WiFiNetworkKind? = nil, viaLink: Bool = false, signal: Int? = nil, rate: WiFiRate? = nil, canUseFasterBand: Bool = false) {
         self.mac = mac
         self.name = name
         self.band = band
         self.interface = interface
         self.network = network
         self.kind = kind
+        self.viaLink = viaLink
         self.signal = signal
         self.rate = rate
         self.canUseFasterBand = canUseFasterBand
@@ -165,7 +168,7 @@ public struct WiFiOverview: Sendable, Equatable {
                 let viaLink = slot == nil && band.map { linked?.bands.contains($0) == true } == true
                 return WiFiDevice(mac: station.mac, name: names[station.mac] ?? nil, band: band, interface: station.interface,
                                   network: viaLink ? linked?.ssid : slot?.network.ssid, kind: viaLink ? .main : slot?.network.kind,
-                                  signal: station.signal, rate: station.txRate ?? station.rxRate)
+                                  viaLink: viaLink, signal: station.signal, rate: station.txRate ?? station.rxRate)
             }
         } else {
             hasStations = false

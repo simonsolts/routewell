@@ -253,11 +253,16 @@ private enum WiFiStub {
         guard case .success(let air, _, _) = try await WiFiStub.service([:], runner: partial).air() else { Issue.record("expected air"); return }
         #expect(air.stations == nil)
         #expect(air.interfaces?.count == 1)
+        // A failed interface read never becomes "no devices".
+        let noInterfaces = WiFiSSHRunner(["interfaces": (1, ""), "options": (0, "")])
+        guard case .failure = try await WiFiStub.service([:], runner: noInterfaces).air() else { Issue.record("expected a failure"); return }
     }
 
     @Test func commandsRenderOnlyValidatedNames() throws {
         let names = try ["ra0", "rax0"].map { try #require(WiFiInterfaceName($0)) }
-        #expect(SSHCommand.wifiStations(names).rendered == "for i in ra0 rax0; do echo \"== $i\"; iw dev \"$i\" station dump; done")
+        #expect(SSHCommand.wifiStations(names).rendered
+            == "r=0; for i in ra0 rax0; do echo \"== $i\"; iw dev \"$i\" station dump || r=1; done; exit $r")
+        #expect(SSHCommand.wifiInterfaces.rendered.hasPrefix("o=$(iw dev) || exit; "))
         #expect(WiFiInterfaceName("ra0;reboot") == nil)
         #expect(!SSHCommand.wifiRadioOptions.rendered.contains("key"))
         #expect(!SSHCommand.wifiRadioOptions.rendered.contains("ssid"))
@@ -316,6 +321,16 @@ private enum WiFiStub {
         #expect(guests.groups[2].bands == [.ghz2_4, .ghz5])
         #expect(guests.groups[3].deviceCount == 1)
         #expect(guests.missing == [.multiLink])
+    }
+
+    @Test func onlyLinkStationsUseMultiLinkWhenTheNamesMatch() {
+        var mlo = MockWiFiService.mlo(.multiLinkOn)
+        mlo.networks[0].ssid = "Flint Home Fast"
+        #expect(mlo.main?.isOn == true)
+        let view = WiFiOverview(wireless: MockWiFiService.wireless(.today), mlo: mlo, air: MockWiFiService.air(.today), clients: clients())
+        #expect(view.devices.filter { $0.network == "Flint Home Fast" }.count == 2)
+        #expect(view.devices.filter(\.viaLink).isEmpty)
+        #expect(overview(.multiLinkOn).devices.filter(\.viaLink).count == 2)
     }
 
     @Test func withoutSSHDevicesComeFromTheClientListWithoutSignal() {

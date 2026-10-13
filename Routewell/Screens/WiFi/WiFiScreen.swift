@@ -55,9 +55,10 @@ struct WiFiNotes: View {
 
     var body: some View {
         let state = environment.wifi.airState
-        if model.wifiFreshness.failure != nil || state != .available {
+        let freshness = Self.freshness(model, airState: state)
+        if freshness.failure != nil || state != .available {
             VStack(alignment: .leading, spacing: 6) {
-                RouterFreshnessNote(freshness: model.wifiFreshness)
+                RouterFreshnessNote(freshness: freshness)
                 if let note = Self.sshNote(state) {
                     HStack(spacing: 8) {
                         Image(systemName: "terminal").foregroundStyle(.secondary).accessibilityHidden(true)
@@ -76,6 +77,13 @@ struct WiFiNotes: View {
             .background(.quaternary.opacity(0.5))
             .overlay(alignment: .bottom) { Divider() }
         }
+    }
+
+    /// The RPC reads' freshness, else the SSH reads' while their last values
+    /// are on screen.
+    static func freshness(_ model: AppModel, airState: WiFiAirState) -> Freshness {
+        guard model.wifiFreshness.failure == nil, airState == .available, model.wifiAir != nil else { return model.wifiFreshness }
+        return model.wifiAirFreshness
     }
 
     static func sshNote(_ state: WiFiAirState) -> String? {
