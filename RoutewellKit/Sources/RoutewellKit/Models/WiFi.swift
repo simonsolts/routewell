@@ -118,6 +118,9 @@ public struct WiFiPassword: Sendable, Equatable, CustomStringConvertible, Custom
 
     public init(_ value: String) { self.value = value }
 
+    /// The key itself, for the network sheet's field and its join code only.
+    public var revealed: String { value }
+
     public var description: String { "<redacted>" }
     public var debugDescription: String { "<redacted>" }
     public var customMirror: Mirror { Mirror(self, children: [:]) }

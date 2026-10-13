@@ -23,6 +23,7 @@ final class AppEnvironment {
     let clientActions: ClientActionsController
     let router: RouterController
     let wifi: WiFiController
+    let thisMac = ThisMacMonitor()
     let sshSetup: SSHSetupController
     let trustPrompt = TrustPromptController()
     let onboarding = OnboardingController()
@@ -53,6 +54,7 @@ final class AppEnvironment {
     var mockFirmwareBehavior: MockRouterService.FirmwareBehavior = .unableToCheck
     var mockSSHScenario: MockSSHService.Scenario = .populated
     var mockWiFiScenario: MockWiFiService.Scenario = .today
+    var mockWiFiApplyScenario: MockWiFiService.ApplyScenario = .success
     var mockAdGuardScenario: MockAdGuardScenario = .running
     /// The "Empty" Query Log: AdGuard Home answers with no entries.
     var mockQueryLogEmpty = false
@@ -94,7 +96,7 @@ final class AppEnvironment {
         self.clientActions = ClientActionsController(model: model)
         // Mock baselines stay in memory; live ones use `snapshots.json`.
         self.router = RouterController(model: model, baselines: UpgradeBaselineStore(store: model.mode == .live ? store : nil))
-        self.wifi = WiFiController(model: model)
+        self.wifi = WiFiController(model: model, refresh: refresh)
         self.persistence = PersistenceController(model: model, store: store, credentials: credentials)
         self.trust = TrustController(atomicStore: store, mode: model.mode)
         // Mock copies stay in memory; live ones use `adguard/<profile>/archive.json`.
@@ -119,6 +121,14 @@ final class AppEnvironment {
         refresh.onAdGuardReading = { [weak self] reading, token in await self?.adGuard.observe(reading, token: token) }
         refresh.onAdGuardOverview = { [weak self] lease in try await self?.adGuard.refreshOverview(using: lease) }
         onboarding.environment = self
+        wifi.thisMac = { [weak self] in
+            guard let self else { return (nil, nil) }
+            #if DEBUG
+            if let mock = self.mockBackend?.mockWiFi { return (mock.thisMacOnWiFi, MockWiFiService.thisMac) }
+            #endif
+            return (self.thisMac.onWiFi, self.thisMac.wifiMAC)
+        }
+        if model.mode == .live { thisMac.start() }
         router.routerURL = { [weak self] in
             guard let self, self.model.mode == .live else { return nil }
             return self.persistence.selectedProfile?.liveEndpoint?.url

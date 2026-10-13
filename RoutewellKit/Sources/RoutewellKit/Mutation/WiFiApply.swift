@@ -232,7 +232,7 @@ public struct WiFiApplyExecutor: WiFiControl {
 
     // MARK: Mapping
 
-    static func refusedMessage(_ code: Int) -> String {
+    public static func refusedMessage(_ code: Int) -> String {
         "The router refused the change (code \(code)). Nothing was changed."
     }
 

@@ -248,6 +248,7 @@ final class RefreshController {
                                 continue
                             }
                             if request.area == .wifi {
+                                guard !model.wifiApplying else { continue }
                                 guard let result = try await model.session.routerSession.query(lease, { try await $0.wifi?.snapshot() }) else { continue }
                                 guard !Task.isCancelled, model.session.expectedToken == lease.token else { return }
                                 model.acceptWiFi(result, token: lease.token)
@@ -325,7 +326,7 @@ final class RefreshController {
     /// The SSH reads the visible screen needs.
     private func visibleSSHReads(includeLogs: Bool) -> Set<SSHRead> {
         guard windowVisible else { return [] }
-        if model.selection == .wifi { return [.wifiAir] }
+        if model.selection == .wifi { return model.wifiApplying ? [] : [.wifiAir] }
         if model.selection == .adGuard {
             return model.subpages[.adGuard] == AdGuardTab.instance.rawValue ? [.adGuardResources] : []
         }

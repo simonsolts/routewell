@@ -215,6 +215,17 @@ struct MockSettingsSections: View {
                 Text("Multi-link read fails").tag(MockWiFiService.Scenario.multiLinkFails)
                 Text("Not supported (method not found)").tag(MockWiFiService.Scenario.methodNotFound)
             }
+            Picker("Wi-Fi changes", selection: Binding(
+                get: { environment.mockWiFiApplyScenario },
+                set: { environment.setMockWiFiApplyScenario($0) }
+            )) {
+                Text("Apply and verify").tag(MockWiFiService.ApplyScenario.success)
+                Text("Reply lost, then verified").tag(MockWiFiService.ApplyScenario.replyLost)
+                Text("This Mac does not come back").tag(MockWiFiService.ApplyScenario.macNotBack)
+                Text("Router keeps old values").tag(MockWiFiService.ApplyScenario.mismatch)
+                Text("Router refuses (error code)").tag(MockWiFiService.ApplyScenario.refused)
+                Text("This Mac on Ethernet").tag(MockWiFiService.ApplyScenario.macOnEthernet)
+            }
             HStack {
                 Button("Preview New Host Key…") { environment.sshSetup.preview(.new) }
                 Button("Preview Changed Host Key…") { environment.sshSetup.preview(.changed) }
@@ -222,7 +233,7 @@ struct MockSettingsSections: View {
         } header: {
             Text("Mock router")
         } footer: {
-            Text("The Wi-Fi picker drives the Wi-Fi screen; \"SSH off\" also turns SSH off. Multi-WAN reports no interface state. The SSH picker drives Ports, Storage, Logs, and the AdGuard Home process ID; each change runs the SSH probe once. The host-key previews scan and store nothing. The firmware check runs when you press Check for Updates. The AdGuard Home picker sets the router's AdGuard Home setting and the saved copy; Turn On, Stop, Handle DNS, and Restart change the mock router.")
+            Text("The Wi-Fi picker drives the Wi-Fi screen; \"SSH off\" also turns SSH off. Wi-Fi changes sets how the next apply goes; this Mac is the MacBook Air on Flint Home Fast unless it is on Ethernet, and changing the Wi-Fi picker puts the networks back. Multi-WAN reports no interface state. The SSH picker drives Ports, Storage, Logs, and the AdGuard Home process ID; each change runs the SSH probe once. The host-key previews scan and store nothing. The firmware check runs when you press Check for Updates. The AdGuard Home picker sets the router's AdGuard Home setting and the saved copy; Turn On, Stop, Handle DNS, and Restart change the mock router.")
         }
     }
 

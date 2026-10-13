@@ -182,6 +182,13 @@ final class AppModel {
     /// Wi-Fi devices online, from the Overview's client list.
     var wifiDevicesOnline: Int? { snapshot?.clients.onlineWiFi }
 
+    /// True while a Wi-Fi apply runs: the refresh loop skips the Wi-Fi
+    /// areas, and the Overview areas keep their last values without showing
+    /// failures, because the router may be out of reach for a while.
+    private(set) var wifiApplying = false
+
+    func setWiFiApplying(_ value: Bool) { wifiApplying = value }
+
     func acceptWiFi(_ result: WiFiSnapshotResult, token: SessionToken) {
         guard session.isReady, token == session.expectedToken else { return }
         if let value = apply(result.area, freshness: &wifiFreshness) {
@@ -311,6 +318,7 @@ final class AppModel {
         clientsFreshness = Freshness()
         wifi = nil
         wifiFreshness = Freshness()
+        wifiApplying = false
         wifiCapability = Capability()
         sqm = nil
         sqmFreshness = Freshness()
@@ -348,6 +356,8 @@ final class AppModel {
                 freshness[area] = Freshness(lastSuccess: value.observedAt, lastAttempt: value.observedAt, source: .mock)
             }
         case .result(let result, _): apply(result)
+        case .failure where wifiApplying:
+            break
         case .failure(let category, let date):
             for area in ScreenRefreshPlan.overviewAreas {
                 var state = freshness[area] ?? Freshness()
@@ -390,6 +400,7 @@ final class AppModel {
     }
 
     private func apply<Value>(_ result: AreaRefreshResult<Value>, area: DataArea, value: inout Value) {
+        if wifiApplying, case .failure = result { return }
         if let newValue = apply(result, freshness: &freshness[area, default: Freshness()]) { value = newValue }
     }
 

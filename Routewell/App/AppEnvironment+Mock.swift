@@ -47,6 +47,13 @@ extension AppEnvironment {
         refresh.refreshNow()
     }
 
+    /// How the next Wi-Fi apply goes, and whether this Mac is on Ethernet.
+    func setMockWiFiApplyScenario(_ scenario: MockWiFiService.ApplyScenario) {
+        guard model.mode == .mock, let mockBackend else { return }
+        mockWiFiApplyScenario = scenario
+        mockBackend.mockWiFi.setApplyScenario(scenario)
+    }
+
     func setMockSSHScenario(_ scenario: MockSSHService.Scenario) {
         guard model.mode == .mock, let mockBackend else { return }
         mockSSHScenario = scenario
@@ -149,6 +156,7 @@ extension AppEnvironment {
         backend.mockClientActions.setMechanism(mockClientActionsMechanism)
         backend.mockSSH.setScenario(mockSSHScenario)
         backend.mockWiFi.setScenario(mockWiFiScenario)
+        backend.mockWiFi.setApplyScenario(mockWiFiApplyScenario)
         mockBackend = backend
         let clientsScenario = mockClientsScenario
         let sqm = mockSQMBehavior
