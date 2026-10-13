@@ -72,7 +72,7 @@ public extension AdGuardOverviewService {
 /// The Router screen's RPC reads beyond the Overview areas.
 /// Both calls throw only `CancellationError`; every other failure is a result.
 public protocol RouterService: FeatureService {
-    /// Wi-Fi radios and SSIDs, and the native SQM configuration.
+    /// The native SQM configuration.
     func details() async throws -> RouterDetailsResult
     /// Asks the router whether newer firmware exists. Nothing is downloaded
     /// or installed; Routewell never installs firmware.
@@ -80,17 +80,24 @@ public protocol RouterService: FeatureService {
 }
 
 public struct RouterDetailsResult: Sendable {
-    public var wireless: AreaRefreshResult<WirelessStatus>
     public var sqm: AreaRefreshResult<SQMConfiguration>
     /// `unsupported` only from `-32601` on `sqm.get_config`; any other
     /// error keeps it unknown (fail closed, as RouterPilot does).
     public var sqmCapability: Capability
 
-    public init(wireless: AreaRefreshResult<WirelessStatus>, sqm: AreaRefreshResult<SQMConfiguration>, sqmCapability: Capability) {
-        self.wireless = wireless
+    public init(sqm: AreaRefreshResult<SQMConfiguration>, sqmCapability: Capability) {
         self.sqm = sqm
         self.sqmCapability = sqmCapability
     }
+}
+
+/// The Wi-Fi screen's reads. Both calls throw only `CancellationError`;
+/// every other failure is a result.
+public protocol WiFiService: FeatureService {
+    /// Radios, networks, multi-link, and subnets over RPC.
+    func snapshot() async throws -> WiFiSnapshotResult
+    /// Stations and UCI-only options over SSH. `unavailable` without SSH.
+    func air() async throws -> AreaRefreshResult<WiFiAir>
 }
 
 /// SSH to the router, behind `RouterBackend.ssh`. The backend

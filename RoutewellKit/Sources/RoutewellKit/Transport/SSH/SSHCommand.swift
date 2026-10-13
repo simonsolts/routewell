@@ -44,6 +44,10 @@ public struct NetworkInterfaceName: Sendable, Hashable, Comparable, CustomString
     public static func < (lhs: Self, rhs: Self) -> Bool { lhs.description < rhs.description }
 }
 
+/// A Wi-Fi interface name from the router's own `wifiInterfaces` output,
+/// validated like any other interface name.
+public typealias WiFiInterfaceName = NetworkInterfaceName
+
 /// A fixed, allow-listed remote command. The remote side is a shell, so this
 /// enum is only safe because every rendered string is a constant or a typed
 /// value whose text is re-rendered from validated parts: an `IPv4Literal`
@@ -94,6 +98,15 @@ public enum SSHCommand: Sendable, Hashable {
     /// Replaces `config.yaml` with the bytes sent on stdin: a temporary
     /// file in the same folder, then `mv`.
     case writeAdGuardConfig
+    /// `iw dev` reduced on the router to `name type channel megahertz` per
+    /// interface, so SSIDs and addresses never leave it.
+    case wifiInterfaces
+    /// `iw dev <name> station dump` for names from `wifiInterfaces`, each
+    /// after a `== <name>` line.
+    case wifiStations([WiFiInterfaceName])
+    /// The `wireless` UCI options no RPC reports, filtered on the router,
+    /// so keys and SSIDs never leave it.
+    case wifiRadioOptions
 
     public static let adGuardFolder = "/etc/AdGuardHome"
     public static let adGuardConfigPath = "/etc/AdGuardHome/config.yaml"
@@ -148,6 +161,13 @@ public enum SSHCommand: Sendable, Hashable {
         case .readAdGuardConfig: "cat \(Self.adGuardConfigPath)"
         case .writeAdGuardConfig:
             "umask 077 && cat > \(Self.adGuardConfigPath).routewell && mv \(Self.adGuardConfigPath).routewell \(Self.adGuardConfigPath)"
+        case .wifiInterfaces:
+            "o=$(iw dev) || exit; printf '%s\\n' \"$o\" | awk '$1==\"Interface\"{if(n!=\"\")print n,t,c,f;n=$2;t=\"-\";c=\"-\";f=\"-\"} $1==\"type\"{t=$2} "
+                + "$1==\"channel\"{c=$2;f=$3;gsub(/[^0-9]/,\"\",f)} END{if(n!=\"\")print n,t,c,f}'"
+        case .wifiStations(let names):
+            "r=0; for i in \(names.map(\.description).joined(separator: " ")); do echo \"== $i\"; iw dev \"$i\" station dump || r=1; done; exit $r"
+        case .wifiRadioOptions:
+            "uci -q show wireless | grep -E '^wireless\\.[A-Za-z0-9_@-]+(=wifi-(device|iface)$|\\.(ifname|acs_skiplist|dfs_enable|eml_mode|ieee80211k|bss_transition|ieee80211r)=)'; true"
         }
     }
 }

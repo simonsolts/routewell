@@ -1,0 +1,32 @@
+== ra0
+Station 02:00:00:00:00:01 (on ra0)
+	inactive time:	900 ms
+	rx bytes:	1000
+	signal:  	-46 [-46, -48] dBm
+	tx bitrate:	65.0 MBit/s MCS 7
+	rx bitrate:	54.0 MBit/s
+	connected time:	50000 seconds
+Station 02:00:00:00:00:02 (on ra0)
+	inactive time:	40 ms
+	signal:  	-61 [-59, -61] dBm
+	tx bitrate:	286.8 MBit/s HE-MCS 11 HE-NSS 2 HE-GI 0 HE-DCM 0
+	connected time:	7200 seconds
+Station 02:00:00:00:00:03 (on ra0)
+	signal:  	-72 dBm
+	tx bitrate:	1.0 MBit/s
+== ra15
+== rai0
+Station 02:00:00:00:00:04 (on rai0)
+	signal:  	-55 [-55, -57] dBm
+	tx bitrate:	866.7 MBit/s VHT-MCS 9 80MHz short GI VHT-NSS 2
+== rax0
+Station 02:00:00:00:00:05 (on rax0)
+	inactive time:	120 ms
+	signal:  	-61 [-59, -61, -63] dBm
+	tx bitrate:	2161.3 MBit/s 160MHz EHT-MCS 10 EHT-NSS 2 EHT-GI 0
+	rx bitrate:	1729.0 MBit/s 160MHz EHT-MCS 8 EHT-NSS 2 EHT-GI 0
+	connected time:	9000 seconds
+Station 02:00:00:00:00:06 (on rax0)
+	tx bitrate:	1200.9 MBit/s 160MHz HE-MCS 11 HE-NSS 1 HE-GI 0
+Station not-a-mac (on rax0)
+	signal:  	-50 dBm

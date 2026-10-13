@@ -146,10 +146,8 @@ final class AppModel {
     }
     // MARK: Router
 
-    /// The last successful Wi-Fi and SQM reads in this session. A failed
-    /// refresh keeps them; a session switch clears them.
-    private(set) var wireless: WirelessStatus?
-    private(set) var wirelessFreshness = Freshness()
+    /// The last successful SQM read in this session. A failed refresh keeps
+    /// it; a session switch clears it.
     private(set) var sqm: SQMConfiguration?
     private(set) var sqmFreshness = Freshness()
     private(set) var sqmCapability = Capability()
@@ -161,7 +159,6 @@ final class AppModel {
 
     func acceptRouterDetails(_ result: RouterDetailsResult, token: SessionToken) {
         guard session.isReady, token == session.expectedToken else { return }
-        if let value = apply(result.wireless, freshness: &wirelessFreshness) { wireless = value }
         if let value = apply(result.sqm, freshness: &sqmFreshness) {
             sqm = value
         } else if result.sqmCapability.state == .unsupported {
@@ -169,6 +166,36 @@ final class AppModel {
             sqm = nil
         }
         sqmCapability = result.sqmCapability
+    }
+
+    // MARK: Wi-Fi
+
+    /// The last successful Wi-Fi reads in this session. A failed refresh
+    /// keeps them; a session switch clears them.
+    private(set) var wifi: WiFiSnapshot?
+    private(set) var wifiFreshness = Freshness()
+    private(set) var wifiCapability = Capability()
+    private(set) var wifiAir: WiFiAir?
+    private(set) var wifiAirFreshness = Freshness()
+
+    var wireless: WirelessStatus? { try? wifi?.wireless.get() }
+    /// Wi-Fi devices online, from the Overview's client list.
+    var wifiDevicesOnline: Int? { snapshot?.clients.onlineByBand.map { $0.values.reduce(0, +) } }
+
+    func acceptWiFi(_ result: WiFiSnapshotResult, token: SessionToken) {
+        guard session.isReady, token == session.expectedToken else { return }
+        if let value = apply(result.area, freshness: &wifiFreshness) {
+            wifi = value
+        } else if result.capability.state == .unsupported {
+            // `-32601` proves the API is absent: no earlier value stays.
+            wifi = nil
+        }
+        if result.capability.state != .unknown || wifiCapability.state == .unknown { wifiCapability = result.capability }
+    }
+
+    func acceptWiFiAir(_ result: AreaRefreshResult<WiFiAir>, token: SessionToken) {
+        guard session.isReady, token == session.expectedToken else { return }
+        Self.apply(result, to: &wifiAir, freshness: &wifiAirFreshness)
     }
 
     // MARK: SSH
@@ -208,6 +235,8 @@ final class AppModel {
         routerLogsFreshness = Freshness()
         adGuardProcessID = .unknown
         adGuardResources = nil
+        wifiAir = nil
+        wifiAirFreshness = Freshness()
     }
 
     func acceptSSHProbe(_ probe: SSHProbeResult, token: SessionToken) {
@@ -280,8 +309,9 @@ final class AppModel {
         capabilities = [:]
         clientInventory = nil
         clientsFreshness = Freshness()
-        wireless = nil
-        wirelessFreshness = Freshness()
+        wifi = nil
+        wifiFreshness = Freshness()
+        wifiCapability = Capability()
         sqm = nil
         sqmFreshness = Freshness()
         sqmCapability = Capability()

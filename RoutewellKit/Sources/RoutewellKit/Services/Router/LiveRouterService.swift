@@ -1,7 +1,6 @@
 import Foundation
 
-/// Live Router service: RPC `wifi get_config` and `wifi get_status` for the
-/// Wi-Fi segment, `sqm get_config` for SQM, and `upgrade
+/// Live Router service: RPC `sqm get_config` for SQM, and `upgrade
 /// check_firmware_online` on demand. Everything else on the Router screen
 /// comes from the Overview areas' shared reads.
 public actor LiveRouterService: RouterService {
@@ -13,40 +12,20 @@ public actor LiveRouterService: RouterService {
         self.clock = clock
     }
 
-    static let wifiConfig = GLiNetRPCCall(object: "wifi", method: "get_config", params: .object([:]))
-    static let wifiStatus = GLiNetRPCCall(object: "wifi", method: "get_status", params: .object([:]))
     static let sqmConfig = GLiNetRPCCall(object: "sqm", method: "get_config", params: .object([:]))
     static let firmwareCheck = GLiNetRPCCall(object: "upgrade", method: "check_firmware_online", params: .object([:]))
 
     public func probe() async -> Capability {
-        switch try? await rpc.checkedCall(Self.wifiConfig) {
+        switch try? await rpc.checkedCall(Self.sqmConfig) {
         case .success?: Capability(.supported, evidence: .successfulResponse, observedAt: clock())
-        case .failure(.methodNotFound)?: Capability(.unsupported, evidence: .methodNotFound(method: "wifi.get_config"), observedAt: clock())
+        case .failure(.methodNotFound)?: Capability(.unsupported, evidence: .methodNotFound(method: "sqm.get_config"), observedAt: clock())
         default: Capability()
         }
     }
 
     public func details() async throws -> RouterDetailsResult {
         let attemptedAt = clock()
-        async let config = rpc.checkedCall(Self.wifiConfig)
-        async let status = rpc.checkedCall(Self.wifiStatus)
-        async let sqm = rpc.checkedCall(Self.sqmConfig)
-        let configResult = try await config
-        let statusResult = try await status
-        let sqmResult = try await sqm
-
-        let wireless: AreaRefreshResult<WirelessStatus>
-        switch configResult {
-        case .success(let json):
-            // A failed `get_status` only loses the current channel.
-            if let parsed = WirelessParser.parse(config: json, status: try? statusResult.get()) {
-                wireless = .success(parsed, observedAt: attemptedAt, source: .routerRPC)
-            } else {
-                wireless = .failure(.malformedResponse, attemptedAt: attemptedAt)
-            }
-        case .failure(let error):
-            wireless = .failure(FailureMapping.category(for: error), attemptedAt: attemptedAt)
-        }
+        let sqmResult = try await rpc.checkedCall(Self.sqmConfig)
 
         let sqmArea: AreaRefreshResult<SQMConfiguration>
         let capability: Capability
@@ -66,7 +45,7 @@ public actor LiveRouterService: RouterService {
             sqmArea = .failure(FailureMapping.category(for: error), attemptedAt: attemptedAt)
             capability = Capability()
         }
-        return RouterDetailsResult(wireless: wireless, sqm: sqmArea, sqmCapability: capability)
+        return RouterDetailsResult(sqm: sqmArea, sqmCapability: capability)
     }
 
     public func checkFirmware() async throws -> FirmwareCheck {

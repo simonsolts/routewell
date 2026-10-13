@@ -203,6 +203,18 @@ struct MockSettingsSections: View {
                 Text("Probe times out").tag(MockSSHService.Scenario.probeTimesOut)
                 Text("Host key changed").tag(MockSSHService.Scenario.hostKeyChanged)
             }
+            Picker("Wi-Fi", selection: Binding(
+                get: { environment.mockWiFiScenario },
+                set: { environment.setMockWiFiScenario($0) }
+            )) {
+                Text("Today").tag(MockWiFiService.Scenario.today)
+                Text("After suggestions").tag(MockWiFiService.Scenario.afterSuggestions)
+                Text("Guest and IoT on").tag(MockWiFiService.Scenario.guestAndIoT)
+                Text("Multi-link on").tag(MockWiFiService.Scenario.multiLinkOn)
+                Text("SSH off").tag(MockWiFiService.Scenario.sshOff)
+                Text("Multi-link read fails").tag(MockWiFiService.Scenario.multiLinkFails)
+                Text("Not supported (method not found)").tag(MockWiFiService.Scenario.methodNotFound)
+            }
             HStack {
                 Button("Preview New Host Key…") { environment.sshSetup.preview(.new) }
                 Button("Preview Changed Host Key…") { environment.sshSetup.preview(.changed) }
@@ -210,7 +222,7 @@ struct MockSettingsSections: View {
         } header: {
             Text("Mock router")
         } footer: {
-            Text("Wi-Fi always shows three populated bands. Multi-WAN reports no interface state. The SSH picker drives Ports, Storage, Logs, and the AdGuard Home process ID; each change runs the SSH probe once. The host-key previews scan and store nothing. The firmware check runs when you press Check for Updates. The AdGuard Home picker sets the router's AdGuard Home setting and the saved copy; Turn On, Stop, Handle DNS, and Restart change the mock router.")
+            Text("The Wi-Fi picker drives the Wi-Fi screen; \"SSH off\" also turns SSH off. Multi-WAN reports no interface state. The SSH picker drives Ports, Storage, Logs, and the AdGuard Home process ID; each change runs the SSH probe once. The host-key previews scan and store nothing. The firmware check runs when you press Check for Updates. The AdGuard Home picker sets the router's AdGuard Home setting and the saved copy; Turn On, Stop, Handle DNS, and Restart change the mock router.")
         }
     }
 

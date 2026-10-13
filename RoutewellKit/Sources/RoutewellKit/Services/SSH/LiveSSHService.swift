@@ -123,20 +123,26 @@ public actor LiveSSHService: SSHService {
         return resources
     }
 
-    struct Output: Sendable {
-        let stdout: String
-        let stderr: String
-        let exitStatus: Int32
+    private func read(_ command: SSHCommand, allowedExitStatuses: Set<Int32> = [0]) async throws -> Result<SSHOutput, SSHFailure> {
+        try await runner.read(command, limits: Self.limits, allowedExitStatuses: allowedExitStatuses)
     }
+}
 
+struct SSHOutput: Sendable {
+    let stdout: String
+    let stderr: String
+    let exitStatus: Int32
+}
+
+extension SSHCommandRunning {
     /// Runs one command. Cancellation propagates; every other failure is a
     /// typed result. A remote exit status outside `allowedExitStatuses` fails.
-    private func read(_ command: SSHCommand, allowedExitStatuses: Set<Int32> = [0]) async throws -> Result<Output, SSHFailure> {
+    func read(_ command: SSHCommand, limits: ProcessLimits, allowedExitStatuses: Set<Int32> = [0]) async throws -> Result<SSHOutput, SSHFailure> {
         do {
-            let result = try await runner.run(command, limits: Self.limits)
+            let result = try await run(command, limits: limits)
             guard allowedExitStatuses.contains(result.exitStatus) else { return .failure(.commandFailed(exitStatus: result.exitStatus)) }
-            return .success(Output(stdout: String(decoding: result.stdout, as: UTF8.self),
-                                   stderr: String(decoding: result.stderr, as: UTF8.self), exitStatus: result.exitStatus))
+            return .success(SSHOutput(stdout: String(decoding: result.stdout, as: UTF8.self),
+                                      stderr: String(decoding: result.stderr, as: UTF8.self), exitStatus: result.exitStatus))
         } catch let failure as SSHFailure {
             if Task.isCancelled { throw CancellationError() }
             return .failure(failure)

@@ -3,7 +3,7 @@ import SwiftUI
 enum SidebarGroup: String, CaseIterable { case monitoring = "Monitoring", operations = "Operations" }
 
 enum SidebarDestination: String, CaseIterable, Identifiable {
-    case overview, router, network, clients, adGuard, analytics
+    case overview, router, wifi, network, clients, adGuard, analytics
     case maintenance, notifications, applications, vpn, logs
 
     var id: Self { self }
@@ -11,6 +11,7 @@ enum SidebarDestination: String, CaseIterable, Identifiable {
         switch self {
         case .overview: "Overview"
         case .router: "Router"
+        case .wifi: "Wi-Fi"
         case .network: "Network"
         case .clients: "Clients"
         case .adGuard: "AdGuard Home"
@@ -26,6 +27,7 @@ enum SidebarDestination: String, CaseIterable, Identifiable {
         switch self {
         case .overview: "gauge.with.dots.needle.33percent"
         case .router: "wifi.router"
+        case .wifi: "wifi"
         case .network: "globe"
         case .clients: "person.2"
         case .adGuard: "shield"
@@ -39,7 +41,7 @@ enum SidebarDestination: String, CaseIterable, Identifiable {
     }
     var group: SidebarGroup {
         switch self {
-        case .overview, .router, .network, .clients, .adGuard, .analytics: .monitoring
+        case .overview, .router, .wifi, .network, .clients, .adGuard, .analytics: .monitoring
         default: .operations
         }
     }
@@ -53,13 +55,21 @@ enum SidebarDestination: String, CaseIterable, Identifiable {
         case .analytics: ["Overview", "Data", "DNS"]
         case .network: ["Overview", "Map", "Wi-Fi", "DHCP", "Ports", "Health", "Quality"]
         case .router: RouterSegment.allCases.map(\.rawValue)
+        case .wifi: WiFiTab.allCases.map(\.rawValue)
         case .maintenance: ["Operations", "Health", "Snapshots", "Reports", "Support"]
         default: []
         }
     }
-    /// Clients shows its count above the table; Router has ten segments and
-    /// no subtitle in any mockup. AdGuard Home shows the router model.
+    /// Clients shows its count above the table; Router has nine segments and
+    /// no subtitle in any mockup. AdGuard Home and Wi-Fi show the router model.
     var showsSubtitle: Bool { self != .clients && self != .router }
+}
+
+/// The Wi-Fi screen's tabs.
+enum WiFiTab: String, CaseIterable {
+    case overview = "Overview"
+    case radios = "Radios"
+    case multiLink = "Multi-link"
 }
 
 /// The AdGuard Home screen's tabs.

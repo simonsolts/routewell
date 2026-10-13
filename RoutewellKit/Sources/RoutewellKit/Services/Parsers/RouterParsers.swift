@@ -1,42 +1,5 @@
 import Foundation
 
-/// `wifi get_config` joined with `wifi get_status`. On firmware 4.9.1
-/// `get_config` `band` is `2G`/`5G`/`6G`, `get_status`
-/// `band` is `2g`/`5g`/`6g`, so the join ignores case.
-public enum WirelessParser {
-    /// `nil` when `get_config` has no `res` array (a malformed reply).
-    public static func parse(config: JSONValue, status: JSONValue?) -> WirelessStatus? {
-        guard let radios = config["res"]?.array else { return nil }
-        var channels: [WirelessBand: Int] = [:]
-        for radio in status?["res"]?.array ?? [] {
-            if let band = WirelessBand.parse(radio["band"]?.string), let channel = radio["channel"]?.int, channel > 0 {
-                channels[band] = channels[band] ?? channel
-            }
-        }
-        return WirelessStatus(radios: radios.map { radio in
-            let band = WirelessBand.parse(radio["band"]?.string)
-            return WirelessRadio(
-                device: text(radio["device"]),
-                band: band,
-                configuredChannel: radio["channel"]?.int,
-                currentChannel: band.flatMap { channels[$0] },
-                htmode: text(radio["htmode"]),
-                txPower: text(radio["txpower"]) ?? radio["txpower"]?.double.map { $0.formatted() },
-                networks: (radio["ifaces"]?.array ?? []).map { iface in
-                    WirelessNetwork(interface: text(iface["name"]), ssid: text(iface["ssid"]),
-                                    enabled: iface["enabled"]?.bool.map(Observed.value) ?? .unknown,
-                                    guest: iface["guest"]?.bool, iot: iface["iot"]?.bool)
-                }
-            )
-        })
-    }
-
-    private static func text(_ value: JSONValue?) -> String? {
-        guard let raw = value?.string?.trimmingCharacters(in: .whitespacesAndNewlines), !raw.isEmpty else { return nil }
-        return raw
-    }
-}
-
 public enum SQMParser {
     /// `nil` when the reply is not an object. Missing fields stay unknown.
     public static func parse(_ result: JSONValue) -> SQMConfiguration? {

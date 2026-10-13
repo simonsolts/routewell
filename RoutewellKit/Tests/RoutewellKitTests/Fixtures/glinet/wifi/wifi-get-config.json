@@ -1,0 +1,471 @@
+{
+ "bandmode": [],
+ "dfs_support": true,
+ "res": [
+  {
+   "band": "2G",
+   "channel": 0,
+   "channels": [
+    {
+     "channel": 1,
+     "dfs": false,
+     "psc": false
+    },
+    {
+     "channel": 2,
+     "dfs": false,
+     "psc": false
+    },
+    {
+     "channel": 3,
+     "dfs": false,
+     "psc": false
+    },
+    {
+     "channel": 4,
+     "dfs": false,
+     "psc": false
+    },
+    {
+     "channel": 5,
+     "dfs": false,
+     "psc": false
+    },
+    {
+     "channel": 6,
+     "dfs": false,
+     "psc": false
+    },
+    {
+     "channel": 7,
+     "dfs": false,
+     "psc": false
+    },
+    {
+     "channel": 8,
+     "dfs": false,
+     "psc": false
+    },
+    {
+     "channel": 9,
+     "dfs": false,
+     "psc": false
+    },
+    {
+     "channel": 10,
+     "dfs": false,
+     "psc": false
+    },
+    {
+     "channel": 11,
+     "dfs": false,
+     "psc": false
+    },
+    {
+     "channel": 12,
+     "dfs": false,
+     "psc": false
+    },
+    {
+     "channel": 13,
+     "dfs": false,
+     "psc": false
+    }
+   ],
+   "device": "MT7990_1_1",
+   "encryptions": [
+    "none",
+    "psk2",
+    "psk-mixed",
+    "sae",
+    "sae-mixed"
+   ],
+   "htmode": "auto",
+   "htmodes": {
+    "11ax/be": 40,
+    "11b/g/n/ax/be": 40,
+    "auto": true
+   },
+   "hwmode": "11b/g/n/ax/be",
+   "hwmodes": [
+    "11b/g/n/ax/be",
+    "11ax/be"
+   ],
+   "ifaces": [
+    {
+     "bssid": "[REDACTED]",
+     "enabled": true,
+     "encryption": "sae-mixed",
+     "guest": false,
+     "hidden": false,
+     "init": true,
+     "iot": false,
+     "key": "[REDACTED]",
+     "name": "ra0",
+     "random_bssid": "[REDACTED]",
+     "ssid": "Flint Home"
+    },
+    {
+     "bssid": "[REDACTED]",
+     "enabled": false,
+     "encryption": "sae-mixed",
+     "guest": true,
+     "hidden": false,
+     "init": false,
+     "iot": false,
+     "key": "[REDACTED]",
+     "name": "ra1",
+     "random_bssid": "[REDACTED]",
+     "ssid": "Flint Home Guest"
+    },
+    {
+     "bssid": "[REDACTED]",
+     "enabled": false,
+     "encryption": "psk2",
+     "guest": false,
+     "hidden": false,
+     "init": false,
+     "iot": true,
+     "key": "[REDACTED]",
+     "name": "ra3",
+     "random_bssid": "[REDACTED]",
+     "ssid": "Flint Home IoT"
+    }
+   ],
+   "txpower": "Max"
+  },
+  {
+   "band": "5G",
+   "channel": 0,
+   "channels": [
+    {
+     "channel": 36,
+     "dfs": false,
+     "psc": false
+    },
+    {
+     "channel": 40,
+     "dfs": false,
+     "psc": false
+    },
+    {
+     "channel": 44,
+     "dfs": false,
+     "psc": false
+    },
+    {
+     "channel": 48,
+     "dfs": false,
+     "psc": false
+    },
+    {
+     "channel": 52,
+     "dfs": true,
+     "psc": false
+    },
+    {
+     "channel": 56,
+     "dfs": true,
+     "psc": false
+    },
+    {
+     "channel": 60,
+     "dfs": true,
+     "psc": false
+    },
+    {
+     "channel": 64,
+     "dfs": true,
+     "psc": false
+    },
+    {
+     "channel": 100,
+     "dfs": true,
+     "psc": false
+    },
+    {
+     "channel": 104,
+     "dfs": true,
+     "psc": false
+    },
+    {
+     "channel": 108,
+     "dfs": true,
+     "psc": false
+    },
+    {
+     "channel": 112,
+     "dfs": true,
+     "psc": false
+    },
+    {
+     "channel": 116,
+     "dfs": true,
+     "psc": false
+    },
+    {
+     "channel": 120,
+     "dfs": true,
+     "psc": false
+    },
+    {
+     "channel": 124,
+     "dfs": true,
+     "psc": false
+    },
+    {
+     "channel": 128,
+     "dfs": true,
+     "psc": false
+    },
+    {
+     "channel": 132,
+     "dfs": true,
+     "psc": false
+    },
+    {
+     "channel": 136,
+     "dfs": true,
+     "psc": false
+    },
+    {
+     "channel": 140,
+     "dfs": true,
+     "psc": false
+    }
+   ],
+   "device": "MT7990_1_2",
+   "encryptions": [
+    "none",
+    "psk2",
+    "psk-mixed",
+    "sae",
+    "sae-mixed"
+   ],
+   "htmode": "80",
+   "htmodes": {
+    "11a/n/ac/ax/be": 160,
+    "11ac/ax/be": 160,
+    "11ax/be": 160,
+    "auto": false
+   },
+   "hwmode": "11a/n/ac/ax/be",
+   "hwmodes": [
+    "11a/n/ac/ax/be",
+    "11ac/ax/be",
+    "11ax/be"
+   ],
+   "ifaces": [
+    {
+     "bssid": "[REDACTED]",
+     "enabled": true,
+     "encryption": "sae",
+     "guest": false,
+     "hidden": false,
+     "init": true,
+     "iot": false,
+     "key": "[REDACTED]",
+     "name": "rai0",
+     "random_bssid": "[REDACTED]",
+     "ssid": "Flint Home Fast"
+    },
+    {
+     "bssid": "[REDACTED]",
+     "enabled": false,
+     "encryption": "sae-mixed",
+     "guest": true,
+     "hidden": false,
+     "init": false,
+     "iot": false,
+     "key": "[REDACTED]",
+     "name": "rai1",
+     "random_bssid": "[REDACTED]",
+     "ssid": "Flint Home Guest"
+    },
+    {
+     "bssid": "[REDACTED]",
+     "enabled": false,
+     "encryption": "psk2",
+     "guest": false,
+     "hidden": false,
+     "init": false,
+     "iot": true,
+     "key": "[REDACTED]",
+     "name": "rai3",
+     "random_bssid": "[REDACTED]",
+     "ssid": "Flint Home IoT"
+    }
+   ],
+   "txpower": "Max"
+  },
+  {
+   "band": "6G",
+   "chan_6g_only_psc": true,
+   "channel": 0,
+   "channels": [
+    {
+     "channel": 1,
+     "dfs": false,
+     "psc": false
+    },
+    {
+     "channel": 5,
+     "dfs": false,
+     "psc": true
+    },
+    {
+     "channel": 9,
+     "dfs": false,
+     "psc": false
+    },
+    {
+     "channel": 13,
+     "dfs": false,
+     "psc": false
+    },
+    {
+     "channel": 17,
+     "dfs": false,
+     "psc": false
+    },
+    {
+     "channel": 21,
+     "dfs": false,
+     "psc": true
+    },
+    {
+     "channel": 25,
+     "dfs": false,
+     "psc": false
+    },
+    {
+     "channel": 29,
+     "dfs": false,
+     "psc": false
+    },
+    {
+     "channel": 33,
+     "dfs": false,
+     "psc": false
+    },
+    {
+     "channel": 37,
+     "dfs": false,
+     "psc": true
+    },
+    {
+     "channel": 41,
+     "dfs": false,
+     "psc": false
+    },
+    {
+     "channel": 45,
+     "dfs": false,
+     "psc": false
+    },
+    {
+     "channel": 49,
+     "dfs": false,
+     "psc": false
+    },
+    {
+     "channel": 53,
+     "dfs": false,
+     "psc": true
+    },
+    {
+     "channel": 57,
+     "dfs": false,
+     "psc": false
+    },
+    {
+     "channel": 61,
+     "dfs": false,
+     "psc": false
+    },
+    {
+     "channel": 65,
+     "dfs": false,
+     "psc": false
+    },
+    {
+     "channel": 69,
+     "dfs": false,
+     "psc": true
+    },
+    {
+     "channel": 73,
+     "dfs": false,
+     "psc": false
+    },
+    {
+     "channel": 77,
+     "dfs": false,
+     "psc": false
+    },
+    {
+     "channel": 81,
+     "dfs": false,
+     "psc": false
+    },
+    {
+     "channel": 85,
+     "dfs": false,
+     "psc": true
+    },
+    {
+     "channel": 89,
+     "dfs": false,
+     "psc": false
+    },
+    {
+     "channel": 93,
+     "dfs": false,
+     "psc": false
+    }
+   ],
+   "device": "MT7990_1_3",
+   "encryptions": [
+    "sae"
+   ],
+   "htmode": "160",
+   "htmodes": {
+    "11ax/be": 320,
+    "auto": false
+   },
+   "hwmode": "11ax/be",
+   "hwmodes": [
+    "11ax/be"
+   ],
+   "ifaces": [
+    {
+     "bssid": "[REDACTED]",
+     "enabled": true,
+     "encryption": "sae",
+     "guest": false,
+     "hidden": false,
+     "init": true,
+     "iot": false,
+     "key": "[REDACTED]",
+     "name": "rax0",
+     "random_bssid": "[REDACTED]",
+     "ssid": "Flint Home Fast"
+    },
+    {
+     "bssid": "[REDACTED]",
+     "enabled": false,
+     "encryption": "sae",
+     "guest": true,
+     "hidden": false,
+     "init": false,
+     "iot": false,
+     "key": "[REDACTED]",
+     "name": "rax1",
+     "random_bssid": "[REDACTED]",
+     "ssid": "Flint Home Guest"
+    }
+   ],
+   "txpower": "Max"
+  }
+ ]
+}

@@ -95,7 +95,7 @@ public struct HealthEvaluator: Sendable {
 
     private func destination(for area: DataArea) -> DestinationKey {
         switch area {
-        case .router, .routerDetail, .ssh: .router
+        case .router, .routerDetail, .ssh, .wifi, .wifiAir: .router
         case .internet: .network
         case .adGuard, .adGuardOverview: .protection
         case .clients: .clients

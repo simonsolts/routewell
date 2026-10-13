@@ -36,6 +36,9 @@ struct LiveFixtureRecorder: FixtureRecordableBackend {
                 let listing = try await sshRunner.run(.networkInterfaces, limits: LiveSSHService.limits)
                 let names = InterfaceParser.parseEnumeration(String(decoding: listing.stdout, as: UTF8.self)).map(\.name)
                 command = .interfaceTelemetry(names)
+            } else if call.method == FixtureRecordingPlan.wifiStationsKey {
+                let listing = try await sshRunner.run(.wifiInterfaces, limits: LiveSSHService.limits)
+                command = .wifiStations(WiFiInterfaceParser.parse(String(decoding: listing.stdout, as: UTF8.self)).map(\.name))
             } else if let fixed = FixtureRecordingPlan.sshReads[call.method] {
                 command = fixed
             } else {

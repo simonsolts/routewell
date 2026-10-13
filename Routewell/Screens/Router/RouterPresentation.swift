@@ -1,9 +1,9 @@
 import Foundation
 import RoutewellKit
 
-/// The Router toolbar's ten segments, in the mockup's order.
+/// The Router toolbar's nine segments, in the mockup's order.
 enum RouterSegment: String, CaseIterable {
-    case overview = "Overview", ports = "Ports", wifi = "Wi-Fi", multiWAN = "Multi-WAN", dns = "DNS"
+    case overview = "Overview", ports = "Ports", multiWAN = "Multi-WAN", dns = "DNS"
     case sqm = "SQM", performance = "Performance", storage = "Storage", firmware = "Firmware", logs = "Logs"
 
     /// No RPC exists for these; they read over SSH.
@@ -24,6 +24,8 @@ struct RouterRowModel: Equatable {
     let value: String
     var tone: StatusTone? = nil
     var monospaced = false
+    /// The row opens this destination.
+    var opens: SidebarDestination? = nil
 }
 
 enum RouterFormat {
@@ -212,7 +214,7 @@ struct RouterOverviewModel: Equatable {
         services = [
             adGuardRow,
             RouterRowModel(label: "VPN", detail: "VPN status is read in a later update", value: RouterFormat.unknown, tone: .unknown),
-            RouterRowModel(label: "Wi-Fi", detail: "Signal strength is not reported by the router", value: wifiValue),
+            RouterRowModel(label: "Wi-Fi", value: wifiValue, opens: .wifi),
             RouterRowModel(label: "Storage", value: storageValue),
         ]
     }
@@ -379,81 +381,6 @@ struct RouterDNSModel: Equatable {
         case .value(.direct): "Client → Router → Upstream"
         default: RouterFormat.unknown
         }
-    }
-}
-
-// MARK: - Wi-Fi
-
-struct RouterWiFiModel: Equatable {
-    struct Band: Equatable {
-        let title: String
-        let radio: String
-        let rows: [[RouterCell]]
-    }
-
-    static let columns = ["SSID", "Interface", "State", "Band", "Channel", "Width", "Clients", "TX power"]
-    let strip: [MetricModel]
-    let bands: [Band]
-
-    init(wireless: WirelessStatus, onlineByBand: [WirelessBand: Int]?, signals: [Int]?) {
-        let networks = wireless.networks
-        let enabled = wireless.enabledNetworkCount
-        let disabled = networks.filter { $0.enabled == .value(false) }.count
-        let clients = onlineByBand.map { $0.values.reduce(0, +) }
-        let perBand = onlineByBand.map { counts in
-            WirelessBand.allCases.compactMap { band in counts[band].flatMap { $0 > 0 ? "\($0) on \(RouterFormat.band(band))" : nil } }.joined(separator: " · ")
-        }
-        let weak = signals.map { $0.filter { $0 < -75 }.count }
-        strip = [
-            MetricModel(title: "Radios", value: wireless.radios.count.formatted(),
-                        detail: RouterFormat.bandList(wireless.radios.compactMap(\.band)) ?? "Bands unknown"),
-            MetricModel(title: "Networks", value: networks.count.formatted(), detail: "\(enabled) active · \(disabled) disabled"),
-            MetricModel(title: "Associated clients", value: clients?.formatted() ?? RouterFormat.unknown,
-                        detail: perBand.flatMap { $0.isEmpty ? nil : $0 } ?? (clients == 0 ? "No Wi-Fi clients online" : "Per-band counts unknown")),
-            MetricModel(title: "Weak clients", value: weak?.formatted() ?? RouterFormat.unknown,
-                        detail: weak == nil ? "Signal is not reported by the router" : "Below −75 dBm"),
-        ]
-        bands = wireless.radios.map { radio in
-            Band(title: RouterFormat.band(radio.band), radio: radio.device ?? "", rows: radio.networks.map { network in
-                Self.row(network, radio: radio, onlineByBand: onlineByBand)
-            })
-        }
-    }
-
-    static func row(_ network: WirelessNetwork, radio: WirelessRadio, onlineByBand: [WirelessBand: Int]?) -> [RouterCell] {
-        let state: RouterCell = switch network.enabled {
-        case .value(true): RouterCell(text: "Active", tone: .healthy)
-        case .value(false): RouterCell(text: "Disabled", tone: .unknown)
-        default: RouterCell(text: RouterFormat.unknown, tone: .unknown)
-        }
-        let configured = radio.configuredChannel.map { $0 == 0 ? "Auto" : String($0) }
-        let channel = network.enabled == .value(true) ? radio.currentChannel.map(String.init) ?? configured : configured
-        // 4.9.1 reports `htmode` as `auto`, `80`, or `160`.
-        let width = radio.widthMHz.map { "\($0) MHz" } ?? radio.htmode.map { $0.lowercased() == "auto" ? "Auto" : $0 } ?? RouterFormat.unknown
-        let clients = WirelessStatus.clients(for: network, on: radio, onlineByBand: onlineByBand).map(String.init) ?? RouterFormat.dash
-        return [
-            RouterCell(text: network.ssid ?? RouterFormat.unknown),
-            RouterCell(text: network.interface ?? RouterFormat.unknown, monospaced: true),
-            state,
-            RouterCell(text: radio.band?.rawValue ?? RouterFormat.unknown, monospaced: true),
-            RouterCell(text: channel ?? RouterFormat.unknown, monospaced: true),
-            RouterCell(text: width, monospaced: true),
-            RouterCell(text: clients, monospaced: true),
-            RouterCell(text: radio.txPower ?? RouterFormat.unknown, monospaced: true),
-        ]
-    }
-
-    func summary(hostname: String?) -> String {
-        var lines = ["Wi-Fi — \(hostname ?? "router")"]
-        for metric in strip { lines.append("\(metric.title): \(metric.value) (\(metric.detail))") }
-        for band in bands {
-            lines.append("")
-            lines.append("\(band.title)\(band.radio.isEmpty ? "" : " · \(band.radio)")")
-            for row in band.rows {
-                lines.append(zip(Self.columns, row).map { "\($0): \($1.text)" }.joined(separator: " · "))
-            }
-        }
-        return lines.joined(separator: "\n")
     }
 }
 

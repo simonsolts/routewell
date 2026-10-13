@@ -1,7 +1,7 @@
 import SwiftUI
 import RoutewellKit
 
-/// Router: ten segments in the toolbar. Every
+/// Router: nine segments in the toolbar. Every
 /// segment is read-only; Ports, Storage, and Logs read over SSH.
 struct RouterScreen: View {
     @Environment(AppModel.self) private var model
@@ -20,7 +20,6 @@ struct RouterScreen: View {
                 Group {
                     switch segment {
                     case .overview: RouterOverviewSegment()
-                    case .wifi: RouterWiFiSegment()
                     case .multiWAN: RouterMultiWANSegment()
                     case .dns: RouterDNSSegment()
                     case .sqm: RouterSQMSegment()
@@ -178,44 +177,6 @@ struct RouterDNSSegment: View {
             }
             Text(RouterDNSModel.footnote).font(.subheadline).foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
-        }
-    }
-}
-
-// MARK: - Wi-Fi
-
-struct RouterWiFiSegment: View {
-    @Environment(AppModel.self) private var model
-    @Environment(AppEnvironment.self) private var environment
-
-    var body: some View {
-        if let wireless = model.wireless {
-            let signals = model.clientInventory?.clients.compactMap { client -> Int? in
-                if case .value(let dBm) = client.signal, client.online == .value(true) { return dBm }
-                return nil
-            }
-            let wifi = RouterWiFiModel(wireless: wireless, onlineByBand: model.snapshot?.clients.onlineByBand,
-                                       signals: signals.flatMap { $0.isEmpty ? nil : $0 })
-            VStack(alignment: .leading, spacing: 14) {
-                MetricStrip(metrics: wifi.strip)
-                HStack {
-                    RouterFreshnessNote(freshness: model.wirelessFreshness)
-                    Spacer()
-                    Button("Copy Summary") { environment.router.copy(wifi.summary(hostname: model.snapshot?.router.hostname)) }
-                }
-                ForEach(Array(wifi.bands.enumerated()), id: \.offset) { _, band in
-                    HeaderInset(title: band.title) {
-                        Text(band.radio).font(.subheadline.monospaced()).foregroundStyle(.secondary)
-                    } content: {
-                        InsetTable(columns: RouterWiFiModel.columns, rows: band.rows, emptyText: "No networks on this radio")
-                    }
-                }
-            }
-        } else if let failure = model.wirelessFreshness.failure {
-            ContentUnavailableView("Wi-Fi status unavailable", systemImage: "wifi.exclamationmark",
-                                   description: Text(failure.failureCategory.message))
-        } else {
-            ProgressView("Loading Wi-Fi…").frame(maxWidth: .infinity, minHeight: 200)
         }
     }
 }

@@ -25,8 +25,8 @@ private let british = Locale(identifier: "en_GB")
 
 // MARK: Toolbar and SSH segments
 
-@Test func routerToolbarHasTenSegmentsAndNoSubtitle() {
-    #expect(SidebarDestination.router.segments == ["Overview", "Ports", "Wi-Fi", "Multi-WAN", "DNS", "SQM", "Performance", "Storage", "Firmware", "Logs"])
+@Test func routerToolbarHasNineSegmentsWithoutWiFiAndNoSubtitle() {
+    #expect(SidebarDestination.router.segments == ["Overview", "Ports", "Multi-WAN", "DNS", "SQM", "Performance", "Storage", "Firmware", "Logs"])
     #expect(!SidebarDestination.router.showsSubtitle)
     #expect(SidebarDestination.overview.showsSubtitle)
 }
@@ -87,12 +87,13 @@ private let british = Locale(identifier: "en_GB")
     var snapshot = MockRouterBackend.snapshot(at: .now)
     snapshot.internet.publicAddress = "172.16.10.5"
     snapshot.adGuard.version = "0.107.73"
-    let overview = RouterOverviewModel(snapshot: snapshot, wireless: MockRouterService.wireless, locale: british)
+    let overview = RouterOverviewModel(snapshot: snapshot, wireless: MockWiFiService.wireless(.today), locale: british)
     #expect(overview.network[1].value == "Unknown")
     #expect(overview.network[1].detail == "The WAN address 172.16.10.5 is private")
     #expect(overview.services[0].value == "Active")
     #expect(overview.services[0].detail == "0.107.73 · process ID needs SSH")
-    #expect(overview.services[2].value == "3 radios · 8 clients")
+    #expect(overview.services[2].value == "3 radios · 5 clients")
+    #expect(overview.services[2].opens == .wifi)
     #expect(overview.services[3].value == "2 % used · 56.6 GiB available")
     #expect(overview.identity.map(\.label) == ["Model", "Hostname", "Firmware", "OpenWrt", "Kernel", "Architecture"])
     #expect(overview.identity[4].value == "5.4.281")
@@ -152,33 +153,7 @@ private let british = Locale(identifier: "en_GB")
     #expect(environment.model.sqm?.enabled == .value(false))
 }
 
-// MARK: Wi-Fi, Multi-WAN, DNS
-
-@Test func wifiTablesShowUnknownTXPowerAndAutoChannels() {
-    let wifi = RouterWiFiModel(wireless: MockRouterService.wireless, onlineByBand: [.ghz2_4: 5, .ghz6: 3], signals: nil)
-    #expect(wifi.strip.map(\.value) == ["3", "9", "8", "Unknown"])
-    #expect(wifi.strip[0].detail == "2.4, 5 and 6 GHz")
-    #expect(wifi.strip[1].detail == "3 active · 6 disabled")
-    #expect(wifi.strip[2].detail == "5 on 2.4 GHz · 3 on 6 GHz")
-    #expect(wifi.strip[3].detail == "Signal is not reported by the router")
-    #expect(wifi.bands.map(\.title) == ["2.4 GHz", "5 GHz", "6 GHz"])
-    #expect(wifi.bands[0].radio == "MT7990_1_1")
-    let active = wifi.bands[0].rows[0].map(\.text)
-    #expect(active == ["Flint Home", "rai0", "Active", "2g", "9", "40 MHz", "5", "Unknown"])
-    let disabled = wifi.bands[0].rows[1].map(\.text)
-    #expect(disabled == ["GL-BE14000-2bd-Guest", "rai1", "Disabled", "2g", "Auto", "40 MHz", "0", "Unknown"])
-    // 5 GHz has no band count, so no per-SSID count either.
-    #expect(wifi.bands[1].rows[0][6].text == "—")
-    #expect(RouterWiFiModel.columns.last == "TX power")
-    #expect(wifi.summary(hostname: "flint-demo").contains("TX power: Unknown"))
-    // 4.9.1 sends `htmode` as `auto`, `80`, `160` and `txpower` as `Max`.
-    let radio = WirelessRadio(band: .ghz2_4, htmode: "auto", txPower: "Max", networks: [WirelessNetwork(ssid: "A", enabled: .value(true))])
-    let live = RouterWiFiModel.row(radio.networks[0], radio: radio, onlineByBand: nil).map(\.text)
-    #expect(live[5] == "Auto" && live[7] == "Max")
-    #expect(RouterWiFiModel.row(radio.networks[0], radio: WirelessRadio(htmode: "80", networks: radio.networks), onlineByBand: nil)[5].text == "80 MHz")
-    let weak = RouterWiFiModel(wireless: MockRouterService.wireless, onlineByBand: nil, signals: [-50, -80])
-    #expect(weak.strip[3].value == "1" && weak.strip[3].detail == "Below −75 dBm")
-}
+// MARK: Multi-WAN, DNS
 
 @Test func multiWANStaysHonestlyUnknown() {
     var internet = InternetStatus()

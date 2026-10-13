@@ -206,8 +206,6 @@ private enum RouterStub {
         guard case .success(let sqm, _, let source) = result.sqm else { Issue.record("expected SQM"); return }
         #expect(source == .routerRPC)
         #expect(sqm == SQMConfiguration(enabled: .value(false), queueDiscipline: "cake", upload: nil, download: nil))
-        guard case .success(let wireless, _, _) = result.wireless else { Issue.record("expected Wi-Fi"); return }
-        #expect(wireless.radios.count == 3)
     }
 
     @Test func methodNotFoundIsTheOnlyUnsupportedSignalForSQM() async throws {
@@ -216,9 +214,6 @@ private enum RouterStub {
         #expect(unsupported.sqmCapability.state == .unsupported)
         #expect(unsupported.sqmCapability.evidence == .methodNotFound(method: "sqm.get_config"))
         guard case .failure(.unavailable, _) = unsupported.sqm else { Issue.record("expected unavailable"); return }
-        // A failed wifi.get_status loses only the current channel.
-        guard case .success(let wireless, _, _) = unsupported.wireless else { Issue.record("expected Wi-Fi"); return }
-        #expect(wireless.radios.allSatisfy { $0.currentChannel == nil })
 
         for answer: RouterStub.Answer in [.transport(.timedOut), .rpcError(-32602), .rpcError(-32000), .body(.string("x"))] {
             let (service, _) = RouterStub.service(["sqm.get_config": answer])
@@ -226,13 +221,6 @@ private enum RouterStub {
             #expect(result.sqmCapability.state == .unknown)
             guard case .failure = result.sqm else { Issue.record("expected failure"); continue }
         }
-    }
-
-    @Test func wifiFailureFailsOnlyTheWiFiPart() async throws {
-        let (service, _) = RouterStub.service(["wifi.get_config": .transport(.unreachable(code: -1004)), "sqm.get_config": .fixture("sqm-get-config")])
-        let result = try await service.details()
-        guard case .failure(.network, _) = result.wireless else { Issue.record("expected network failure"); return }
-        #expect(result.sqmCapability.state == .supported)
     }
 
     @Test func firmwareCheckOutcomes() async throws {
@@ -380,7 +368,7 @@ private enum RouterStub {
     @Test func captureTakesOnlyObservedValues() {
         var snapshot = MockRouterBackend.snapshot(at: Date(timeIntervalSince1970: 1))
         snapshot.adGuard.running = .unknown
-        let state = RouterStateSummary.capture(snapshot, wireless: MockRouterService.wireless)
+        let state = RouterStateSummary.capture(snapshot, wireless: MockWiFiService.wireless(.today))
         #expect(state.firmware == "4.9.1")
         #expect(state.adGuardRunning == nil)
         #expect(state.wifiRadios == 3)

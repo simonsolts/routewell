@@ -2,7 +2,7 @@ import Foundation
 
 public enum DataArea: String, CaseIterable, Sendable, Hashable, Codable {
     case router, internet, adGuard, clients, queryLog, network, maintenance, vpn, plugins, telemetry, publicIP, schedules
-    /// Router screen reads beyond the Overview areas: Wi-Fi and SQM.
+    /// Router screen reads beyond the Overview areas: SQM.
     case routerDetail
     /// SSH-backed Router reads: Ports, Storage, Logs, and the AdGuard
     /// process ID.
@@ -10,6 +10,10 @@ public enum DataArea: String, CaseIterable, Sendable, Hashable, Codable {
     /// AdGuard Home › Overview: stats for the range, the switches, the
     /// blocklists. Read only while AdGuard Home runs.
     case adGuardOverview
+    /// The Wi-Fi screen's RPC reads.
+    case wifi
+    /// The Wi-Fi screen's SSH reads: stations and UCI-only options.
+    case wifiAir
 }
 
 public enum ObservationSource: Sendable, Equatable, Codable {

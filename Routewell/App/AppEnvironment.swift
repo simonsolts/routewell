@@ -22,6 +22,7 @@ final class AppEnvironment {
     let queryLog: QueryLogController
     let clientActions: ClientActionsController
     let router: RouterController
+    let wifi: WiFiController
     let sshSetup: SSHSetupController
     let trustPrompt = TrustPromptController()
     let onboarding = OnboardingController()
@@ -51,6 +52,7 @@ final class AppEnvironment {
     var mockSQMBehavior: MockRouterService.SQMBehavior = .unavailable
     var mockFirmwareBehavior: MockRouterService.FirmwareBehavior = .unableToCheck
     var mockSSHScenario: MockSSHService.Scenario = .populated
+    var mockWiFiScenario: MockWiFiService.Scenario = .today
     var mockAdGuardScenario: MockAdGuardScenario = .running
     /// The "Empty" Query Log: AdGuard Home answers with no entries.
     var mockQueryLogEmpty = false
@@ -92,6 +94,7 @@ final class AppEnvironment {
         self.clientActions = ClientActionsController(model: model)
         // Mock baselines stay in memory; live ones use `snapshots.json`.
         self.router = RouterController(model: model, baselines: UpgradeBaselineStore(store: model.mode == .live ? store : nil))
+        self.wifi = WiFiController(model: model)
         self.persistence = PersistenceController(model: model, store: store, credentials: credentials)
         self.trust = TrustController(atomicStore: store, mode: model.mode)
         // Mock copies stay in memory; live ones use `adguard/<profile>/archive.json`.

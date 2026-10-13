@@ -1,0 +1,14 @@
+wireless.MT7990_1_1=wifi-device
+wireless.MT7990_1_1.acs_skiplist='12;13'
+wireless.MT7990_1_2=wifi-device
+wireless.MT7990_1_2.acs_skiplist='52;56;60;64;100;104;108;112;116;120;124;128;132;136;140;144;149;153;157;161;165'
+wireless.MT7990_1_2.dfs_enable='1'
+wireless.MT7990_1_3=wifi-device
+wireless.wifi2g=wifi-iface
+wireless.wifi2g.ifname='ra0'
+wireless.wifi2g.ieee80211k='1'
+wireless.wifi2g.bss_transition='1'
+wireless.wifi2g.ieee80211r='0'
+wireless.wlanmld5g=wifi-iface
+wireless.wlanmld5g.ifname='rai2'
+wireless.wlanmld5g.eml_mode='emlsr'
