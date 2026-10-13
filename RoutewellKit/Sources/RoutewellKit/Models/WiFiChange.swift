@@ -13,9 +13,12 @@ public struct WiFiNetworkEdit: Sendable, Equatable {
     public var hidden: Bool
     public var randomBSSID: Bool
     public var bands: [WirelessBand]
+    /// Use One Name: every band gets this password and security, also the
+    /// network's own bands that had others.
+    public var sameOnEveryBand: Bool
 
     public init(interfaces: [String], name: String, password: WiFiPassword?, security: WiFiSecurity, hidden: Bool,
-                randomBSSID: Bool, bands: [WirelessBand]) {
+                randomBSSID: Bool, bands: [WirelessBand], sameOnEveryBand: Bool = false) {
         self.interfaces = interfaces
         self.name = name
         self.password = password
@@ -23,6 +26,7 @@ public struct WiFiNetworkEdit: Sendable, Equatable {
         self.hidden = hidden
         self.randomBSSID = randomBSSID
         self.bands = bands
+        self.sameOnEveryBand = sameOnEveryBand
     }
 }
 
@@ -306,10 +310,11 @@ public struct WiFiApplyPlan: Sendable, Equatable {
                 guard let radio = wireless.radio(band), let network = radio.mainNetwork, let interface = network.interface,
                       let before = slots[interface] else { continue }
                 let own = edit.interfaces.contains(interface) ? read : nil
+                let key = edit.sameOnEveryBand ? nil : own
                 var after = before
                 after.ssid = edit.name
-                if own == nil || own?.security != edit.security { after.security = edit.security }
-                if let password = edit.password, own == nil || own?.password != password { after.password = password }
+                if key == nil || key?.security != edit.security { after.security = edit.security }
+                if let password = edit.password, key == nil || key?.password != password { after.password = password }
                 if own == nil || own?.hidden != edit.hidden { after.hidden = edit.hidden }
                 if own == nil || own?.randomBSSID != edit.randomBSSID { after.randomBSSID = edit.randomBSSID }
                 after.enabled = true

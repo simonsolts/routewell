@@ -133,6 +133,7 @@ final class WiFiController {
         let draft = WiFiNetworkDraft(group: kept, wireless: wireless, isolate: nil)
         var edit = draft.original
         edit.bands = Array(Set(groups.flatMap(\.bands))).sorted()
+        edit.sameOnEveryBand = true
         if edit.bands.contains(.ghz6) { edit.security = .wpa3 }
         return WiFiChangeSet(networks: [edit])
     }

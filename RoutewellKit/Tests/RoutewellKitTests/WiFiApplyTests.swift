@@ -183,6 +183,13 @@ private enum Sample {
         #expect(slots.map(\.interface) == ["rai0", "rax0"])
         #expect(slots.allSatisfy { $0.hidden == true })
         #expect(slots.map(\.password) == [Sample.password, other])
+
+        // Use One Name makes the password the same on every band.
+        let one = WiFiApplyPlan(change: WiFiChangeSet(networks: [Sample.fast { $0.sameOnEveryBand = true }]), wireless: wireless,
+                                subnets: nil, devices: Sample.devices, thisMac: .ethernet)
+        let unified = one.calls.compactMap { call -> WiFiSlotState? in if case .network(let slot, _) = call { slot } else { nil } }
+        #expect(unified.map(\.interface) == ["rax0"])
+        #expect(unified.map(\.password) == [Sample.password])
     }
 
     @Test func useOneNameMovesTheBands() {

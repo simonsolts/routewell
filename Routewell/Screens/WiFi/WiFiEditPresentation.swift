@@ -135,6 +135,13 @@ struct WiFiReviewPresentation: Equatable {
             if (original.randomBSSID ?? true) != edit.randomBSSID {
                 changes.append("\(edit.name) random hardware address: \(WiFiEditFormat.onOff(edit.randomBSSID))")
             }
+            for (band, network) in edit.interfaces.dropFirst().compactMap({ slots[$0] }) where edit.sameOnEveryBand {
+                let band = WiFiFormat.band(band)
+                if let password = edit.password, network.password != password { changes.append("\(edit.name) \(band): same password as the other bands") }
+                if network.encryption != edit.security {
+                    changes.append("\(edit.name) \(band) security: \(WiFiFormat.security(network.encryption)) → \(WiFiFormat.security(edit.security))")
+                }
+            }
             let had = Set(edit.interfaces.compactMap { slots[$0]?.0 })
             for band in edit.bands where !had.contains(band) {
                 if let other = wireless.radio(band)?.mainNetwork, other.isOn, let otherName = other.ssid {
