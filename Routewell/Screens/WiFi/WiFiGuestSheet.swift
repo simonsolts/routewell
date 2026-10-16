@@ -186,29 +186,33 @@ struct WiFiGuestSheet: View {
             if candidates.isEmpty {
                 Text("No devices on 2.4 GHz now.").font(.callout).foregroundStyle(.secondary)
             } else {
-                LazyVGrid(columns: [GridItem(.adaptive(minimum: 130), spacing: 6, alignment: .leading)], alignment: .leading, spacing: 6) {
-                    ForEach(candidates) { device in
-                        let chosen = draft.moving.contains(device.mac)
-                        Button {
-                            if chosen { controller.guestDraft?.moving.remove(device.mac) } else { controller.guestDraft?.moving.insert(device.mac) }
-                        } label: {
-                            HStack(spacing: 4) {
-                                Image(systemName: chosen ? "checkmark" : "plus").font(.caption2.weight(.bold)).accessibilityHidden(true)
-                                Text(WiFiFormat.deviceName(device)).lineLimit(1)
-                                if controller.isPrinter(device.mac) {
-                                    Image(systemName: "exclamationmark.triangle").foregroundStyle(.orange).help(WiFiGuestFormat.printerWarning)
+                ScrollView {
+                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 130), spacing: 6, alignment: .leading)], alignment: .leading, spacing: 6) {
+                        ForEach(candidates) { device in
+                            let chosen = draft.moving.contains(device.mac)
+                            Button {
+                                if chosen { controller.guestDraft?.moving.remove(device.mac) } else { controller.guestDraft?.moving.insert(device.mac) }
+                            } label: {
+                                HStack(spacing: 4) {
+                                    Image(systemName: chosen ? "checkmark" : "plus").font(.caption2.weight(.bold)).accessibilityHidden(true)
+                                    Text(WiFiFormat.deviceName(device)).lineLimit(1)
+                                    if controller.isPrinter(device.mac) {
+                                        Image(systemName: "exclamationmark.triangle").foregroundStyle(.orange).help(WiFiGuestFormat.printerWarning)
+                                    }
                                 }
+                                .font(.callout)
+                                .padding(.horizontal, 10).padding(.vertical, 4)
+                                .background(chosen ? Color.accentColor.opacity(0.15) : Color.clear, in: Capsule())
+                                .overlay(Capsule().stroke(chosen ? Color.accentColor.opacity(0.6) : Color(nsColor: .separatorColor)))
+                                .contentShape(Capsule())
                             }
-                            .font(.callout)
-                            .padding(.horizontal, 10).padding(.vertical, 4)
-                            .background(chosen ? Color.accentColor.opacity(0.15) : Color.clear, in: Capsule())
-                            .overlay(Capsule().stroke(chosen ? Color.accentColor.opacity(0.6) : Color(nsColor: .separatorColor)))
-                            .contentShape(Capsule())
+                            .buttonStyle(.plain)
+                            .accessibilityAddTraits(chosen ? .isSelected : [])
                         }
-                        .buttonStyle(.plain)
-                        .accessibilityAddTraits(chosen ? .isSelected : [])
                     }
                 }
+                // About three rows of devices.
+                .frame(maxHeight: 90)
             }
             if printerChosen {
                 Text(WiFiGuestFormat.printerWarning).font(.callout).foregroundStyle(.orange)
