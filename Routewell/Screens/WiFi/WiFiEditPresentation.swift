@@ -49,6 +49,11 @@ enum WiFiEditFormat {
         }
     }
 
+    static let radarCheckTime = "The radar check takes about 1 minute, or up to 10 minutes on some channels."
+
+    static func channel(_ channel: Int) -> String { channel == 0 ? "Auto" : "\(channel)" }
+    static func width(_ width: Int?) -> String { width.map { "\($0) MHz" } ?? "Auto" }
+
     static func onOff(_ value: Bool?) -> String {
         switch value { case true?: "On"; case false?: "Off"; case nil: WiFiFormat.dash }
     }
@@ -88,6 +93,20 @@ enum WiFiEditFormat {
     }
 }
 
+enum WiFiRadioFormat {
+    /// The radios' country code as the router reports it (SSH).
+    static func country(_ air: WiFiAir?) -> String { "Country: \(air?.country ?? WiFiFormat.dash)" }
+
+    /// "1 change · 5 GHz restarts", "3 changes · 2.4 and 5 GHz restart".
+    static func applyBar(_ edits: WiFiRadioEdits) -> String {
+        let count = edits.changeCount
+        let bands = edits.changedBands
+        let changes = "\(count) \(count == 1 ? "change" : "changes")"
+        guard !bands.isEmpty else { return changes }
+        return "\(changes) · \(WiFiEditFormat.bandList(bands)) \(bands.count == 1 ? "restarts" : "restart")"
+    }
+}
+
 /// The networks before and after, as small cards.
 struct WiFiMiniNetwork: Equatable, Identifiable {
     let name: String
@@ -115,7 +134,11 @@ struct WiFiReviewPresentation: Equatable {
     let ethernetHint: String?
     let macDrops: Bool
 
-    init(change: WiFiChangeSet, plan: WiFiApplyPlan, wireless: WirelessStatus) {
+    /// Estimated, not measured: a guide that the change is not instant.
+    static let networkRestart = "about 5 s"
+    static let radioRestart = "about 20 s"
+
+    init(change: WiFiChangeSet, plan: WiFiApplyPlan, wireless: WirelessStatus, sections: [WirelessSectionOptions]? = nil) {
         let applied = Self.applied(plan, to: wireless)
         before = Self.mains(wireless)
         after = Self.mains(applied)
@@ -153,6 +176,8 @@ struct WiFiReviewPresentation: Equatable {
             for band in had.subtracting(edit.bands).sorted() { changes.append("\(edit.name) stops using \(WiFiFormat.band(band))") }
         }
         if let isolate = change.isolate { changes.append("Isolate devices: \(WiFiEditFormat.onOff(isolate)), on every main network") }
+        changes += Self.radioLines(change.radios, wireless: wireless)
+        changes += Self.optionLines(change.options, wireless: wireless, sections: sections)
         self.changes = changes
         let count = max(1, changes.count)
         title = count == 1 ? "Apply 1 change?" : "Apply \(count) changes?"
@@ -160,16 +185,20 @@ struct WiFiReviewPresentation: Equatable {
         var impacts: [Impact] = []
         let radios = plan.restarts.compactMap { if case .radio(let band) = $0 { band } else { nil } }
         let networks = plan.restarts.compactMap { if case .network(let band) = $0 { band } else { nil } }
-        // Seconds appear once a live check has measured them.
         if !radios.isEmpty {
-            impacts.append(Impact(kind: .restart, bold: WiFiEditFormat.bandList(radios), rest: radios.count == 1 ? "restarts" : "restart"))
+            impacts.append(Impact(kind: .restart, bold: WiFiEditFormat.bandList(radios),
+                                  rest: "\(radios.count == 1 ? "restarts" : "restart"), \(Self.radioRestart)"))
         }
         if !networks.isEmpty {
             impacts.append(Impact(kind: .restart, bold: "The network on \(WiFiEditFormat.bandList(networks))",
-                                  rest: "restarts; other networks there stay up"))
+                                  rest: "restarts, \(Self.networkRestart); other networks there stay up"))
         }
         if plan.restarts.contains(.subnet) {
-            impacts.append(Impact(kind: .restart, bold: "Main network settings", rest: "reload"))
+            impacts.append(Impact(kind: .restart, bold: "Main network settings", rest: "reload, \(Self.networkRestart)"))
+        }
+        if let check = plan.radarCheck {
+            impacts.append(Impact(kind: .restart, bold: WiFiFormat.band(check.band),
+                                  rest: "checks channel \(check.channel) for radar first. \(WiFiEditFormat.radarCheckTime)"))
         }
         if !plan.mustJoin.isEmpty {
             impacts.append(Impact(kind: .devices, bold: WiFiFormat.devices(plan.mustJoin.count), rest: "must join again"))
@@ -184,6 +213,45 @@ struct WiFiReviewPresentation: Equatable {
         case .mustJoin, .mustEnterPassword: "Use Ethernet for this change if you can."
         default: nil
         }
+    }
+
+    /// One line per changed radio field.
+    static func radioLines(_ radios: [WiFiRadioSettings], wireless: WirelessStatus) -> [String] {
+        var lines: [String] = []
+        for now in radios {
+            guard let was = wireless.radio(now.band).flatMap(WiFiRadioSettings.init) else { continue }
+            let band = WiFiFormat.band(now.band)
+            if now.channel != was.channel { lines.append("\(band) channel: \(WiFiEditFormat.channel(was.channel)) → \(WiFiEditFormat.channel(now.channel))") }
+            if now.width != was.width { lines.append("\(band) width: \(WiFiEditFormat.width(was.width)) → \(WiFiEditFormat.width(now.width))") }
+            if now.hwmode != was.hwmode {
+                lines.append("\(band) Wi-Fi versions: \(WiFiFormat.versions(was.hwmode, band: now.band)) → \(WiFiFormat.versions(now.hwmode, band: now.band))")
+            }
+            if now.txPower != was.txPower { lines.append("\(band) power: \(WiFiFormat.power(was.txPower)) → \(WiFiFormat.power(now.txPower))") }
+            if now.pscOnly != was.pscOnly {
+                lines.append("\(band) preferred channels only: \(WiFiEditFormat.onOff(was.pscOnly)) → \(WiFiEditFormat.onOff(now.pscOnly))")
+            }
+        }
+        return lines
+    }
+
+    /// One line per option and network name.
+    static func optionLines(_ options: [WiFiOptionEdit], wireless: WirelessStatus, sections: [WirelessSectionOptions]?) -> [String] {
+        var lines: [String] = []
+        for option in options {
+            let line: String
+            switch option.setting {
+            case .autoSkips(let skips):
+                let dfs = wireless.radio(option.band)?.channels.filter(\.dfs).map(\.number) ?? []
+                line = "\(WiFiFormat.band(option.band)) DFS channels for Auto: \(WiFiEditFormat.onOff(!dfs.allSatisfy(skips.contains)))"
+            case .roamingHelp(let on), .fastRoaming(let on):
+                let ifname = sections?.first { $0.section == option.section }?.ifname
+                let name = wireless.networks.first { $0.interface == ifname && ifname != nil }?.ssid ?? WiFiFormat.dash
+                let what = if case .roamingHelp = option.setting { "roaming help" } else { "fast roaming" }
+                line = "\(name) \(what): \(WiFiEditFormat.onOff(on))"
+            }
+            if !lines.contains(line) { lines.append(line) }
+        }
+        return lines
     }
 
     static func macLine(_ impact: ThisMacImpact) -> String {
@@ -213,7 +281,7 @@ struct WiFiReviewPresentation: Equatable {
     static func applied(_ plan: WiFiApplyPlan, to wireless: WirelessStatus) -> WirelessStatus {
         var result = wireless
         for call in plan.calls {
-            guard case .network(let slot, _) = call else { continue }
+            guard case .network(let slot, _, _) = call else { continue }
             for radio in result.radios.indices {
                 for index in result.radios[radio].networks.indices where result.radios[radio].networks[index].interface == slot.interface {
                     result.radios[radio].networks[index].ssid = slot.ssid
@@ -233,9 +301,17 @@ struct WiFiReviewPresentation: Equatable {
     static func trailIndex(_ step: WiFiApplyStep) -> Int {
         switch step {
         case .sending: 0
-        case .restarting: 1
+        case .restarting, .radarCheck: 1
         case .reconnecting, .checking: 2
         }
+    }
+
+    /// The progress title: the current trail step, or the radar check.
+    static func progressTitle(_ step: WiFiApplyStep, plan: WiFiApplyPlan) -> String {
+        if step == .radarCheck {
+            return "Checking \(plan.radarCheck.map { WiFiFormat.band($0.band) } ?? "Wi-Fi") for radar…"
+        }
+        return "\(trail(macDrops: plan.thisMac.drops)[trailIndex(step)])…"
     }
 }
 
@@ -270,6 +346,13 @@ struct WiFiOutcomePresentation: Equatable {
         case .unknownAfterDispatch:
             title = "The router did not answer"
             text = "Routewell could not check the change. It may have applied. Routewell reads the router again when it answers."
+            tone = .warning
+            showsWiFiSettings = false
+        case .verifiedMismatch(_, let actual) where !actual.radar.isEmpty:
+            let band = actual.radar.first
+            title = "Radar on \(WiFiFormat.band(band))"
+            let channel = run.plan.radarCheck.map { "channel \($0.channel)" } ?? "this channel"
+            text = "\(WiFiFormat.band(band)) found radar during its check, so it cannot use \(channel) now. Choose another channel or Auto."
             tone = .warning
             showsWiFiSettings = false
         case .verifiedMismatch:

@@ -176,6 +176,8 @@ private enum WiFiStub {
         #expect(air.autoSkips(device: "MT7990_1_1") == [12, 13])
         #expect(air.autoSkips(device: "MT7990_1_2")?.first == 52)
         #expect(air.autoSkips(device: "MT7990_1_3") == nil)
+        #expect(air.country == "GB")
+        #expect(WirelessOptionsParser.parse("wireless.radio0.country='g;b'").first?.country == nil)
         let mid = try #require(sections.first { $0.section == "MT7990_1_2" })
         #expect(mid.dfsEnabled == true)
         #expect(mid.type == "wifi-device")

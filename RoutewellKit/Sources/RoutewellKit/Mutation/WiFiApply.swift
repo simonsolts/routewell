@@ -57,6 +57,8 @@ public struct WiFiApplyPolicy: Sendable, Equatable {
     public var reconnectWindow: Duration = .seconds(90)
     /// How long the read-back may take to show every change.
     public var verifyDeadline: Duration = .seconds(30)
+    /// How long a radar check (`cac`) may take.
+    public var radarCheckLimit: Duration = .seconds(660)
 
     public init() {}
 }
@@ -191,15 +193,10 @@ public struct WiFiApplyExecutor: WiFiControl {
         return await verify(plan, calls: calls, progress: progress)
     }
 
-    /// The radar check's time, added to the reconnect window and the verify
-    /// deadline.
-    private static func radarTime(_ plan: WiFiApplyPlan) -> TimeInterval {
-        plan.radarCheck.map { TimeInterval($0.seconds) } ?? 0
-    }
-
     /// Polls `get_status` until it answers, within the reconnect window.
     private func waitForRouter(_ plan: WiFiApplyPlan) async -> Bool {
-        let deadline = clock().addingTimeInterval(Self.seconds(policy.reconnectWindow) + Self.radarTime(plan))
+        let radar = plan.radarCheck == nil ? 0 : Self.seconds(policy.radarCheckLimit)
+        let deadline = clock().addingTimeInterval(Self.seconds(policy.reconnectWindow) + radar)
         while true {
             if (try? await transport.readRadioStates()) != nil { return true }
             guard clock() < deadline else { return false }
@@ -209,8 +206,9 @@ public struct WiFiApplyExecutor: WiFiControl {
     }
 
     /// Every changed field equal, and the changed radios up. A radio whose
-    /// changed networks are all turned off may report no state. The band of
-    /// a radar check must reach `ready`; `conflict` there ends the wait.
+    /// changed networks are all turned off may report no state. A band in
+    /// its radar check (`cac`) is waited for, up to the radar check limit;
+    /// radar (`conflict`) ends the wait.
     private func verify(_ plan: WiFiApplyPlan, calls: [WiFiCall], progress: @Sendable (WiFiApplyStep) async -> Void) async -> Step {
         let expected = Self.expected(calls)
         let bands = Set(plan.steps.flatMap(\.scopes).compactMap(\.band))
@@ -220,9 +218,8 @@ public struct WiFiApplyExecutor: WiFiControl {
             case .subnet, .options: []
             }
         })
-        let radarBand = plan.radarCheck?.band
         let readsWireless = !expected.slots.isEmpty || !expected.radios.isEmpty
-        let deadline = clock().addingTimeInterval(Self.seconds(policy.verifyDeadline) + Self.radarTime(plan))
+        var deadline = clock().addingTimeInterval(Self.seconds(policy.verifyDeadline))
         var last: WiFiApplyState?
         var lastFailure: RefreshFailureCategory?
         var radarShown = false
@@ -232,8 +229,9 @@ public struct WiFiApplyExecutor: WiFiControl {
                 let subnets = expected.isolate == nil ? nil : try await transport.readSubnets()
                 let options = expected.options.isEmpty ? nil : try await transport.readOptions()
                 var actual = Self.state(plan, wireless: wireless, subnets: subnets, options: options)
-                if let radarBand, wireless?.radio(radarBand)?.state == .conflict {
-                    actual.radar = [radarBand]
+                let radar = bands.filter { wireless?.radio($0)?.state == .conflict }.sorted()
+                if !radar.isEmpty {
+                    actual.radar = radar
                     return (.verifiedMismatch(expected: expected, actual: actual), true, nil)
                 }
                 last = actual
@@ -241,14 +239,14 @@ public struct WiFiApplyExecutor: WiFiControl {
                 let up = bands.allSatisfy { band in
                     switch wireless?.radio(band)?.state {
                     case .ready?: true
-                    case .cac?: band != radarBand
                     case nil: !staysOn.contains(band)
                     default: false
                     }
                 }
                 if actual == expected, up { return (.verifiedSuccess(actual), true, nil) }
-                if let radarBand, wireless?.radio(radarBand)?.state == .cac, !radarShown {
+                if !radarShown, bands.contains(where: { wireless?.radio($0)?.state == .cac }) {
                     radarShown = true
+                    deadline = max(deadline, clock().addingTimeInterval(Self.seconds(policy.radarCheckLimit)))
                     await progress(.radarCheck)
                 }
             } catch {

@@ -219,6 +219,9 @@ public enum WirelessOptionsParser {
                     case "ieee80211k": options.ieee80211k = flag
                     case "bss_transition": options.bssTransition = flag
                     case "ieee80211r": options.ieee80211r = flag
+                    case "country":
+                        let code = value.uppercased()
+                        options.country = (1...3).contains(code.count) && code.allSatisfy { $0.isASCII && $0.isLetter } ? code : nil
                     default: break
                     }
                 }

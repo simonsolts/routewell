@@ -191,7 +191,7 @@ public enum SSHCommand: Sendable, Hashable {
         case .wifiStations(let names):
             "r=0; for i in \(names.map(\.description).joined(separator: " ")); do echo \"== $i\"; iw dev \"$i\" station dump || r=1; done; exit $r"
         case .wifiRadioOptions:
-            "uci -q show wireless | grep -E '^wireless\\.[A-Za-z0-9_@-]+(=wifi-(device|iface)$|\\.(ifname|acs_skiplist|dfs_enable|eml_mode|ieee80211k|bss_transition|ieee80211r)=)'; true"
+            "uci -q show wireless | grep -E '^wireless\\.[A-Za-z0-9_@-]+(=wifi-(device|iface)$|\\.(ifname|acs_skiplist|dfs_enable|eml_mode|ieee80211k|bss_transition|ieee80211r|country)=)'; true"
         case .setWiFiOptions(let writes):
             (writes.flatMap(\.uciCommands) + ["uci commit wireless", "wifi reload"]).joined(separator: " && ")
         }

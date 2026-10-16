@@ -518,8 +518,6 @@ private enum Sample {
 
     @Test func manualDFSChannelNeedsARadarCheck() {
         #expect(Sample.plan(WiFiChangeSet(radios: [Sample.radio(.ghz5) { $0.channel = 100 }])).radarCheck == WiFiRadarCheck(band: .ghz5, channel: 100))
-        #expect(WiFiRadarCheck(band: .ghz5, channel: 100).seconds == 60)
-        #expect(Sample.plan(WiFiChangeSet(radios: [Sample.radio(.ghz5) { $0.channel = 120 }])).radarCheck?.seconds == 600)
         #expect(Sample.plan(WiFiChangeSet(radios: [Sample.radio(.ghz5) { $0.channel = 36 }])).radarCheck == nil)
     }
 
@@ -585,10 +583,32 @@ private enum Sample {
 
     @Test func radarCheckOutlastsTheNormalDeadline() async {
         let router = FakeRouter()
-        // 40 polls of 2 s: past the 30 s verify deadline, within 60 s more.
-        await router.set(states: Array(repeating: [.ghz5: .cac], count: 40) + [[.ghz5: .ready]])
+        // 300 polls of 2 s: past the 30 s verify deadline, within the 11 minute limit.
+        await router.set(states: Array(repeating: [.ghz5: .cac], count: 300) + [[.ghz5: .ready]])
         let plan = Sample.plan(WiFiChangeSet(radios: [Sample.radio(.ghz5) { $0.channel = 100 }]), mac: .ethernet)
         guard case .verifiedSuccess = await Sample.executor(router).apply(plan).outcome else { Issue.record("not verified"); return }
+    }
+
+    @Test func radarCheckGivesUpAfterTheLimit() async {
+        let router = FakeRouter()
+        await router.set(states: [[.ghz5: .cac]])
+        let plan = Sample.plan(WiFiChangeSet(radios: [Sample.radio(.ghz5) { $0.channel = 100 }]), mac: .ethernet)
+        let clock = ApplyClock()
+        let start = clock.now()
+        guard case .verifiedMismatch = await Sample.executor(router, clock: clock).apply(plan).outcome else { Issue.record("not a mismatch"); return }
+        #expect(clock.now().timeIntervalSince(start) > 660 && clock.now().timeIntervalSince(start) < 700)
+    }
+
+    @Test func autoLandingOnADFSChannelIsWaitedFor() async {
+        let router = FakeRouter()
+        await router.set(states: [[.ghz5: .cac], [.ghz5: .ready]])
+        let plan = Sample.plan(WiFiChangeSet(radios: [Sample.radio(.ghz5) { $0.txPower = .high }]), mac: .ethernet)
+        #expect(plan.radarCheck == nil)
+        let steps = StepLog()
+        guard case .verifiedSuccess = await Sample.executor(router).apply(plan, progress: { await steps.add($0) }).outcome else {
+            Issue.record("not verified"); return
+        }
+        #expect(await steps.all.contains(.radarCheck))
     }
 
     @Test func radarConflictEndsTheWait() async {

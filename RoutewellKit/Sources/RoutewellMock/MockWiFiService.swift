@@ -308,11 +308,11 @@ public final class MockWiFiService: WiFiService, WiFiApplyTransport {
             return WiFiInterface(name: valid, band: band, channel: band == .ghz6 ? 37 : band == .ghz5 ? 44 : 9)
         }
         let sections = [
-            WirelessSectionOptions(section: "MT7990_1_1", type: "wifi-device", autoSkips: [12, 13]),
+            WirelessSectionOptions(section: "MT7990_1_1", type: "wifi-device", autoSkips: [12, 13], country: "GB"),
             WirelessSectionOptions(section: "MT7990_1_2", type: "wifi-device",
-                                   autoSkips: after ? [149, 153, 157, 161, 165] : [52, 56, 60, 64] + Array(stride(from: 100, through: 165, by: 4)),
-                                   dfsEnabled: true),
-            WirelessSectionOptions(section: "MT7990_1_3", type: "wifi-device"),
+                                   autoSkips: after ? [149, 153, 157, 161, 165] : [52, 56, 60, 64] + Array(stride(from: 100, through: 144, by: 4)) + [149, 153, 157, 161, 165],
+                                   dfsEnabled: true, country: "GB"),
+            WirelessSectionOptions(section: "MT7990_1_3", type: "wifi-device", country: "GB"),
             WirelessSectionOptions(section: "wifi2g", type: "wifi-iface", ifname: "ra0", emlMode: "emlsr", ieee80211k: true, bssTransition: true, ieee80211r: false),
             WirelessSectionOptions(section: "wifi5g", type: "wifi-iface", ifname: "rai0", emlMode: "emlsr", ieee80211k: true, bssTransition: true, ieee80211r: false),
             WirelessSectionOptions(section: "wifi6g", type: "wifi-iface", ifname: "rax0", emlMode: "emlsr", ieee80211k: true, bssTransition: true, ieee80211r: false),

@@ -4,8 +4,8 @@ import RoutewellKit
 
 /// The Wi-Fi screen's own state: the derived Overview, the dismissed
 /// suggestions (this session only), the devices a suggestion highlights,
-/// the selected Radios lane, the staged change and the apply run. The reads
-/// live on `AppModel`.
+/// the selected Radios lane and its staged edits, the staged change and the
+/// apply run. The reads live on `AppModel`.
 @MainActor @Observable
 final class WiFiController {
     private let model: AppModel
@@ -24,6 +24,15 @@ final class WiFiController {
     /// The `get_config` read the sheet opened with. Plans compare against
     /// it, so an outside edit after that is a conflict, not a new baseline.
     private(set) var base: WirelessStatus?
+    /// The `wireless` options read over SSH when the sheet opened.
+    private(set) var baseSections: [WirelessSectionOptions]?
+    /// The Radios tab's staged edits; none once their session has ended.
+    var radioEdits: WiFiRadioEdits? {
+        get { stagedRadios?.token == model.session.expectedToken ? stagedRadios : nil }
+        set { stagedRadios = newValue }
+    }
+    private var stagedRadios: WiFiRadioEdits?
+    private var reviewingRadios = false
     /// The network sheet's fields.
     var draft: WiFiNetworkDraft?
     /// Use One Name's "Keep the name".
@@ -92,6 +101,9 @@ final class WiFiController {
 
     var subnets: [SubnetPolicy]? { try? model.wifi?.subnets.get() }
 
+    /// The SSH options, when SSH answers.
+    var sections: [WirelessSectionOptions]? { airState == .available ? model.wifiAir?.sections : nil }
+
     var thisMacLink: ThisMacLink {
         let mac = thisMac()
         return ThisMacLink.resolve(onWiFi: mac.onWiFi, wifiMAC: mac.mac, clients: clients, devices: overview?.devices ?? [])
@@ -100,7 +112,7 @@ final class WiFiController {
     func openNetwork(_ group: WiFiNetworkGroup) {
         guard canEdit, let wireless = model.wireless else { return }
         begin(wireless)
-        draft = WiFiNetworkDraft(group: group, wireless: wireless, isolate: subnets?.first { $0.name == "main" }?.isolate)
+        draft = WiFiNetworkDraft(group: group, wireless: wireless, isolate: subnets?.first { $0.name == "main" }?.isolate, sections: sections)
         sheet = .network
     }
 
@@ -111,9 +123,11 @@ final class WiFiController {
         sheet = .useOneName
     }
 
-    private func begin(_ wireless: WirelessStatus) {
+    private func begin(_ wireless: WirelessStatus, sections: [WirelessSectionOptions]? = nil) {
         editToken = model.session.expectedToken
         base = wireless
+        baseSections = sections ?? self.sections
+        reviewingRadios = false
         draft = nil
         pending = nil
         run = nil
@@ -122,7 +136,8 @@ final class WiFiController {
     /// The plan for a change against the values the sheet opened with.
     func plan(for change: WiFiChangeSet) -> WiFiApplyPlan? {
         guard editToken == model.session.expectedToken, let wireless = base else { return nil }
-        return WiFiApplyPlan(change: change, wireless: wireless, subnets: subnets, devices: overview?.devices ?? [], thisMac: thisMacLink)
+        return WiFiApplyPlan(change: change, wireless: wireless, subnets: subnets, options: baseSections, devices: overview?.devices ?? [],
+                             thisMac: thisMacLink)
     }
 
     /// Use One Name: every main band under the kept name, with its password,
@@ -130,7 +145,7 @@ final class WiFiController {
     func useOneNameChange(keeping name: String) -> WiFiChangeSet? {
         guard let wireless = base, let groups = overview?.groups.filter({ $0.kind == .main }),
               let kept = groups.first(where: { $0.name == name }) else { return nil }
-        let draft = WiFiNetworkDraft(group: kept, wireless: wireless, isolate: nil)
+        let draft = WiFiNetworkDraft(group: kept, wireless: wireless, isolate: nil, sections: nil)
         var edit = draft.original
         edit.bands = Array(Set(groups.flatMap(\.bands))).sorted()
         edit.sameOnEveryBand = true
@@ -145,13 +160,77 @@ final class WiFiController {
         sheet = .review
     }
 
+    // MARK: Radios
+
+    /// Stages a change to one band's radio fields. The first edit keeps the
+    /// reads it started from.
+    func editRadio(_ band: WirelessBand, _ change: (inout WiFiRadioSettings) -> Void) {
+        guard canEdit, var edits = radioEdits ?? newRadioEdits(), var settings = edits.current(band) else { return }
+        change(&settings)
+        edits.settings[band] = settings
+        radioEdits = edits
+    }
+
+    /// Stages Auto's use of the DFS channels on 5 GHz (SSH).
+    func setAutoDFS(_ on: Bool) {
+        guard canEdit, var edits = radioEdits ?? newRadioEdits(), edits.canWriteAutoDFS else { return }
+        edits.autoDFS = on
+        radioEdits = edits
+    }
+
+    /// Auto or Manual. Manual starts on the channel in use. A width the new
+    /// choice cannot hold drops to the widest one it can.
+    func setAutoChannel(_ band: WirelessBand, _ auto: Bool) {
+        guard let radio = model.wireless?.radio(band) else { return }
+        let channel = auto ? 0 : (WiFiFormat.channel(radio) ?? radio.channels.first?.number ?? 0)
+        setChannel(band, channel, radio: radio)
+    }
+
+    /// A manual channel, from the menu or a click on the lane.
+    func pickChannel(_ band: WirelessBand, _ channel: Int) {
+        guard let radio = model.wireless?.radio(band) else { return }
+        setChannel(band, channel, radio: radio)
+    }
+
+    private func setChannel(_ band: WirelessBand, _ channel: Int, radio: WirelessRadio) {
+        let autoDFS = (radioEdits ?? newRadioEdits())?.currentAutoDFS
+        editRadio(band) { settings in
+            settings.channel = channel
+            guard let width = settings.width else { return }
+            let numbers = radio.channels.map(\.number)
+            let holds: (Int) -> Bool = { width in
+                channel == 0 ? !(band == .ghz5 && width >= 160 && autoDFS != true) : WiFiLane.fits(band: band, channel: channel, width: width, channels: numbers)
+            }
+            if !holds(width) { settings.width = radio.widthOptions.filter(holds).max() ?? 20 }
+        }
+    }
+
+    func revertRadios() { radioEdits = nil }
+
+    private func newRadioEdits() -> WiFiRadioEdits? {
+        guard let wireless = model.wireless else { return nil }
+        return WiFiRadioEdits(token: model.session.expectedToken, base: wireless, sections: sections)
+    }
+
+    /// Review and apply for the staged radio edits.
+    func reviewRadios() {
+        guard canEdit, let edits = radioEdits else { return }
+        begin(edits.base, sections: edits.sections)
+        reviewingRadios = true
+        review(edits.change)
+    }
+
     func closeSheet() {
         guard !isApplying else { return }
+        // A finished apply ends the staged radio edits, whatever its outcome.
+        if run?.outcome != nil, reviewingRadios { radioEdits = nil }
+        reviewingRadios = false
         sheet = nil
         draft = nil
         pending = nil
         run = nil
         base = nil
+        baseSections = nil
     }
 
     func apply() {
@@ -214,8 +293,22 @@ struct WiFiNetworkDraft: Equatable {
     var randomBSSID: Bool
     var bands: Set<WirelessBand>
     var isolate: Bool?
+    /// The `wireless` sections of the network's slots; empty without SSH or
+    /// when one cannot be written.
+    let roamingSections: [(section: String, band: WirelessBand)]
+    let originalRoamingHelp: Bool?
+    let originalFastRoaming: Bool?
+    var roamingHelp: Bool?
+    var fastRoaming: Bool?
 
-    init(group: WiFiNetworkGroup, wireless: WirelessStatus, isolate: Bool?) {
+    static func == (lhs: Self, rhs: Self) -> Bool {
+        lhs.groupID == rhs.groupID && lhs.original == rhs.original && lhs.originalIsolate == rhs.originalIsolate && lhs.name == rhs.name
+            && lhs.password == rhs.password && lhs.security == rhs.security && lhs.visible == rhs.visible && lhs.randomBSSID == rhs.randomBSSID
+            && lhs.bands == rhs.bands && lhs.isolate == rhs.isolate && lhs.roamingSections.map(\.section) == rhs.roamingSections.map(\.section)
+            && lhs.roamingHelp == rhs.roamingHelp && lhs.fastRoaming == rhs.fastRoaming
+    }
+
+    init(group: WiFiNetworkGroup, wireless: WirelessStatus, isolate: Bool?, sections: [WirelessSectionOptions]?) {
         let network = wireless.networks.first { $0.interface == group.interfaces.first }
         let original = WiFiNetworkEdit(interfaces: group.interfaces, name: group.name, password: network?.password,
                                        security: network?.encryption ?? group.security ?? .wpa3, hidden: network?.hidden ?? false,
@@ -230,7 +323,23 @@ struct WiFiNetworkDraft: Equatable {
         randomBSSID = original.randomBSSID
         bands = Set(original.bands)
         self.isolate = isolate
+
+        let bandOf = Dictionary(wireless.radios.flatMap { radio in radio.networks.compactMap { network in
+            network.interface.flatMap { interface in radio.band.map { (interface, $0) } }
+        } }, uniquingKeysWith: { first, _ in first })
+        let own = (sections ?? []).filter { section in section.ifname.map(group.interfaces.contains) ?? false }
+        let writable = !own.isEmpty && own.allSatisfy { UCISectionName($0.section) != nil && $0.ifname.flatMap { bandOf[$0] } != nil }
+        roamingSections = writable ? own.compactMap { section in section.ifname.flatMap { bandOf[$0] }.map { (section.section, $0) } } : []
+        let first = own.first
+        originalRoamingHelp = first.flatMap { section in section.ieee80211k.flatMap { k in section.bssTransition.map { k && $0 } } }
+        originalFastRoaming = first?.ieee80211r
+        roamingHelp = originalRoamingHelp
+        fastRoaming = originalFastRoaming
     }
+
+    /// The roaming switches can change: SSH answers and every section has a
+    /// name Routewell can write.
+    var canWriteRoaming: Bool { !roamingSections.isEmpty }
 
     /// 6 GHz allows only WPA3.
     var effectiveSecurity: WiFiSecurity { bands.contains(.ghz6) ? .wpa3 : security }
@@ -243,8 +352,82 @@ struct WiFiNetworkDraft: Equatable {
 
     var change: WiFiChangeSet {
         let edit = edit
-        return WiFiChangeSet(networks: edit == original ? [] : [edit], isolate: isolate != originalIsolate ? isolate : nil)
+        var options: [WiFiOptionEdit] = []
+        for (section, band) in roamingSections {
+            if let roamingHelp, roamingHelp != originalRoamingHelp { options.append(WiFiOptionEdit(section: section, band: band, setting: .roamingHelp(roamingHelp))) }
+            if let fastRoaming, fastRoaming != originalFastRoaming { options.append(WiFiOptionEdit(section: section, band: band, setting: .fastRoaming(fastRoaming))) }
+        }
+        return WiFiChangeSet(networks: edit == original ? [] : [edit], isolate: isolate != originalIsolate ? isolate : nil, options: options)
     }
 
     var hasChanges: Bool { change != WiFiChangeSet() }
+}
+
+/// The Radios tab's staged edits, against the reads of the first edit.
+struct WiFiRadioEdits: Equatable {
+    let token: SessionToken?
+    let base: WirelessStatus
+    let sections: [WirelessSectionOptions]?
+    var settings: [WirelessBand: WiFiRadioSettings] = [:]
+    /// Auto may use the 5 GHz DFS channels; `nil` keeps the router's value.
+    var autoDFS: Bool?
+
+    func original(_ band: WirelessBand) -> WiFiRadioSettings? { base.radio(band).flatMap(WiFiRadioSettings.init) }
+    func current(_ band: WirelessBand) -> WiFiRadioSettings? { settings[band] ?? original(band) }
+
+    /// The 5 GHz radio section and its skip list, when SSH read them.
+    private var fiveGHz: (radio: WirelessRadio, section: WirelessSectionOptions)? {
+        guard let radio = base.radio(.ghz5), let device = radio.device,
+              let section = sections?.first(where: { $0.section == device }) else { return nil }
+        return (radio, section)
+    }
+
+    /// On when Auto may use some DFS channel. `nil` without the skip list.
+    var originalAutoDFS: Bool? {
+        guard let five = fiveGHz else { return nil }
+        let dfs = five.radio.channels.filter(\.dfs).map(\.number)
+        return !dfs.allSatisfy((five.section.autoSkips ?? []).contains)
+    }
+
+    var currentAutoDFS: Bool? { autoDFS ?? originalAutoDFS }
+
+    var canWriteAutoDFS: Bool { fiveGHz.map { UCISectionName($0.section.section) != nil } ?? false }
+
+    /// The skip list without the DFS channels (on) or with all of them (off).
+    private func skips(autoDFS on: Bool) -> [Int]? {
+        guard let five = fiveGHz else { return nil }
+        let dfs = Set(five.radio.channels.filter(\.dfs).map(\.number))
+        let skips = Set(five.section.autoSkips ?? [])
+        return Array(on ? skips.subtracting(dfs) : skips.union(dfs)).sorted()
+    }
+
+    var change: WiFiChangeSet {
+        let radios = WirelessBand.allCases.compactMap { band -> WiFiRadioSettings? in
+            guard let settings = settings[band], settings != original(band) else { return nil }
+            return settings
+        }
+        var options: [WiFiOptionEdit] = []
+        if let autoDFS, autoDFS != originalAutoDFS, let section = fiveGHz?.section.section, let list = skips(autoDFS: autoDFS) {
+            options.append(WiFiOptionEdit(section: section, band: .ghz5, setting: .autoSkips(list)))
+        }
+        return WiFiChangeSet(radios: radios, options: options)
+    }
+
+    /// One per changed field.
+    var changeCount: Int {
+        var count = 0
+        for band in WirelessBand.allCases {
+            guard let now = settings[band], let was = original(band) else { continue }
+            count += [now.channel != was.channel, now.width != was.width, now.hwmode != was.hwmode, now.txPower != was.txPower,
+                      now.pscOnly != was.pscOnly].filter { $0 }.count
+        }
+        if let autoDFS, autoDFS != originalAutoDFS { count += 1 }
+        return count
+    }
+
+    var changedBands: [WirelessBand] {
+        var bands = Set(change.radios.map(\.band))
+        if !change.options.isEmpty { bands.insert(.ghz5) }
+        return bands.sorted()
+    }
 }

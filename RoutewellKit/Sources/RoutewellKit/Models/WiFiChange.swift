@@ -351,16 +351,15 @@ public enum ThisMacImpact: Sendable, Equatable {
 // MARK: - Plan
 
 /// The radar check a manual DFS channel needs before its band comes up.
+/// Its length depends on the channel and the router's rules; the apply waits
+/// while `get_status` says `cac`.
 public struct WiFiRadarCheck: Sendable, Equatable {
     public var band: WirelessBand
     public var channel: Int
-    /// 60 s, or 10 minutes on channels 116 to 128 (weather radar in Germany).
-    public var seconds: Int
 
     public init(band: WirelessBand, channel: Int) {
         self.band = band
         self.channel = channel
-        seconds = (116...128).contains(channel) ? 600 : 60
     }
 }
 

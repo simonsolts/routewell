@@ -108,7 +108,7 @@ import RoutewellMock
     #expect(page.changes == ["Flint Home visible: Off"])
     #expect(page.before == page.after)
     #expect(page.impacts.map { "\($0.bold) \($0.rest)" } == [
-        "2.4 GHz restarts",
+        "2.4 GHz restarts, about 20 s",
         "3 devices drop, then join again by themselves",
         "This Mac stays connected",
     ])
@@ -126,7 +126,7 @@ import RoutewellMock
     #expect(page.title == "Apply 1 change?")
     #expect(page.changes == ["Flint Home Fast: new password"])
     #expect(page.impacts.map { "\($0.bold) \($0.rest)" } == [
-        "The network on 5 and 6 GHz restarts; other networks there stay up",
+        "The network on 5 and 6 GHz restarts, about 5 s; other networks there stay up",
         "2 devices must join again",
         "This Mac must enter the new password for Flint Home Fast",
     ])
@@ -178,7 +178,7 @@ import RoutewellMock
     controller.review(try #require(controller.draft?.change))
     let page = try review(environment)
     #expect(page.changes == ["Isolate devices: On, on every main network"])
-    #expect(page.impacts.map { "\($0.bold) \($0.rest)" } == ["Main network settings reload", "This Mac stays on Ethernet"])
+    #expect(page.impacts.map { "\($0.bold) \($0.rest)" } == ["Main network settings reload, about 5 s", "This Mac stays on Ethernet"])
 }
 
 // MARK: Outcomes
@@ -315,7 +315,7 @@ import RoutewellMock
     let network = try #require(environment.model.wireless?.networks.first { $0.interface == "ra0" })
     _ = try await backend.mockWiFi.send(.network(WiFiSlotState(
         interface: "ra0", band: .ghz2_4, ssid: network.ssid, security: network.encryption, password: WiFiPassword("another-password"),
-        hidden: network.hidden, randomBSSID: network.randomBSSID, enabled: true), initialised: true))
+        hidden: network.hidden, randomBSSID: network.randomBSSID, enabled: true), initialised: true, radio: nil))
     environment.refresh.refreshNow()
     await environment.refresh.waitForRefresh()
     #expect(environment.model.wireless?.networks.first { $0.interface == "ra0" }?.password == WiFiPassword("another-password"))

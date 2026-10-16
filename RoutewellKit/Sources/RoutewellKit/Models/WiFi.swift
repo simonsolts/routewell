@@ -463,9 +463,11 @@ public struct WirelessSectionOptions: Sendable, Equatable {
     public var ieee80211k: Bool?
     public var bssTransition: Bool?
     public var ieee80211r: Bool?
+    /// `country` of a radio, as the router reports it.
+    public var country: String?
 
     public init(section: String, type: String? = nil, ifname: String? = nil, autoSkips: [Int]? = nil, dfsEnabled: Bool? = nil,
-                emlMode: String? = nil, ieee80211k: Bool? = nil, bssTransition: Bool? = nil, ieee80211r: Bool? = nil) {
+                emlMode: String? = nil, ieee80211k: Bool? = nil, bssTransition: Bool? = nil, ieee80211r: Bool? = nil, country: String? = nil) {
         self.section = section
         self.type = type
         self.ifname = ifname
@@ -475,6 +477,7 @@ public struct WirelessSectionOptions: Sendable, Equatable {
         self.ieee80211k = ieee80211k
         self.bssTransition = bssTransition
         self.ieee80211r = ieee80211r
+        self.country = country
     }
 }
 
@@ -488,6 +491,11 @@ public struct WiFiAir: Sendable, Equatable {
         self.interfaces = interfaces
         self.stations = stations
         self.sections = sections
+    }
+
+    /// The country the radios report: letters only, upper case.
+    public var country: String? {
+        sections?.lazy.compactMap(\.country).first
     }
 
     /// Auto's skipped channels for the radio section `device`.
