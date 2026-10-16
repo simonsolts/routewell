@@ -20,6 +20,8 @@ public final class MockWiFiService: WiFiService, WiFiApplyTransport {
         case multiLinkFails
         /// `-32601` on `wifi get_config`.
         case methodNotFound
+        /// 2.4 GHz on manual channel 6, 5 GHz on manual channel 100 (DFS).
+        case manualChannel
     }
 
     /// How a network edit goes. The Mac is the MacBook Air on "Flint Home
@@ -35,12 +37,21 @@ public final class MockWiFiService: WiFiService, WiFiApplyTransport {
         /// The first call comes back with an `err_code`.
         case refused
         case macOnEthernet
+        /// A manual DFS channel finds radar during its check.
+        case radarFound
     }
 
     private struct Edits {
         var wireless: WirelessStatus?
         var subnets: [SubnetPolicy]?
+        var sections: [WirelessSectionOptions]?
+        /// The band whose radar check runs, and when it ends.
+        var radarCheck: (band: WirelessBand, until: Date)?
+        var radar: WirelessBand?
     }
+
+    /// How long a mock radar check takes.
+    static let radarCheckTime: TimeInterval = 3
 
     private let selected = Mutex<Scenario>(.today)
     private let applySelected = Mutex<ApplyScenario>(.success)
@@ -62,7 +73,21 @@ public final class MockWiFiService: WiFiService, WiFiApplyTransport {
     public var thisMacOnWiFi: Bool { applyScenario != .macOnEthernet }
 
     private func currentWireless(_ scenario: Scenario) -> WirelessStatus {
-        edits.withLock { $0.wireless } ?? Self.wireless(scenario)
+        let (stored, check, radar) = edits.withLock { ($0.wireless, $0.radarCheck, $0.radar) }
+        var wireless = stored ?? Self.wireless(scenario)
+        for index in wireless.radios.indices {
+            guard let band = wireless.radios[index].band else { continue }
+            if band == radar {
+                wireless.radios[index].state = .conflict
+            } else if let check, check.band == band, Date() < check.until {
+                wireless.radios[index].state = .cac
+            }
+        }
+        return wireless
+    }
+
+    private func currentSections(_ scenario: Scenario) -> [WirelessSectionOptions] {
+        edits.withLock { $0.sections } ?? Self.air(scenario).sections ?? []
     }
 
     private func currentSubnets(_ scenario: Scenario) -> [SubnetPolicy] {
@@ -83,8 +108,14 @@ public final class MockWiFiService: WiFiService, WiFiApplyTransport {
 
     public func readRadioStates() async throws -> [WirelessBand: RadioState] {
         if applyScenario == .macNotBack { throw GLiNetRPCError.transport(.unreachable(code: -1004)) }
-        return Dictionary(currentWireless(scenario).radios.compactMap { radio in radio.band.map { ($0, RadioState.ready) } },
+        return Dictionary(currentWireless(scenario).radios.compactMap { radio in radio.band.map { ($0, radio.state ?? .ready) } },
                           uniquingKeysWith: { first, _ in first })
+    }
+
+    public func readOptions() async throws -> [WirelessSectionOptions] {
+        try Task.checkCancellation()
+        guard scenario != .sshOff else { throw GLiNetRPCError.transport(.unreachable(code: -1004)) }
+        return currentSections(scenario)
     }
 
     public func send(_ call: WiFiCall) async throws -> Int? {
@@ -98,10 +129,28 @@ public final class MockWiFiService: WiFiService, WiFiApplyTransport {
 
     private func store(_ call: WiFiCall) {
         let scenario = scenario
-        var wireless = currentWireless(scenario)
+        var wireless = edits.withLock { $0.wireless } ?? Self.wireless(scenario)
         var subnets = currentSubnets(scenario)
+        var sections = currentSections(scenario)
+        var radarCheck = edits.withLock { $0.radarCheck }
+        var radar = edits.withLock { $0.radar }
         switch call {
-        case .network(let slot, _):
+        case .network(let slot, _, let settings):
+            if let settings, let index = wireless.radios.firstIndex(where: { $0.band == settings.band }) {
+                var radio = wireless.radios[index]
+                radio.configuredChannel = settings.channel
+                if !settings.isAutoChannel { radio.currentChannel = settings.channel }
+                radio.htmode = settings.width.map(String.init) ?? "auto"
+                radio.hwmode = settings.hwmode
+                radio.txPower = settings.txPower.wire
+                if settings.pscOnly != nil { radio.pscOnly = settings.pscOnly }
+                wireless.radios[index] = radio
+                if !settings.isAutoChannel, radio.channels.first(where: { $0.number == settings.channel })?.dfs == true {
+                    if applyScenario == .radarFound { radar = settings.band } else { radarCheck = (settings.band, Date().addingTimeInterval(Self.radarCheckTime)) }
+                } else if radar == settings.band {
+                    radar = nil
+                }
+            }
             for radio in wireless.radios.indices {
                 for index in wireless.radios[radio].networks.indices where wireless.radios[radio].networks[index].interface == slot.interface {
                     var network = wireless.radios[radio].networks[index]
@@ -116,8 +165,19 @@ public final class MockWiFiService: WiFiService, WiFiApplyTransport {
             }
         case .subnet(let subnet, let isolate):
             for index in subnets.indices where subnets[index].name == subnet.name { subnets[index].isolate = isolate }
+        case .options(let writes):
+            for write in writes {
+                guard let index = sections.firstIndex(where: { $0.section == write.section.description }) else { continue }
+                switch write.setting {
+                case .roamingHelp(let on):
+                    sections[index].ieee80211k = on
+                    sections[index].bssTransition = on
+                case .fastRoaming(let on): sections[index].ieee80211r = on
+                case .autoSkips(let channels): sections[index].autoSkips = channels
+                }
+            }
         }
-        edits.withLock { $0 = Edits(wireless: wireless, subnets: subnets) }
+        edits.withLock { $0 = Edits(wireless: wireless, subnets: subnets, sections: sections, radarCheck: radarCheck, radar: radar) }
     }
 
     public func probe() async -> Capability {
@@ -146,7 +206,9 @@ public final class MockWiFiService: WiFiService, WiFiApplyTransport {
         try Task.checkCancellation()
         let scenario = scenario
         guard scenario != .sshOff, scenario != .methodNotFound else { return .failure(.unavailable, attemptedAt: Date()) }
-        return .success(Self.air(scenario), observedAt: Date(), source: .mock)
+        var air = Self.air(scenario)
+        air.sections = currentSections(scenario)
+        return .success(air, observedAt: Date(), source: .mock)
     }
 
     // MARK: - Data
@@ -169,8 +231,10 @@ public final class MockWiFiService: WiFiService, WiFiApplyTransport {
         let oneName = scenario == .afterSuggestions
         let guestOn = scenario == .guestAndIoT
         let fastName = oneName ? home : fast
+        let manual = scenario == .manualChannel
         return WirelessStatus(radios: [
-            WirelessRadio(device: "MT7990_1_1", band: .ghz2_4, configuredChannel: 0, currentChannel: 9, htmode: "auto", txPower: "Max",
+            WirelessRadio(device: "MT7990_1_1", band: .ghz2_4, configuredChannel: manual ? 6 : 0, currentChannel: manual ? 6 : 9,
+                          htmode: manual ? "20" : "auto", txPower: "Max",
                           networks: [
                               slot("ra0", home, on: true),
                               slot("ra1", guest, on: guestOn, guest: true),
@@ -178,7 +242,7 @@ public final class MockWiFiService: WiFiService, WiFiApplyTransport {
                           ],
                           channels: (1...13).map { WirelessChannel($0) }, widthOptions: [20, 40], autoWidth: true,
                           hwmode: "11b/g/n/ax/be", hwmodeOptions: ["11b/g/n/ax/be", "11ax/be"], securityOptions: securityOptions, state: .ready),
-            WirelessRadio(device: "MT7990_1_2", band: .ghz5, configuredChannel: 0, currentChannel: oneName ? 100 : 44,
+            WirelessRadio(device: "MT7990_1_2", band: .ghz5, configuredChannel: manual ? 100 : 0, currentChannel: oneName || manual ? 100 : 44,
                           htmode: oneName ? "160" : "80", txPower: "Max",
                           networks: [
                               slot("rai0", fastName, on: true, security: oneName ? .wpa2WPA3 : .wpa3),
@@ -246,11 +310,11 @@ public final class MockWiFiService: WiFiService, WiFiApplyTransport {
             return WiFiInterface(name: valid, band: band, channel: band == .ghz6 ? 37 : band == .ghz5 ? 44 : 9)
         }
         let sections = [
-            WirelessSectionOptions(section: "MT7990_1_1", type: "wifi-device", autoSkips: [12, 13]),
+            WirelessSectionOptions(section: "MT7990_1_1", type: "wifi-device", autoSkips: [12, 13], country: "GB"),
             WirelessSectionOptions(section: "MT7990_1_2", type: "wifi-device",
-                                   autoSkips: after ? [149, 153, 157, 161, 165] : [52, 56, 60, 64] + Array(stride(from: 100, through: 165, by: 4)),
-                                   dfsEnabled: true),
-            WirelessSectionOptions(section: "MT7990_1_3", type: "wifi-device"),
+                                   autoSkips: after ? [149, 153, 157, 161, 165] : [52, 56, 60, 64] + Array(stride(from: 100, through: 144, by: 4)) + [149, 153, 157, 161, 165],
+                                   dfsEnabled: true, country: "GB"),
+            WirelessSectionOptions(section: "MT7990_1_3", type: "wifi-device", country: "GB"),
             WirelessSectionOptions(section: "wifi2g", type: "wifi-iface", ifname: "ra0", emlMode: "emlsr", ieee80211k: true, bssTransition: true, ieee80211r: false),
             WirelessSectionOptions(section: "wifi5g", type: "wifi-iface", ifname: "rai0", emlMode: "emlsr", ieee80211k: true, bssTransition: true, ieee80211r: false),
             WirelessSectionOptions(section: "wifi6g", type: "wifi-iface", ifname: "rax0", emlMode: "emlsr", ieee80211k: true, bssTransition: true, ieee80211r: false),

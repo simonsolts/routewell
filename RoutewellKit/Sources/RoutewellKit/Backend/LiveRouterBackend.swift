@@ -99,7 +99,7 @@ public actor LiveRouterBackend: RouterBackend, FixtureRecordableBackend, AdGuard
         self.wifi = LiveWiFiService(rpc: rpc, runner: sshRunner, clock: clock)
         // One gate per router, shared by every write this backend runs.
         let gate = MutationGate()
-        self.wifiControl = WiFiApplyExecutor(transport: LiveWiFiApplyTransport(rpc: rpc), gate: gate, clock: clock, log: log)
+        self.wifiControl = WiFiApplyExecutor(transport: LiveWiFiApplyTransport(rpc: rpc, runner: sshRunner), gate: gate, clock: clock, log: log)
         self.clientActions = sshRunner.map { SSHClientActions(runner: $0, gate: gate, clock: clock) } ?? SSHRequiredClientActions()
         self.ssh = sshRunner.map { LiveSSHService(runner: $0, clock: clock) }
         self.overviewService = LiveOverviewService(

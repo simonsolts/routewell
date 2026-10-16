@@ -48,11 +48,32 @@ public struct NetworkInterfaceName: Sendable, Hashable, Comparable, CustomString
 /// validated like any other interface name.
 public typealias WiFiInterfaceName = NetworkInterfaceName
 
+/// A UCI section name read from the router's own `wireless` config: only
+/// ASCII letters, digits, and `_`, at most 64 characters. Anonymous sections
+/// (`@wifi-iface[0]`) do not pass, so they are never written.
+public struct UCISectionName: Sendable, Hashable, CustomStringConvertible {
+    public let description: String
+
+    public init?(_ raw: String) {
+        guard (1...64).contains(raw.utf8.count) else { return nil }
+        let allowed = raw.unicodeScalars.allSatisfy { scalar in
+            switch scalar.value {
+            case 48...57, 65...90, 97...122, 95: true   // 0-9 A-Z a-z _
+            default: false
+            }
+        }
+        guard allowed else { return nil }
+        description = raw
+    }
+}
+
 /// A fixed, allow-listed remote command. The remote side is a shell, so this
 /// enum is only safe because every rendered string is a constant or a typed
 /// value whose text is re-rendered from validated parts: an `IPv4Literal`
 /// renders only digits and dots, a `MACAddress` only hex digits and colons,
-/// a `NetworkInterfaceName` only letters, digits, `.`, `_`, and `-`.
+/// a `NetworkInterfaceName` only letters, digits, `.`, `_`, and `-`, a
+/// `UCISectionName` only letters, digits, and `_`; option values are `0`,
+/// `1`, or channel numbers.
 /// No other value is ever interpolated into the command text, and there is
 /// no case that takes a string.
 public enum SSHCommand: Sendable, Hashable {
@@ -107,6 +128,9 @@ public enum SSHCommand: Sendable, Hashable {
     /// The `wireless` UCI options no RPC reports, filtered on the router,
     /// so keys and SSIDs never leave it.
     case wifiRadioOptions
+    /// Sets `wireless` options no RPC writes, then `uci commit wireless`
+    /// and `wifi reload`, in one command.
+    case setWiFiOptions([WiFiOptionWrite])
 
     public static let adGuardFolder = "/etc/AdGuardHome"
     public static let adGuardConfigPath = "/etc/AdGuardHome/config.yaml"
@@ -167,7 +191,25 @@ public enum SSHCommand: Sendable, Hashable {
         case .wifiStations(let names):
             "r=0; for i in \(names.map(\.description).joined(separator: " ")); do echo \"== $i\"; iw dev \"$i\" station dump || r=1; done; exit $r"
         case .wifiRadioOptions:
-            "uci -q show wireless | grep -E '^wireless\\.[A-Za-z0-9_@-]+(=wifi-(device|iface)$|\\.(ifname|acs_skiplist|dfs_enable|eml_mode|ieee80211k|bss_transition|ieee80211r)=)'; true"
+            "uci -q show wireless | grep -E '^wireless\\.[A-Za-z0-9_@-]+(=wifi-(device|iface)$|\\.(ifname|acs_skiplist|dfs_enable|eml_mode|ieee80211k|bss_transition|ieee80211r|country)=)'; true"
+        case .setWiFiOptions(let writes):
+            (writes.flatMap(\.uciCommands) + ["uci commit wireless", "wifi reload"]).joined(separator: " && ")
+        }
+    }
+}
+
+extension WiFiOptionWrite {
+    /// One `uci` step per option. Values are `0`, `1`, or channel numbers.
+    var uciCommands: [String] {
+        let path = "wireless.\(section)"
+        func flag(_ on: Bool) -> String { on ? "'1'" : "'0'" }
+        switch setting {
+        case .roamingHelp(let on): return ["uci set \(path).ieee80211k=\(flag(on))", "uci set \(path).bss_transition=\(flag(on))"]
+        case .fastRoaming(let on): return ["uci set \(path).ieee80211r=\(flag(on))"]
+        case .autoSkips(let channels):
+            let list = channels.filter { (1...255).contains($0) }
+            if list.isEmpty { return ["{ uci -q delete \(path).acs_skiplist || true; }"] }
+            return ["uci set \(path).acs_skiplist='\(list.map(String.init).joined(separator: ";"))'"]
         }
     }
 }

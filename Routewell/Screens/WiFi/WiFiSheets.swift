@@ -112,6 +112,19 @@ struct WiFiNetworkSheet: View {
         }
     }
 
+    static let sshOnly = "Routewell changes this over SSH; GL's web page has no switch for it, and a save there can undo it."
+
+    /// A switch, or the value as text when it cannot change.
+    @ViewBuilder private func optionalSwitch(_ title: String, value: Bool?, writable: Bool, keyPath: WritableKeyPath<WiFiNetworkDraft, Bool?>) -> some View {
+        if writable, let value {
+            Toggle(title, isOn: Binding(get: { environment.wifi.draft?[keyPath: keyPath] ?? value },
+                                        set: { environment.wifi.draft?[keyPath: keyPath] = $0 }))
+                .toggleStyle(.switch).labelsHidden()
+        } else {
+            Text(WiFiEditFormat.onOff(value)).foregroundStyle(.secondary)
+        }
+    }
+
     private func row<Content: View>(_ title: String, help: String? = nil, @ViewBuilder content: () -> Content) -> some View {
         HStack {
             HelpLabel(title: title, help: help)
@@ -154,14 +167,7 @@ struct WiFiNetworkSheet: View {
     }
 
     private func advancedSection(_ draft: WiFiNetworkDraft) -> some View {
-        let options = environment.wifi.airState == .available ? model.wifiAir?.sections?.filter { section in
-            section.ifname.map(draft.original.interfaces.contains) ?? false
-        } : nil
-        let roaming = options?.first.flatMap { section in
-            section.ieee80211k.flatMap { k in section.bssTransition.map { k && $0 } }
-        }
-        let fast = options?.first?.ieee80211r
-        return DisclosureGroup("Advanced", isExpanded: $advanced) {
+        DisclosureGroup("Advanced", isExpanded: $advanced) {
             WiFiBox {
                 row("Random hardware address", help: "The network uses a made-up BSSID. Leave on unless a device needs a fixed one.") {
                     Toggle("Random hardware address", isOn: binding(\.randomBSSID, fallback: true)).toggleStyle(.switch).labelsHidden()
@@ -177,12 +183,12 @@ struct WiFiNetworkSheet: View {
                     }
                 }
                 Divider().padding(.leading, 14)
-                row("Roaming help (802.11k/v)", help: "Tells devices about the other bands so they can move to a better one. Routewell shows this setting but does not change it yet.") {
-                    Text(WiFiEditFormat.onOff(roaming)).foregroundStyle(.secondary)
+                row("Roaming help (802.11k/v)", help: "Tells devices about the other bands so they can move to a better one. \(Self.sshOnly)") {
+                    optionalSwitch("Roaming help", value: draft.roamingHelp, writable: draft.canWriteRoaming, keyPath: \.roamingHelp)
                 }
                 Divider().padding(.leading, 14)
-                row("Fast roaming (802.11r)", help: "Helps only with more than one access point. Routewell shows this setting but does not change it yet.") {
-                    Text(WiFiEditFormat.onOff(fast)).foregroundStyle(.secondary)
+                row("Fast roaming (802.11r)", help: "Helps only with more than one access point. \(Self.sshOnly)") {
+                    optionalSwitch("Fast roaming", value: draft.fastRoaming, writable: draft.canWriteRoaming, keyPath: \.fastRoaming)
                 }
             }
             .padding(.top, 6)
@@ -320,7 +326,7 @@ struct WiFiApplySheet: View {
                 progress(run)
             }
         } else if let change = controller.pending, let wireless = controller.base, let plan = controller.plan(for: change) {
-            review(WiFiReviewPresentation(change: change, plan: plan, wireless: wireless))
+            review(WiFiReviewPresentation(change: change, plan: plan, wireless: wireless, sections: controller.baseSections))
         }
     }
 
@@ -375,7 +381,7 @@ struct WiFiApplySheet: View {
         let current = WiFiReviewPresentation.trailIndex(run.step)
         return VStack(spacing: 14) {
             ProgressView().controlSize(.large)
-            Text("\(names[current])…").font(.headline)
+            Text(WiFiReviewPresentation.progressTitle(run.step, plan: run.plan)).font(.headline)
             HStack(spacing: 6) {
                 ForEach(Array(names.enumerated()), id: \.offset) { index, name in
                     if index > 0 {

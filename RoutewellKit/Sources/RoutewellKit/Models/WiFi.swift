@@ -47,9 +47,23 @@ public struct WirelessChannel: Sendable, Equatable, Hashable {
 }
 
 /// `txpower` as GL shows it. Anything else stays verbatim.
-public enum TxPowerLevel: Sendable, Equatable {
+public enum TxPowerLevel: Sendable, Equatable, Hashable {
     case max, high, medium, low
     case other(String)
+
+    /// GL's four levels, weakest first.
+    public static let levels: [TxPowerLevel] = [.low, .medium, .high, .max]
+
+    /// The word `set_config` sends.
+    public var wire: String {
+        switch self {
+        case .max: "Max"
+        case .high: "High"
+        case .medium: "Medium"
+        case .low: "Low"
+        case .other(let text): text
+        }
+    }
 
     public static func parse(_ text: String?) -> TxPowerLevel? {
         guard let text, !text.isEmpty else { return nil }
@@ -449,9 +463,11 @@ public struct WirelessSectionOptions: Sendable, Equatable {
     public var ieee80211k: Bool?
     public var bssTransition: Bool?
     public var ieee80211r: Bool?
+    /// `country` of a radio, as the router reports it.
+    public var country: String?
 
     public init(section: String, type: String? = nil, ifname: String? = nil, autoSkips: [Int]? = nil, dfsEnabled: Bool? = nil,
-                emlMode: String? = nil, ieee80211k: Bool? = nil, bssTransition: Bool? = nil, ieee80211r: Bool? = nil) {
+                emlMode: String? = nil, ieee80211k: Bool? = nil, bssTransition: Bool? = nil, ieee80211r: Bool? = nil, country: String? = nil) {
         self.section = section
         self.type = type
         self.ifname = ifname
@@ -461,6 +477,7 @@ public struct WirelessSectionOptions: Sendable, Equatable {
         self.ieee80211k = ieee80211k
         self.bssTransition = bssTransition
         self.ieee80211r = ieee80211r
+        self.country = country
     }
 }
 
@@ -474,6 +491,11 @@ public struct WiFiAir: Sendable, Equatable {
         self.interfaces = interfaces
         self.stations = stations
         self.sections = sections
+    }
+
+    /// The country the radios report: letters only, upper case.
+    public var country: String? {
+        sections?.lazy.compactMap(\.country).first
     }
 
     /// Auto's skipped channels for the radio section `device`.
