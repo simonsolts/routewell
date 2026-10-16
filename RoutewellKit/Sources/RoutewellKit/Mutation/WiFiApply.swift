@@ -2,22 +2,33 @@ import Foundation
 
 /// The progress trail of an apply.
 public enum WiFiApplyStep: Sendable, Equatable {
-    case sending, restarting, reconnecting, checking
+    case sending, restarting, reconnecting
+    /// A DFS channel's radar check runs (`get_status` `cac`).
+    case radarCheck
+    case checking
 }
 
-/// What the router reported after an apply: the slots the plan touched and
-/// the main subnet's isolation.
+/// What the router reported after an apply: the slots, radios and options
+/// the plan touched, the main subnet's isolation, and the bands that found
+/// radar (`get_status` `conflict`).
 public struct WiFiApplyState: Sendable, Equatable {
     public var slots: [WiFiSlotState]
     public var isolate: Bool?
+    public var radios: [WiFiRadioSettings]
+    public var options: [WiFiOptionWrite]
+    public var radar: [WirelessBand]
 
-    public init(slots: [WiFiSlotState] = [], isolate: Bool? = nil) {
+    public init(slots: [WiFiSlotState] = [], isolate: Bool? = nil, radios: [WiFiRadioSettings] = [], options: [WiFiOptionWrite] = [],
+                radar: [WirelessBand] = []) {
         self.slots = slots
         self.isolate = isolate
+        self.radios = radios
+        self.options = options
+        self.radar = radar
     }
 }
 
-/// The calls an apply needs. Live: router RPC.
+/// The calls an apply needs. Live: router RPC, and SSH for the options.
 public protocol WiFiApplyTransport: Sendable {
     /// `wifi get_config` joined with `get_status`.
     func readWireless() async throws -> WirelessStatus
@@ -25,6 +36,8 @@ public protocol WiFiApplyTransport: Sendable {
     func readSubnets() async throws -> [SubnetPolicy]
     /// `wifi get_status`: answers once the router is back.
     func readRadioStates() async throws -> [WirelessBand: RadioState]
+    /// The `wireless` options no RPC reports (SSH).
+    func readOptions() async throws -> [WirelessSectionOptions]
     /// One write. Returns the reply's `err_code`, if the router named one.
     func send(_ call: WiFiCall) async throws -> Int?
 }
@@ -103,18 +116,25 @@ public struct WiFiApplyExecutor: WiFiControl {
     // MARK: Sequence (gate held)
 
     private func perform(_ plan: WiFiApplyPlan, progress: @Sendable (WiFiApplyStep) async -> Void) async -> Step {
-        let touchesNetworks = plan.steps.contains { $0.before != nil }
+        let touchesNetworks = plan.steps.contains { $0.before != nil || $0.radioBefore != nil }
+        let touchesOptions = plan.steps.contains { !$0.optionsBefore.isEmpty }
         var calls = plan.calls
         do {
             let wireless = touchesNetworks ? try await transport.readWireless() : nil
             let subnets = plan.subnetBefore != nil ? try await transport.readSubnets() : nil
-            let current = Self.state(plan, wireless: wireless, subnets: subnets)
+            let options = touchesOptions ? try await transport.readOptions() : nil
+            let current = Self.state(plan, wireless: wireless, subnets: subnets, options: options)
             if let wireless {
                 let slots = WiFiSlotState.slots(wireless)
                 for step in plan.steps {
-                    guard let before = step.before else { continue }
-                    if slots[before.interface] != before { return (.conflictingExternalEdit(actual: current), false, nil) }
+                    if let before = step.before, slots[before.interface] != before { return (.conflictingExternalEdit(actual: current), false, nil) }
+                    if let before = step.radioBefore, wireless.radio(before.band).flatMap(WiFiRadioSettings.init) != before {
+                        return (.conflictingExternalEdit(actual: current), false, nil)
+                    }
                 }
+            }
+            for before in plan.steps.flatMap(\.optionsBefore) where options?.first(where: { $0.section == before.section }) != before {
+                return (.conflictingExternalEdit(actual: current), false, nil)
             }
             if let before = plan.subnetBefore {
                 guard let main = subnets?.first(where: { $0.name == "main" }), main.isolate == before.isolate else {
@@ -148,6 +168,10 @@ public struct WiFiApplyExecutor: WiFiControl {
                 return (.rejected(.capabilityUnavailable), true, .unavailable)
             } catch GLiNetRPCError.invalidParameters where first {
                 return (.rejected(.preconditionFailed("The router did not accept the settings Routewell sent.")), true, .malformedResponse)
+            } catch let failure as SSHFailure where first && failure.beforeCommand {
+                return (.rejected(.preconditionFailed(failure.message)), false, failure.category)
+            } catch ProcessRunnerError.launchFailed where first {
+                return (.rejected(.preconditionFailed("SSH did not start.")), false, .network)
             } catch {
                 // No answer: the call may have applied and dropped this Mac.
                 // Nothing more is sent.
@@ -161,15 +185,21 @@ public struct WiFiApplyExecutor: WiFiControl {
         try? await sleep(policy.settle)
         if plan.thisMac.drops || lost {
             await progress(.reconnecting)
-            guard await waitForRouter() else { return (.unknownAfterDispatch, true, .network) }
+            guard await waitForRouter(plan) else { return (.unknownAfterDispatch, true, .network) }
         }
         await progress(.checking)
-        return await verify(plan, calls: calls)
+        return await verify(plan, calls: calls, progress: progress)
+    }
+
+    /// The radar check's time, added to the reconnect window and the verify
+    /// deadline.
+    private static func radarTime(_ plan: WiFiApplyPlan) -> TimeInterval {
+        plan.radarCheck.map { TimeInterval($0.seconds) } ?? 0
     }
 
     /// Polls `get_status` until it answers, within the reconnect window.
-    private func waitForRouter() async -> Bool {
-        let deadline = clock().addingTimeInterval(Self.seconds(policy.reconnectWindow))
+    private func waitForRouter(_ plan: WiFiApplyPlan) async -> Bool {
+        let deadline = clock().addingTimeInterval(Self.seconds(policy.reconnectWindow) + Self.radarTime(plan))
         while true {
             if (try? await transport.readRadioStates()) != nil { return true }
             guard clock() < deadline else { return false }
@@ -179,31 +209,48 @@ public struct WiFiApplyExecutor: WiFiControl {
     }
 
     /// Every changed field equal, and the changed radios up. A radio whose
-    /// changed networks are all turned off may report no state.
-    private func verify(_ plan: WiFiApplyPlan, calls: [WiFiCall]) async -> Step {
+    /// changed networks are all turned off may report no state. The band of
+    /// a radar check must reach `ready`; `conflict` there ends the wait.
+    private func verify(_ plan: WiFiApplyPlan, calls: [WiFiCall], progress: @Sendable (WiFiApplyStep) async -> Void) async -> Step {
         let expected = Self.expected(calls)
-        let bands = Set(plan.steps.compactMap(\.scope.band))
-        let staysOn = Set(plan.steps.compactMap { step in
-            if case .network(let slot, _) = step.call, slot.enabled == true { step.scope.band } else { nil }
+        let bands = Set(plan.steps.flatMap(\.scopes).compactMap(\.band))
+        let staysOn = Set(plan.steps.flatMap { step -> [WirelessBand] in
+            switch step.call {
+            case .network(let slot, _, let radio): slot.enabled == true || radio != nil ? step.scopes.compactMap(\.band) : []
+            case .subnet, .options: []
+            }
         })
-        let deadline = clock().addingTimeInterval(Self.seconds(policy.verifyDeadline))
+        let radarBand = plan.radarCheck?.band
+        let readsWireless = !expected.slots.isEmpty || !expected.radios.isEmpty
+        let deadline = clock().addingTimeInterval(Self.seconds(policy.verifyDeadline) + Self.radarTime(plan))
         var last: WiFiApplyState?
         var lastFailure: RefreshFailureCategory?
+        var radarShown = false
         while true {
             do {
-                let wireless = expected.slots.isEmpty ? nil : try await transport.readWireless()
+                let wireless = readsWireless ? try await transport.readWireless() : nil
                 let subnets = expected.isolate == nil ? nil : try await transport.readSubnets()
-                let actual = Self.state(plan, wireless: wireless, subnets: subnets)
+                let options = expected.options.isEmpty ? nil : try await transport.readOptions()
+                var actual = Self.state(plan, wireless: wireless, subnets: subnets, options: options)
+                if let radarBand, wireless?.radio(radarBand)?.state == .conflict {
+                    actual.radar = [radarBand]
+                    return (.verifiedMismatch(expected: expected, actual: actual), true, nil)
+                }
                 last = actual
                 lastFailure = nil
                 let up = bands.allSatisfy { band in
                     switch wireless?.radio(band)?.state {
-                    case .ready?, .cac?: true
+                    case .ready?: true
+                    case .cac?: band != radarBand
                     case nil: !staysOn.contains(band)
                     default: false
                     }
                 }
                 if actual == expected, up { return (.verifiedSuccess(actual), true, nil) }
+                if let radarBand, wireless?.radio(radarBand)?.state == .cac, !radarShown {
+                    radarShown = true
+                    await progress(.radarCheck)
+                }
             } catch {
                 lastFailure = FailureMapping.category(for: error)
             }
@@ -216,20 +263,41 @@ public struct WiFiApplyExecutor: WiFiControl {
 
     // MARK: State
 
-    /// The touched slots as the router has them, in plan order.
-    static func state(_ plan: WiFiApplyPlan, wireless: WirelessStatus?, subnets: [SubnetPolicy]?) -> WiFiApplyState {
+    /// The touched slots, radios and options as the router has them, in plan
+    /// order.
+    static func state(_ plan: WiFiApplyPlan, wireless: WirelessStatus?, subnets: [SubnetPolicy]?,
+                      options: [WirelessSectionOptions]? = nil) -> WiFiApplyState {
         let slots = wireless.map(WiFiSlotState.slots) ?? [:]
+        var radios: [WiFiRadioSettings] = []
+        var writes: [WiFiOptionWrite] = []
+        for call in plan.calls {
+            switch call {
+            case .network(_, _, let radio?):
+                if let read = wireless?.radio(radio.band).flatMap(WiFiRadioSettings.init) { radios.append(read) }
+            case .options(let sent):
+                guard let options else { continue }
+                for write in sent {
+                    let section = options.first { $0.section == write.section.description }
+                    writes.append(WiFiOptionWrite(section: write.section, band: write.band, setting: .read(like: write.setting, from: section)))
+                }
+            default: break
+            }
+        }
         return WiFiApplyState(
             slots: plan.steps.compactMap { $0.before.flatMap { slots[$0.interface] } },
-            isolate: plan.subnetBefore == nil ? nil : subnets?.first { $0.name == "main" }?.isolate)
+            isolate: plan.subnetBefore == nil ? nil : subnets?.first { $0.name == "main" }?.isolate,
+            radios: radios, options: writes)
     }
 
     static func expected(_ calls: [WiFiCall]) -> WiFiApplyState {
         var state = WiFiApplyState()
         for call in calls {
             switch call {
-            case .network(let slot, _): state.slots.append(slot)
+            case .network(let slot, _, let radio):
+                state.slots.append(slot)
+                if let radio { state.radios.append(radio) }
             case .subnet(_, let isolate): state.isolate = isolate
+            case .options(let writes): state.options += writes
             }
         }
         return state
@@ -264,12 +332,18 @@ public struct WiFiApplyExecutor: WiFiControl {
 }
 
 /// The live calls: `wifi set_config` per network and `vlan_subnet
-/// set_fixed_subnet`, with the shapes GL's own web UI sends.
+/// set_fixed_subnet`, with the shapes GL's own web UI sends, and one SSH
+/// command for the options no RPC writes.
 public struct LiveWiFiApplyTransport: WiFiApplyTransport {
     let rpc: GLiNetRPCClient
+    let runner: (any SSHCommandRunning)?
 
-    public init(rpc: GLiNetRPCClient) {
+    /// `wifi reload` restarts radios, so the command may take a while.
+    static let limits = ProcessLimits(deadline: .seconds(60), maxOutputBytes: 64 * 1024)
+
+    public init(rpc: GLiNetRPCClient, runner: (any SSHCommandRunning)? = nil) {
         self.rpc = rpc
+        self.runner = runner
     }
 
     public func readWireless() async throws -> WirelessStatus {
@@ -294,14 +368,30 @@ public struct LiveWiFiApplyTransport: WiFiApplyTransport {
         return states
     }
 
-    public func send(_ call: WiFiCall) async throws -> Int? {
-        LiveAdGuardServiceTransport.errorCode(try await rpc.call(Self.rpcCall(call)))
+    public func readOptions() async throws -> [WirelessSectionOptions] {
+        guard let runner else { throw SSHFailure.configurationFailed }
+        switch try await runner.read(.wifiRadioOptions, limits: LiveWiFiService.limits) {
+        case .success(let output): return WirelessOptionsParser.parse(output.stdout)
+        case .failure(let failure): throw failure
+        }
     }
 
-    static func rpcCall(_ call: WiFiCall) -> GLiNetRPCCall {
-        switch call {
-        case .network: GLiNetRPCCall(object: "wifi", method: "set_config", params: call.params)
-        case .subnet: GLiNetRPCCall(object: "vlan_subnet", method: "set_fixed_subnet", params: call.params)
+    public func send(_ call: WiFiCall) async throws -> Int? {
+        if case .options(let writes) = call {
+            guard let runner else { throw SSHFailure.configurationFailed }
+            let result = try await runner.run(.setWiFiOptions(writes), limits: Self.limits)
+            return result.exitStatus == 0 ? nil : Int(result.exitStatus)
+        }
+        guard let rpcCall = Self.rpcCall(call) else { return nil }
+        return LiveAdGuardServiceTransport.errorCode(try await rpc.call(rpcCall))
+    }
+
+    static func rpcCall(_ call: WiFiCall) -> GLiNetRPCCall? {
+        guard let params = call.params else { return nil }
+        return switch call {
+        case .network: GLiNetRPCCall(object: "wifi", method: "set_config", params: params)
+        case .subnet: GLiNetRPCCall(object: "vlan_subnet", method: "set_fixed_subnet", params: params)
+        case .options: nil
         }
     }
 }

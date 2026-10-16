@@ -47,9 +47,23 @@ public struct WirelessChannel: Sendable, Equatable, Hashable {
 }
 
 /// `txpower` as GL shows it. Anything else stays verbatim.
-public enum TxPowerLevel: Sendable, Equatable {
+public enum TxPowerLevel: Sendable, Equatable, Hashable {
     case max, high, medium, low
     case other(String)
+
+    /// GL's four levels, weakest first.
+    public static let levels: [TxPowerLevel] = [.low, .medium, .high, .max]
+
+    /// The word `set_config` sends.
+    public var wire: String {
+        switch self {
+        case .max: "Max"
+        case .high: "High"
+        case .medium: "Medium"
+        case .low: "Low"
+        case .other(let text): text
+        }
+    }
 
     public static func parse(_ text: String?) -> TxPowerLevel? {
         guard let text, !text.isEmpty else { return nil }
