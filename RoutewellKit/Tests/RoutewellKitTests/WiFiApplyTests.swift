@@ -17,7 +17,7 @@ private final class ApplyClock: Sendable {
 
 /// A router in memory. `apply` decides what a write does to it.
 private actor FakeRouter: WiFiApplyTransport {
-    enum Send { case apply, applyThenLose, ignore, errCode(Int), throwError(GLiNetRPCError) }
+    enum Send { case apply, applyThenLose, applyThenCloseSSH, ignore, errCode(Int), throwError(GLiNetRPCError) }
 
     var wireless: WirelessStatus
     var subnets: [SubnetPolicy]
@@ -77,6 +77,7 @@ private actor FakeRouter: WiFiApplyTransport {
         switch next {
         case .apply: store(call); return nil
         case .applyThenLose: store(call); throw GLiNetRPCError.transport(.timedOut)
+        case .applyThenCloseSSH: store(call); throw SSHFailure.connectionFailed
         case .ignore: return nil
         case .errCode(let code): return code
         case .throwError(let error): throw error
@@ -638,6 +639,31 @@ private enum Sample {
         #expect(state.options.map(\.setting) == [.fastRoaming(true)])
     }
 
+    @Test func optionsWaitForTheRadarCheck() async {
+        let router = FakeRouter()
+        await router.set(states: [[.ghz5: .cac], [.ghz5: .ready]])
+        let plan = Sample.planWithOptions(WiFiChangeSet(options: [WiFiOptionEdit(section: "MT7990_1_2", band: .ghz5, setting: .autoSkips([]))]),
+                                          mac: .ethernet)
+        let steps = StepLog()
+        guard case .verifiedSuccess = await Sample.executor(router).apply(plan, progress: { await steps.add($0) }).outcome else {
+            Issue.record("not verified"); return
+        }
+        #expect(await steps.all.contains(.radarCheck))
+        let radar = FakeRouter()
+        await radar.set(states: [[.ghz5: .conflict]])
+        guard case .verifiedMismatch(_, let actual) = await Sample.executor(radar).apply(plan).outcome else { Issue.record("no radar"); return }
+        #expect(actual.radar == [.ghz5])
+    }
+
+    @Test func closedSSHAfterOptionsIsReadBack() async {
+        let router = FakeRouter(sends: [.applyThenCloseSSH])
+        let plan = Sample.planWithOptions(WiFiChangeSet(options: [WiFiOptionEdit(section: "wifi2g", band: .ghz2_4, setting: .fastRoaming(true))]),
+                                          mac: .ethernet)
+        let report = await Sample.executor(router).apply(plan)
+        guard case .verifiedSuccess = report.outcome else { Issue.record("\(report.outcome)"); return }
+        #expect(report.dispatched)
+    }
+
     @Test func externalOptionEditSendsNothing() async {
         let router = FakeRouter()
         await router.editSections { $0[3].ieee80211r = true }
@@ -677,6 +703,13 @@ private enum Sample {
         wifi.setScenario(.today)
         guard case .verifiedMismatch(_, let actual) = await executor.apply(plan).outcome else { Issue.record("no radar"); return }
         #expect(actual.radar == [.ghz5])
+        // Auto clears the radar.
+        let now = try await wifi.readWireless()
+        var auto = try #require(now.radio(.ghz5).flatMap(WiFiRadioSettings.init))
+        auto.channel = 0
+        let recover = WiFiApplyPlan(change: WiFiChangeSet(radios: [auto]), wireless: now, subnets: nil, devices: [], thisMac: .ethernet)
+        guard case .verifiedSuccess(let state) = await executor.apply(recover).outcome else { Issue.record("radar stays"); return }
+        #expect(state.radar.isEmpty)
     }
 }
 

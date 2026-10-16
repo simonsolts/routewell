@@ -155,6 +155,8 @@ public struct WiFiApplyExecutor: WiFiControl {
         var lost = false
         for (index, call) in calls.enumerated() {
             let first = index == 0
+            // `wifi reload` can close the SSH connection after `uci commit`.
+            let closesSSH = if case .options = call { true } else { false }
             do {
                 guard let code = try await transport.send(call) else { continue }
                 await log?.record(LogEvent(level: .warning, kind: .session, message: "\(call) err_code \(code)"))
@@ -170,7 +172,7 @@ public struct WiFiApplyExecutor: WiFiControl {
                 return (.rejected(.capabilityUnavailable), true, .unavailable)
             } catch GLiNetRPCError.invalidParameters where first {
                 return (.rejected(.preconditionFailed("The router did not accept the settings Routewell sent.")), true, .malformedResponse)
-            } catch let failure as SSHFailure where first && failure.beforeCommand {
+            } catch let failure as SSHFailure where first && failure.beforeCommand && !(closesSSH && failure == .connectionFailed) {
                 return (.rejected(.preconditionFailed(failure.message)), false, failure.category)
             } catch ProcessRunnerError.launchFailed where first {
                 return (.rejected(.preconditionFailed("SSH did not start.")), false, .network)
@@ -218,7 +220,7 @@ public struct WiFiApplyExecutor: WiFiControl {
             case .subnet, .options: []
             }
         })
-        let readsWireless = !expected.slots.isEmpty || !expected.radios.isEmpty
+        let readsWireless = !expected.slots.isEmpty || !expected.radios.isEmpty || !bands.isEmpty
         var deadline = clock().addingTimeInterval(Self.seconds(policy.verifyDeadline))
         var last: WiFiApplyState?
         var lastFailure: RefreshFailureCategory?

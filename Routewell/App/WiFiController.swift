@@ -171,11 +171,13 @@ final class WiFiController {
         radioEdits = edits
     }
 
-    /// Stages Auto's use of the DFS channels on 5 GHz (SSH).
+    /// Stages Auto's use of the DFS channels on 5 GHz (SSH). Off drops a
+    /// width Auto can no longer use.
     func setAutoDFS(_ on: Bool) {
         guard canEdit, var edits = radioEdits ?? newRadioEdits(), edits.canWriteAutoDFS else { return }
         edits.autoDFS = on
         radioEdits = edits
+        if !on, let radio = model.wireless?.radio(.ghz5), let channel = edits.current(.ghz5)?.channel { setChannel(.ghz5, channel, radio: radio) }
     }
 
     /// Auto or Manual. Manual starts on the channel in use. A width the new
@@ -293,8 +295,9 @@ struct WiFiNetworkDraft: Equatable {
     var randomBSSID: Bool
     var bands: Set<WirelessBand>
     var isolate: Bool?
-    /// The `wireless` sections of the network's slots; empty without SSH or
-    /// when one cannot be written.
+    /// The `wireless` sections of the network's slots, and of the slot each
+    /// other band would use; empty without SSH or when one of the network's
+    /// own cannot be written.
     let roamingSections: [(section: String, band: WirelessBand)]
     let originalRoamingHelp: Bool?
     let originalFastRoaming: Bool?
@@ -329,10 +332,22 @@ struct WiFiNetworkDraft: Equatable {
         } }, uniquingKeysWith: { first, _ in first })
         let own = (sections ?? []).filter { section in section.ifname.map(group.interfaces.contains) ?? false }
         let writable = !own.isEmpty && own.allSatisfy { UCISectionName($0.section) != nil && $0.ifname.flatMap { bandOf[$0] } != nil }
-        roamingSections = writable ? own.compactMap { section in section.ifname.flatMap { bandOf[$0] }.map { (section.section, $0) } } : []
+        var roaming = writable ? own.compactMap { section in section.ifname.flatMap { bandOf[$0] }.map { (section: section.section, band: $0) } } : []
+        for radio in wireless.radios where writable {
+            guard let band = radio.band, !roaming.contains(where: { $0.band == band }), let interface = radio.mainNetwork?.interface,
+                  let section = sections?.first(where: { $0.ifname == interface }), UCISectionName(section.section) != nil else { continue }
+            roaming.append((section.section, band))
+        }
+        roamingSections = roaming
         let first = own.first
-        originalRoamingHelp = first.flatMap { section in section.ieee80211k.flatMap { k in section.bssTransition.map { k && $0 } } }
-        originalFastRoaming = first?.ieee80211r
+        if writable {
+            // A missing flag is off.
+            originalRoamingHelp = (first?.ieee80211k ?? false) && (first?.bssTransition ?? false)
+            originalFastRoaming = first?.ieee80211r ?? false
+        } else {
+            originalRoamingHelp = first.flatMap { section in section.ieee80211k.flatMap { k in section.bssTransition.map { k && $0 } } }
+            originalFastRoaming = first?.ieee80211r
+        }
         roamingHelp = originalRoamingHelp
         fastRoaming = originalFastRoaming
     }
@@ -353,9 +368,12 @@ struct WiFiNetworkDraft: Equatable {
     var change: WiFiChangeSet {
         let edit = edit
         var options: [WiFiOptionEdit] = []
-        for (section, band) in roamingSections {
-            if let roamingHelp, roamingHelp != originalRoamingHelp { options.append(WiFiOptionEdit(section: section, band: band, setting: .roamingHelp(roamingHelp))) }
-            if let fastRoaming, fastRoaming != originalFastRoaming { options.append(WiFiOptionEdit(section: section, band: band, setting: .fastRoaming(fastRoaming))) }
+        // An added band gets the network's values; the plan drops writes it
+        // already has.
+        for (section, band) in roamingSections where bands.contains(band) {
+            let added = !original.bands.contains(band)
+            if let roamingHelp, added || roamingHelp != originalRoamingHelp { options.append(WiFiOptionEdit(section: section, band: band, setting: .roamingHelp(roamingHelp))) }
+            if let fastRoaming, added || fastRoaming != originalFastRoaming { options.append(WiFiOptionEdit(section: section, band: band, setting: .fastRoaming(fastRoaming))) }
         }
         return WiFiChangeSet(networks: edit == original ? [] : [edit], isolate: isolate != originalIsolate ? isolate : nil, options: options)
     }

@@ -147,6 +147,8 @@ public final class MockWiFiService: WiFiService, WiFiApplyTransport {
                 wireless.radios[index] = radio
                 if !settings.isAutoChannel, radio.channels.first(where: { $0.number == settings.channel })?.dfs == true {
                     if applyScenario == .radarFound { radar = settings.band } else { radarCheck = (settings.band, Date().addingTimeInterval(Self.radarCheckTime)) }
+                } else if radar == settings.band {
+                    radar = nil
                 }
             }
             for radio in wireless.radios.indices {

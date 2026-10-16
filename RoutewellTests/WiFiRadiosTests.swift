@@ -244,6 +244,16 @@ import RoutewellMock
     #expect(sections.first { $0.section == "MT7990_1_2" }?.autoSkips == [144, 149, 153, 157, 161, 165])
 }
 
+@MainActor @Test func autoDFSOffDropsAWidthAutoCannotUse() async throws {
+    let (environment, _) = await radiosEnvironment()
+    let controller = environment.wifi
+    controller.setAutoDFS(true)
+    controller.editRadio(.ghz5) { $0.width = 160 }
+    controller.setAutoDFS(false)
+    #expect(controller.radioEdits?.current(.ghz5)?.width == 80)
+    #expect(controller.radioEdits?.changeCount == 0)
+}
+
 @MainActor @Test func countryShowsAsTheRouterReportsIt() async throws {
     let (environment, _) = await radiosEnvironment()
     #expect(WiFiRadioFormat.country(environment.model.wifiAir) == "Country: GB")
@@ -288,6 +298,36 @@ import RoutewellMock
     guard case .verifiedSuccess = await waitForOutcome(environment) else { Issue.record("not applied"); return }
     let sections = try await backend.mockWiFi.readOptions()
     #expect(sections.filter { $0.ieee80211r == true }.map(\.section) == ["wifi5g", "wifi6g"])
+}
+
+@MainActor @Test func anAddedBandGetsTheRoamingValues() async throws {
+    let (environment, _) = await radiosEnvironment()
+    let controller = environment.wifi
+    let group = try #require(controller.overview?.groups.first { $0.name == MockWiFiService.fast })
+    controller.openNetwork(group)
+    controller.draft?.bands.insert(.ghz2_4)
+    controller.draft?.fastRoaming = true
+    let change = try #require(controller.draft?.change)
+    #expect(Set(change.options.filter { $0.setting == .fastRoaming(true) }.map(\.section)) == ["wifi2g", "wifi5g", "wifi6g"])
+    // A removed band is not written.
+    controller.draft?.bands.remove(.ghz6)
+    #expect(controller.draft?.change.options.contains { $0.section == "wifi6g" } == false)
+}
+
+@MainActor @Test func missingRoamingFlagsAreOff() async throws {
+    let (environment, _) = await radiosEnvironment()
+    let controller = environment.wifi
+    let group = try #require(controller.overview?.groups.first { $0.name == MockWiFiService.fast })
+    let wireless = try #require(environment.model.wireless)
+    let sections = try #require(controller.sections).map { section in
+        var section = section
+        section.ieee80211k = nil
+        section.bssTransition = nil
+        section.ieee80211r = nil
+        return section
+    }
+    let draft = WiFiNetworkDraft(group: group, wireless: wireless, isolate: nil, sections: sections)
+    #expect(draft.canWriteRoaming && draft.roamingHelp == false && draft.fastRoaming == false)
 }
 
 // MARK: Snapshots
