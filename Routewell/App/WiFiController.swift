@@ -35,6 +35,8 @@ final class WiFiController {
     private var reviewingRadios = false
     /// The network sheet's fields.
     var draft: WiFiNetworkDraft?
+    /// The guest or IoT sheet's fields.
+    var guestDraft: WiFiGuestDraft?
     /// Use One Name's "Keep the name".
     var keepName: String?
     /// What Review and apply shows and sends.
@@ -123,12 +125,51 @@ final class WiFiController {
         sheet = .useOneName
     }
 
+    /// The guest or IoT sheet: set up when the network is off, change or
+    /// turn off when it is on. The IoT sheet picks the devices the
+    /// "own network" suggestion names.
+    func openGuest(_ kind: WiFiNetworkKind) {
+        guard canEdit, let wireless = model.wireless else { return }
+        begin(wireless)
+        let suggested = overview?.suggestions.first { $0.kind == .ownNetwork }?.devices ?? []
+        guestDraft = WiFiGuestDraft(kind: kind, wireless: wireless, subnet: subnet(kind),
+                                    mainNames: overview?.groups.filter { $0.kind == .main }.map(\.name) ?? [],
+                                    moving: kind == .iot ? Set(suggested) : [])
+        sheet = .guestIoT
+    }
+
+    func subnet(_ kind: WiFiNetworkKind) -> SubnetPolicy? {
+        subnets?.first { $0.name == WiFiSubnetRules.subnetName(kind) }
+    }
+
+    /// The devices the IoT sheet can offer to move: on a main network on 2.4 GHz.
+    var moveCandidates: [WiFiDevice] {
+        (overview?.devices ?? []).filter { $0.kind == .main && $0.band == .ghz2_4 && !$0.viaLink }
+    }
+
+    func isPrinter(_ mac: MACAddress) -> Bool { model.deviceRegistry.records[mac]?.category == .printer }
+
+    /// The moved devices that are on the IoT network now.
+    func joinedIoT(_ macs: Set<MACAddress>) -> Set<MACAddress> {
+        WiFiClientInfo.joined(Array(macs), clients: clients, subnet: subnet(.iot))
+    }
+
+    /// Turn On applies at once: the sheet is its own review.
+    func turnOn() {
+        guard canEdit, let draft = guestDraft else { return }
+        let change = draft.change
+        guestDraft?.movingDevices = moveCandidates.filter { draft.moving.contains($0.mac) }
+        pending = change
+        apply()
+    }
+
     private func begin(_ wireless: WirelessStatus, sections: [WirelessSectionOptions]? = nil) {
         editToken = model.session.expectedToken
         base = wireless
         baseSections = sections ?? self.sections
         reviewingRadios = false
         draft = nil
+        guestDraft = nil
         pending = nil
         run = nil
     }
@@ -229,6 +270,7 @@ final class WiFiController {
         reviewingRadios = false
         sheet = nil
         draft = nil
+        guestDraft = nil
         pending = nil
         run = nil
         base = nil
@@ -271,7 +313,7 @@ enum WiFiAirState: Equatable {
 }
 
 enum WiFiSheet: String, Identifiable {
-    case network, useOneName, review
+    case network, useOneName, guestIoT, review
     var id: String { rawValue }
 }
 
@@ -447,5 +489,87 @@ struct WiFiRadioEdits: Equatable {
         var bands = Set(change.radios.map(\.band))
         if !change.options.isEmpty { bands.insert(.ghz5) }
         return bands.sorted()
+    }
+}
+
+/// The guest or IoT sheet's fields, and the change they make. The network
+/// is on when the router has one of its slots on.
+struct WiFiGuestDraft: Equatable {
+    let kind: WiFiNetworkKind
+    /// The network as read; no bands when it is off.
+    let original: WiFiNetworkEdit
+    let originalRules: WiFiSubnetRules?
+    /// "192.168.9.1/24".
+    let range: String?
+    /// The main network names, for the help texts.
+    let mainNames: [String]
+    var name: String
+    var password: String
+    /// IoT only; the guest network's security follows the bands.
+    var security: WiFiSecurity
+    var visible: Bool
+    var bands: Set<WirelessBand>
+    /// `nil` when the subnet read failed.
+    var eachOther: Bool?
+    var reachesModem: Bool?
+    var moving: Set<MACAddress>
+    /// The chosen devices as they were at Turn On, for the join list.
+    var movingDevices: [WiFiDevice] = []
+
+    init(kind: WiFiNetworkKind, wireless: WirelessStatus, subnet: SubnetPolicy?, mainNames: [String], moving: Set<MACAddress>) {
+        let slots = wireless.radios.compactMap { radio in radio.network(kind).map { (band: radio.band, network: $0) } }
+        let on = slots.filter(\.network.isOn)
+        let first = on.first?.network ?? slots.first?.network
+        original = WiFiNetworkEdit(kind: kind, interfaces: on.compactMap(\.network.interface), name: first?.ssid ?? "",
+                                   password: first?.password, security: first?.encryption ?? .wpa2WPA3, hidden: first?.hidden ?? false,
+                                   randomBSSID: first?.randomBSSID ?? true, bands: on.compactMap(\.band).sorted())
+        self.kind = kind
+        self.mainNames = mainNames
+        range = subnet?.range
+        let rules = subnet.map { WiFiSubnetRules(kind: kind, subnet: $0) }
+        originalRules = rules
+        let isOn = !original.bands.isEmpty
+        let fallback = "\(mainNames.first ?? "Flint") \(kind == .guest ? "Guest" : "IoT")"
+        name = first?.ssid ?? fallback
+        let key = first?.password?.revealed ?? ""
+        password = isOn || key.count >= 8 ? key : Self.newPassword()
+        security = kind == .iot && [.wpa2, .wpa2WPA3].contains(original.security) ? original.security : .wpa2
+        visible = !original.hidden
+        bands = isOn ? Set(original.bands) : kind == .iot ? [.ghz2_4] : [.ghz2_4, .ghz5]
+        // Off: the design's defaults. On: as the router has them.
+        eachOther = rules.map { isOn ? $0.eachOther ?? false : kind == .iot }
+        reachesModem = rules.map { isOn ? $0.reachesModem ?? false : false }
+        self.moving = moving
+    }
+
+    var isOn: Bool { !original.bands.isEmpty }
+
+    /// The guest network uses WPA3 with 6 GHz, else WPA2/WPA3.
+    var effectiveSecurity: WiFiSecurity {
+        kind == .guest ? (bands.contains(.ghz6) ? .wpa3 : .wpa2WPA3) : security
+    }
+
+    var edit: WiFiNetworkEdit {
+        let samePassword = password == (original.password?.revealed ?? "")
+        return WiFiNetworkEdit(kind: kind, interfaces: original.interfaces, name: name, password: samePassword ? original.password : WiFiPassword(password),
+                               security: effectiveSecurity, hidden: !visible, randomBSSID: original.randomBSSID, bands: bands.sorted())
+    }
+
+    var change: WiFiChangeSet {
+        let edit = edit
+        let rules = eachOther.map { WiFiSubnetRules(kind: kind, eachOther: $0, reachesModem: reachesModem) }
+        return WiFiChangeSet(networks: edit == original ? [] : [edit], rules: rules.map { [$0] } ?? [])
+    }
+
+    var turnOffChange: WiFiChangeSet {
+        var edit = original
+        edit.bands = []
+        return WiFiChangeSet(networks: [edit])
+    }
+
+    /// Three groups of four letters and digits that are easy to read out.
+    static func newPassword() -> String {
+        let characters = Array("abcdefghjkmnpqrstuvwxyz23456789")
+        return (0..<3).map { _ in String((0..<4).map { _ in characters.randomElement()! }) }.joined(separator: "-")
     }
 }

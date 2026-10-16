@@ -59,7 +59,7 @@ public final class MockWiFiService: WiFiService, WiFiApplyTransport {
     /// How long a mock radar check takes.
     static let radarCheckTime: TimeInterval = 3
     /// How long after the IoT network turns on the mock's Wi-Fi 4 device joins it.
-    static let iotJoinTime: TimeInterval = 4
+    public static let iotJoinTime: TimeInterval = 4
 
     private let selected = Mutex<Scenario>(.today)
     private let applySelected = Mutex<ApplyScenario>(.success)

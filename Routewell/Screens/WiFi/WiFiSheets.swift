@@ -13,6 +13,7 @@ struct WiFiSheetHost: View {
             switch sheet {
             case .network: WiFiNetworkSheet()
             case .useOneName: WiFiUseOneNameSheet()
+            case .guestIoT: WiFiGuestSheet()
             case .review: WiFiApplySheet()
             }
         }
@@ -315,15 +316,14 @@ struct WiFiMiniCard: View {
 struct WiFiApplySheet: View {
     @Environment(AppModel.self) private var model
     @Environment(AppEnvironment.self) private var environment
-    @Environment(\.openURL) private var openURL
 
     var body: some View {
         let controller = environment.wifi
         if let run = controller.run {
             if let outcome = run.outcome {
-                result(WiFiOutcomePresentation(outcome, run: run))
+                WiFiApplyResult(page: WiFiOutcomePresentation(outcome, run: run))
             } else {
-                progress(run)
+                WiFiApplyProgress(run: run)
             }
         } else if let change = controller.pending, let wireless = controller.base, let plan = controller.plan(for: change) {
             review(WiFiReviewPresentation(change: change, plan: plan, wireless: wireless, sections: controller.baseSections))
@@ -375,8 +375,13 @@ struct WiFiApplySheet: View {
         case .thisMac: "laptopcomputer"
         }
     }
+}
 
-    private func progress(_ run: WiFiApplyRun) -> some View {
+/// The progress trail of an apply.
+struct WiFiApplyProgress: View {
+    let run: WiFiApplyRun
+
+    var body: some View {
         let names = WiFiReviewPresentation.trail(macDrops: run.plan.thisMac.drops)
         let current = WiFiReviewPresentation.trailIndex(run.step)
         return VStack(spacing: 14) {
@@ -398,8 +403,15 @@ struct WiFiApplySheet: View {
         .padding(.vertical, 12)
         .accessibilityElement(children: .contain)
     }
+}
 
-    private func result(_ page: WiFiOutcomePresentation) -> some View {
+/// The last screen of an apply that did not end in the guest share card.
+struct WiFiApplyResult: View {
+    let page: WiFiOutcomePresentation
+    @Environment(AppEnvironment.self) private var environment
+    @Environment(\.openURL) private var openURL
+
+    var body: some View {
         let controller = environment.wifi
         return VStack(spacing: 16) {
             VStack(spacing: 8) {

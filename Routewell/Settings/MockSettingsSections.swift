@@ -225,6 +225,8 @@ struct MockSettingsSections: View {
                 Text("Router keeps old values").tag(MockWiFiService.ApplyScenario.mismatch)
                 Text("Router refuses (error code)").tag(MockWiFiService.ApplyScenario.refused)
                 Text("This Mac on Ethernet").tag(MockWiFiService.ApplyScenario.macOnEthernet)
+                Text("Guest or IoT subnet conflict (-9)").tag(MockWiFiService.ApplyScenario.subnetConflict)
+                Text("Guest or IoT refused (TAP-S2S)").tag(MockWiFiService.ApplyScenario.tapS2S)
             }
             HStack {
                 Button("Preview New Host Key…") { environment.sshSetup.preview(.new) }
