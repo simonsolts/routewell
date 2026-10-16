@@ -186,7 +186,7 @@ struct WiFiGuestSheet: View {
             if candidates.isEmpty {
                 Text("No devices on 2.4 GHz now.").font(.callout).foregroundStyle(.secondary)
             } else {
-                HStack(spacing: 6) {
+                LazyVGrid(columns: [GridItem(.adaptive(minimum: 130), spacing: 6, alignment: .leading)], alignment: .leading, spacing: 6) {
                     ForEach(candidates) { device in
                         let chosen = draft.moving.contains(device.mac)
                         Button {

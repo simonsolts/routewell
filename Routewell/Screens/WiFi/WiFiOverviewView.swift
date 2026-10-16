@@ -175,7 +175,7 @@ struct WiFiNetworkCards: View {
                         .accessibilityHint("Opens Multi-link")
                 } else if let group = card.group {
                     Button {
-                        if group.kind == .main { environment.wifi.openNetwork(group) } else { environment.wifi.openGuest(group.kind) }
+                        if group.kind == .main { environment.wifi.openNetwork(group) } else { environment.wifi.openGuest(group.kind, group: group) }
                     } label: { row(card, chevron: true) }
                         .buttonStyle(.plain)
                         .disabled(!environment.wifi.canEdit)

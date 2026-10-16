@@ -132,6 +132,32 @@ import RoutewellMock
     guard case .verifiedSuccess = await outcome(environment) else { Issue.record("not applied"); return }
 }
 
+@MainActor @Test func oneGuestCardKeepsToItsOwnSlots() async throws {
+    let environment = await guestEnvironment(.guestAndIoT)
+    var wireless = try #require(environment.model.wireless)
+    let radio = try #require(wireless.radios.firstIndex { $0.band == .ghz5 })
+    let slot = try #require(wireless.radios[radio].networks.firstIndex { $0.kind == .guest })
+    wireless.radios[radio].networks[slot].ssid = "Other Guest"
+    let first = try #require(wireless.radios.first { $0.band == .ghz2_4 }?.network(.guest))
+    let group = WiFiNetworkGroup(name: first.ssid ?? "", kind: .guest, bands: [.ghz2_4], interfaces: [first.interface ?? ""])
+    let draft = WiFiGuestDraft(kind: .guest, wireless: wireless, subnet: nil, group: group, mainNames: [], moving: [])
+    #expect(draft.original.interfaces == group.interfaces && draft.bands == [.ghz2_4])
+    #expect(draft.turnOffChange.networks.map(\.interfaces) == [group.interfaces])
+}
+
+@MainActor @Test func guestEditsSendOnlyTheChangedRules() async throws {
+    let environment = await guestEnvironment(.guestAndIoT)
+    let wireless = try #require(environment.model.wireless)
+    var subnet = try #require(environment.wifi.subnet(.guest))
+    subnet.isolate = nil
+    var draft = WiFiGuestDraft(kind: .guest, wireless: wireless, subnet: subnet, mainNames: [], moving: [])
+    #expect(draft.eachOther == nil && WiFiGuestFormat.reach(draft).first { $0.row == .eachOther }?.locked == true)
+    draft.name = "Renamed Guest"
+    #expect(draft.change.rules.isEmpty && draft.change.networks.count == 1)
+    draft.reachesModem?.toggle()
+    #expect(draft.change.rules == [WiFiSubnetRules(kind: .guest, eachOther: nil, reachesModem: draft.reachesModem)])
+}
+
 @MainActor @Test func subnetConflictIsRefusedWithItsText() async throws {
     let environment = await guestEnvironment(apply: .subnetConflict)
     let controller = environment.wifi

@@ -127,12 +127,13 @@ final class WiFiController {
 
     /// The guest or IoT sheet: set up when the network is off, change or
     /// turn off when it is on. The IoT sheet picks the devices the
-    /// "own network" suggestion names.
-    func openGuest(_ kind: WiFiNetworkKind) {
+    /// "own network" suggestion names. A card's group keeps the sheet to
+    /// that card's slots when the bands have different names.
+    func openGuest(_ kind: WiFiNetworkKind, group: WiFiNetworkGroup? = nil) {
         guard canEdit, let wireless = model.wireless else { return }
         begin(wireless)
         let suggested = overview?.suggestions.first { $0.kind == .ownNetwork }?.devices ?? []
-        guestDraft = WiFiGuestDraft(kind: kind, wireless: wireless, subnet: subnet(kind),
+        guestDraft = WiFiGuestDraft(kind: kind, wireless: wireless, subnet: subnet(kind), group: group,
                                     mainNames: overview?.groups.filter { $0.kind == .main }.map(\.name) ?? [],
                                     moving: kind == .iot ? Set(suggested) : [])
         sheet = .guestIoT
@@ -516,9 +517,10 @@ struct WiFiGuestDraft: Equatable {
     /// The chosen devices as they were at Turn On, for the join list.
     var movingDevices: [WiFiDevice] = []
 
-    init(kind: WiFiNetworkKind, wireless: WirelessStatus, subnet: SubnetPolicy?, mainNames: [String], moving: Set<MACAddress>) {
+    init(kind: WiFiNetworkKind, wireless: WirelessStatus, subnet: SubnetPolicy?, group: WiFiNetworkGroup? = nil, mainNames: [String],
+         moving: Set<MACAddress>) {
         let slots = wireless.radios.compactMap { radio in radio.network(kind).map { (band: radio.band, network: $0) } }
-        let on = slots.filter(\.network.isOn)
+        let on = slots.filter { slot in slot.network.isOn && (group.map { slot.network.interface.map($0.interfaces.contains) ?? false } ?? true) }
         let first = on.first?.network ?? slots.first?.network
         original = WiFiNetworkEdit(kind: kind, interfaces: on.compactMap(\.network.interface), name: first?.ssid ?? "",
                                    password: first?.password, security: first?.encryption ?? .wpa2WPA3, hidden: first?.hidden ?? false,
@@ -537,8 +539,8 @@ struct WiFiGuestDraft: Equatable {
         visible = !original.hidden
         bands = isOn ? Set(original.bands) : kind == .iot ? [.ghz2_4] : [.ghz2_4, .ghz5]
         // Off: the design's defaults. On: as the router has them.
-        eachOther = rules.map { isOn ? $0.eachOther ?? false : kind == .iot }
-        reachesModem = rules.map { isOn ? $0.reachesModem ?? false : false }
+        eachOther = rules.flatMap { isOn ? $0.eachOther : kind == .iot }
+        reachesModem = rules.flatMap { isOn ? $0.reachesModem : false }
         self.moving = moving
     }
 
@@ -557,8 +559,11 @@ struct WiFiGuestDraft: Equatable {
 
     var change: WiFiChangeSet {
         let edit = edit
-        let rules = eachOther.map { WiFiSubnetRules(kind: kind, eachOther: $0, reachesModem: reachesModem) }
-        return WiFiChangeSet(networks: edit == original ? [] : [edit], rules: rules.map { [$0] } ?? [])
+        // Only the rules the person changed; the others stay as the router has them now.
+        let rules = WiFiSubnetRules(kind: kind, eachOther: eachOther == originalRules?.eachOther ? nil : eachOther,
+                                    reachesModem: reachesModem == originalRules?.reachesModem ? nil : reachesModem)
+        let changed = rules.eachOther != nil || rules.reachesModem != nil
+        return WiFiChangeSet(networks: edit == original ? [] : [edit], rules: changed ? [rules] : [])
     }
 
     var turnOffChange: WiFiChangeSet {
