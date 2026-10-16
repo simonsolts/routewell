@@ -8,13 +8,15 @@ public struct WiFiClientInfo: Sendable, Equatable {
     public var online: Bool
     /// On the multi-link network: on Wi-Fi with no one band.
     public var multiLink: Bool
+    public var ip: String?
 
-    public init(mac: MACAddress, name: String? = nil, band: WirelessBand? = nil, online: Bool = true, multiLink: Bool = false) {
+    public init(mac: MACAddress, name: String? = nil, band: WirelessBand? = nil, online: Bool = true, multiLink: Bool = false, ip: String? = nil) {
         self.mac = mac
         self.name = name
         self.band = band
         self.online = online
         self.multiLink = multiLink
+        self.ip = ip
     }
 
     /// The band from the list's `iface` token (`2.4 GHz`, `5 GHz`, `6 GHz`).
@@ -26,7 +28,14 @@ public struct WiFiClientInfo: Sendable, Equatable {
         default: nil
         }
         self.init(mac: client.mac, name: name, band: band, online: client.online == .value(true),
-                  multiLink: client.connection.band == ClientConnection.multiLink)
+                  multiLink: client.connection.band == ClientConnection.multiLink, ip: client.ip)
+    }
+
+    /// The devices of `macs` that have joined a network: listed online with
+    /// an address in its subnet.
+    public static func joined(_ macs: [MACAddress], clients: [WiFiClientInfo]?, subnet: SubnetPolicy?) -> Set<MACAddress> {
+        guard let subnet else { return [] }
+        return Set((clients ?? []).filter { $0.online && macs.contains($0.mac) && subnet.contains(ip: $0.ip) }.map(\.mac))
     }
 }
 

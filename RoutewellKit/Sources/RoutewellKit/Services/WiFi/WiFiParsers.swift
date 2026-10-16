@@ -47,7 +47,7 @@ public enum WirelessParser {
             guest: WiFiJSON.flag(iface["guest"]), iot: WiFiJSON.flag(iface["iot"]),
             encryption: WiFiSecurity.parse(iface["encryption"]?.string), hidden: WiFiJSON.flag(iface["hidden"]),
             randomBSSID: WiFiJSON.flag(iface["random_bssid"]), initialised: WiFiJSON.flag(iface["init"]),
-            password: iface["key"]?.string.map(WiFiPassword.init))
+            password: iface["key"]?.string.map(WiFiPassword.init), bssid: iface["bssid"]?.string)
     }
 }
 

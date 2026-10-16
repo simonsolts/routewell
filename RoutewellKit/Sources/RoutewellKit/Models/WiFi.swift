@@ -157,10 +157,12 @@ public struct WirelessNetwork: Sendable, Equatable {
     /// `init`: the slot was set up once.
     public var initialised: Bool?
     public var password: WiFiPassword?
+    /// As read; `set_config` sends it back when it adds a guest or IoT network.
+    public var bssid: String?
 
     public init(interface: String? = nil, ssid: String? = nil, enabled: Observed<Bool> = .unknown, guest: Bool? = nil, iot: Bool? = nil,
                 encryption: WiFiSecurity? = nil, hidden: Bool? = nil, randomBSSID: Bool? = nil, initialised: Bool? = nil,
-                password: WiFiPassword? = nil) {
+                password: WiFiPassword? = nil, bssid: String? = nil) {
         self.interface = interface
         self.ssid = ssid
         self.enabled = enabled
@@ -171,6 +173,7 @@ public struct WirelessNetwork: Sendable, Equatable {
         self.randomBSSID = randomBSSID
         self.initialised = initialised
         self.password = password
+        self.bssid = bssid
     }
 
     /// `nil` when the router reported neither flag.
@@ -241,6 +244,8 @@ public struct WirelessRadio: Sendable, Equatable {
     public var txPowerLevel: TxPowerLevel? { TxPowerLevel.parse(txPower) }
     /// The band's main network: the slot that is neither guest nor IoT.
     public var mainNetwork: WirelessNetwork? { networks.first { $0.kind == .main } }
+    /// The band's slot of one kind.
+    public func network(_ kind: WiFiNetworkKind) -> WirelessNetwork? { networks.first { $0.kind == kind } }
 }
 
 public struct WirelessStatus: Sendable, Equatable {

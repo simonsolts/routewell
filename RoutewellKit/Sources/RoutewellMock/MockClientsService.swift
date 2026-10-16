@@ -20,8 +20,12 @@ public actor MockClientsService: ClientsService {
 
     private var scenario: Scenario = .newDevices
     private var behavior: MockRouterBackend.FeatureBehavior = .supported
+    /// Clients that joined another network, by MAC, with their new address.
+    private let moved: @Sendable () -> [MACAddress: String]
 
-    public init() {}
+    public init(moved: @escaping @Sendable () -> [MACAddress: String] = { [:] }) {
+        self.moved = moved
+    }
 
     public func setScenario(_ value: Scenario) { scenario = value }
     public func setBehavior(_ value: MockRouterBackend.FeatureBehavior) { behavior = value }
@@ -51,7 +55,11 @@ public actor MockClientsService: ClientsService {
         }
         let result = Self.inventory(for: scenario)
         switch result {
-        case .success(let inventory):
+        case .success(var inventory):
+            let moved = moved()
+            for index in inventory.clients.indices {
+                if let ip = moved[inventory.clients[index].mac] { inventory.clients[index].ip = ip }
+            }
             return ClientInventoryResult(
                 area: .success(inventory, observedAt: now, source: .mock),
                 capability: Capability(.supported, evidence: .mockScenario(scenario.rawValue), observedAt: now)

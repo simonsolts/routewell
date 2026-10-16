@@ -12,7 +12,7 @@ public actor MockRouterBackend: RouterBackend {
     }
 
     public nonisolated let clients: (any ClientsService)?
-    public nonisolated let mockClients = MockClientsService()
+    public nonisolated let mockClients: MockClientsService
     public nonisolated let queryLog: (any QueryLogService)?
     public nonisolated let mockQueryLog = MockQueryLogService()
     public nonisolated let mockClientActions = MockClientActions()
@@ -21,7 +21,7 @@ public actor MockRouterBackend: RouterBackend {
     public nonisolated let mockSSH = MockSSHService()
     /// `nil` in the "SSH off" scenarios, so SSH-only segments ask for SSH.
     public nonisolated var ssh: (any SSHService)? { sshOff ? nil : mockSSH }
-    public nonisolated let mockWiFi = MockWiFiService()
+    public nonisolated let mockWiFi: MockWiFiService
     public nonisolated var wifi: (any WiFiService)? { mockWiFi }
     /// Network edits through the real executor.
     public nonisolated var wifiControl: (any WiFiControl)? {
@@ -62,6 +62,9 @@ public actor MockRouterBackend: RouterBackend {
         self.hostname = hostname
         let probes = Dictionary(uniqueKeysWithValues: [DataArea.network, .maintenance, .vpn, .plugins, .telemetry].map { ($0, MockFeatureProbe()) })
         featureProbes = probes
+        let wifi = MockWiFiService()
+        mockWiFi = wifi
+        mockClients = MockClientsService { wifi.movedClients() }
         clients = mockClients
         queryLog = mockQueryLog
         network = probes[.network]
