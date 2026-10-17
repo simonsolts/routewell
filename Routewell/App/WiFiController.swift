@@ -28,6 +28,8 @@ final class WiFiController {
     private(set) var base: WirelessStatus?
     /// The `wireless` options read over SSH when the sheet opened.
     private(set) var baseSections: [WirelessSectionOptions]?
+    /// The `get_mlo_config` read the sheet opened with.
+    private(set) var baseMLO: MLOConfiguration?
     /// The Radios tab's staged edits; none once their session has ended.
     var radioEdits: WiFiRadioEdits? {
         get { stagedRadios?.token == model.session.expectedToken ? stagedRadios : nil }
@@ -41,6 +43,15 @@ final class WiFiController {
     var guestDraft: WiFiGuestDraft?
     /// Use One Name's "Keep the name".
     var keepName: String?
+    /// The multi-link setup sheet's fields.
+    var mloDraft: WiFiMLODraft?
+    /// The Multi-link tab's staged edits; none once their session has ended.
+    var mloEdits: WiFiMLODraft? {
+        get { stagedMLO?.token == model.session.expectedToken ? stagedMLO?.draft : nil }
+        set { stagedMLO = newValue.map { (model.session.expectedToken, $0) } }
+    }
+    private var stagedMLO: (token: SessionToken?, draft: WiFiMLODraft)?
+    private var reviewingMLO = false
     /// What Review and apply shows and sends.
     private(set) var pending: WiFiChangeSet?
     private(set) var run: WiFiApplyRun?
@@ -91,6 +102,52 @@ final class WiFiController {
 
     func openMultiLink() {
         model.subpages[.wifi] = WiFiTab.multiLink.rawValue
+    }
+
+    var mlo: MLOConfiguration? { try? model.wifi?.mlo.get() }
+
+    /// The Wi-Fi 7 devices, which can use multi-link.
+    var wifi7Devices: [WiFiDevice] { (overview?.devices ?? []).filter { $0.generation == .wifi7 } }
+
+    /// The setup sheet: bands, name, review, then Turn On.
+    func openMultiLinkSetup() {
+        guard canEdit, let wireless = model.wireless, let network = mlo?.main else { return }
+        begin(wireless)
+        mloDraft = WiFiMLODraft(network: network, wireless: wireless, mlo: mlo, setup: true)
+        sheet = .multiLink
+    }
+
+    /// Stages a change on the Multi-link tab. The first edit keeps the reads
+    /// it started from.
+    func editMLO(_ change: (inout WiFiMLODraft) -> Void) {
+        guard canEdit, let wireless = model.wireless, let network = mlo?.main else { return }
+        var draft = mloEdits ?? WiFiMLODraft(network: network, wireless: wireless, mlo: mlo, setup: false)
+        change(&draft)
+        mloEdits = draft
+    }
+
+    func revertMLO() { mloEdits = nil }
+
+    /// The staged edits, else the network as the router has it.
+    var mloShown: WiFiMLODraft? {
+        if let mloEdits { return mloEdits }
+        guard let wireless = model.wireless, let network = mlo?.main else { return nil }
+        return WiFiMLODraft(network: network, wireless: wireless, mlo: mlo, setup: false)
+    }
+
+    /// Review and apply for the Multi-link tab's staged edits.
+    func reviewMLO() {
+        guard canEdit, let draft = mloEdits else { return }
+        begin(draft.wireless, mlo: draft.mlo)
+        reviewingMLO = true
+        review(draft.change)
+    }
+
+    /// Turn On from the setup sheet: the sheet is its own review.
+    func turnOnMultiLink() {
+        guard canEdit, let draft = mloDraft else { return }
+        pending = draft.change
+        apply()
     }
 
     // MARK: Editing
@@ -166,13 +223,16 @@ final class WiFiController {
         apply()
     }
 
-    private func begin(_ wireless: WirelessStatus, sections: [WirelessSectionOptions]? = nil) {
+    private func begin(_ wireless: WirelessStatus, sections: [WirelessSectionOptions]? = nil, mlo: MLOConfiguration? = nil) {
         editToken = model.session.expectedToken
         base = wireless
         baseSections = sections ?? self.sections
+        baseMLO = mlo ?? self.mlo
         reviewingRadios = false
+        reviewingMLO = false
         draft = nil
         guestDraft = nil
+        mloDraft = nil
         pending = nil
         run = nil
     }
@@ -180,8 +240,8 @@ final class WiFiController {
     /// The plan for a change against the values the sheet opened with.
     func plan(for change: WiFiChangeSet) -> WiFiApplyPlan? {
         guard editToken == model.session.expectedToken, let wireless = base else { return nil }
-        return WiFiApplyPlan(change: change, wireless: wireless, subnets: subnets, options: baseSections, devices: overview?.devices ?? [],
-                             thisMac: thisMacLink)
+        return WiFiApplyPlan(change: change, wireless: wireless, subnets: subnets, options: baseSections, mlo: baseMLO,
+                             devices: overview?.devices ?? [], thisMac: thisMacLink)
     }
 
     /// Use One Name: every main band under the kept name, with its password,
@@ -270,14 +330,18 @@ final class WiFiController {
         guard !isApplying else { return }
         // A finished apply ends the staged radio edits, whatever its outcome.
         if run?.outcome != nil, reviewingRadios { radioEdits = nil }
+        if run?.outcome != nil, reviewingMLO { mloEdits = nil }
         reviewingRadios = false
+        reviewingMLO = false
         sheet = nil
         draft = nil
         guestDraft = nil
+        mloDraft = nil
         pending = nil
         run = nil
         base = nil
         baseSections = nil
+        baseMLO = nil
     }
 
     func apply() {
@@ -316,7 +380,7 @@ enum WiFiAirState: Equatable {
 }
 
 enum WiFiSheet: String, Identifiable {
-    case network, useOneName, guestIoT, review
+    case network, useOneName, guestIoT, multiLink, review
     var id: String { rawValue }
 }
 
@@ -579,4 +643,66 @@ struct WiFiGuestDraft: Equatable {
         let characters = Array("abcdefghjkmnpqrstuvwxyz23456789")
         return (0..<3).map { _ in String((0..<4).map { _ in characters.randomElement()! }) }.joined(separator: "-")
     }
+}
+
+/// The multi-link network's fields, from the setup sheet or the Multi-link
+/// tab, and the change they make. Security is WPA3: 6 GHz allows only WPA3,
+/// and GL's own page offers nothing else.
+struct WiFiMLODraft: Equatable {
+    /// The reads the draft started from.
+    let wireless: WirelessStatus
+    let mlo: MLOConfiguration?
+    let original: MLONetwork
+    /// The main network on 6 GHz, else on 5 GHz: the "Same as" name and the
+    /// "Same password as" key.
+    let fastName: String?
+    let fastPassword: WiFiPassword?
+    var enabled: Bool
+    var bands: Set<WirelessBand>
+    var sameName: Bool
+    var name: String
+    var samePassword: Bool
+    var password: String
+
+    /// `setup`: the design's defaults (on, 5 + 6 GHz, a new name, the same
+    /// password); else as the router has it.
+    init(network: MLONetwork, wireless: WirelessStatus, mlo: MLOConfiguration? = nil, setup: Bool) {
+        self.wireless = wireless
+        self.mlo = mlo
+        original = network
+        let fast = [WirelessBand.ghz6, .ghz5].lazy.compactMap { wireless.radio($0)?.mainNetwork }.first { $0.isOn }
+        fastName = fast?.ssid
+        fastPassword = fast?.password
+        let home = wireless.radio(.ghz2_4)?.mainNetwork?.ssid ?? fast?.ssid ?? "Flint"
+        if setup {
+            enabled = true
+            bands = [.ghz5, .ghz6]
+            sameName = false
+            name = "\(home) 7"
+            samePassword = fastPassword != nil
+            password = fastPassword == nil ? WiFiGuestDraft.newPassword() : ""
+        } else {
+            enabled = network.isOn
+            bands = Set(network.bands)
+            sameName = false
+            name = network.ssid ?? ""
+            samePassword = fastPassword != nil && network.password == fastPassword
+            password = network.password?.revealed ?? ""
+        }
+    }
+
+    var network: MLONetwork {
+        var network = original
+        network.enabled = .value(enabled)
+        if enabled { network.initialised = true }
+        network.bands = bands.sorted()
+        network.ssid = sameName ? fastName : name
+        network.encryption = .wpa3
+        network.password = if samePassword { fastPassword } else if password == original.password?.revealed { original.password } else { WiFiPassword(password) }
+        return network
+    }
+
+    var change: WiFiChangeSet { network.sent == original.sent ? WiFiChangeSet() : WiFiChangeSet(mlo: network) }
+
+    var hasChanges: Bool { change != WiFiChangeSet() }
 }

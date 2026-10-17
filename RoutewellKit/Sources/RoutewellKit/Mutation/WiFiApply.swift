@@ -10,22 +10,26 @@ public enum WiFiApplyStep: Sendable, Equatable {
 
 /// What the router reported after an apply: the slots, radios and options
 /// the plan touched, the main subnet's isolation, the guest and IoT rules,
-/// and the bands that found radar (`get_status` `conflict`).
+/// the multi-link network, and the bands that found radar (`get_status`
+/// `conflict`).
 public struct WiFiApplyState: Sendable, Equatable {
     public var slots: [WiFiSlotState]
     public var isolate: Bool?
     public var rules: [WiFiSubnetRules]
     public var radios: [WiFiRadioSettings]
     public var options: [WiFiOptionWrite]
+    /// The fields `set_mlo_config` sends.
+    public var mlo: MLONetwork?
     public var radar: [WirelessBand]
 
     public init(slots: [WiFiSlotState] = [], isolate: Bool? = nil, rules: [WiFiSubnetRules] = [], radios: [WiFiRadioSettings] = [],
-                options: [WiFiOptionWrite] = [], radar: [WirelessBand] = []) {
+                options: [WiFiOptionWrite] = [], mlo: MLONetwork? = nil, radar: [WirelessBand] = []) {
         self.slots = slots
         self.isolate = isolate
         self.rules = rules
         self.radios = radios
         self.options = options
+        self.mlo = mlo
         self.radar = radar
     }
 }
@@ -36,6 +40,8 @@ public protocol WiFiApplyTransport: Sendable {
     func readWireless() async throws -> WirelessStatus
     /// `vlan_subnet get_subnets`.
     func readSubnets() async throws -> [SubnetPolicy]
+    /// `wifi get_mlo_config`.
+    func readMLO() async throws -> MLOConfiguration
     /// `wifi get_status`: answers once the router is back.
     func readRadioStates() async throws -> [WirelessBand: RadioState]
     /// The `wireless` options no RPC reports (SSH).
@@ -122,12 +128,17 @@ public struct WiFiApplyExecutor: WiFiControl {
     private func perform(_ plan: WiFiApplyPlan, progress: @Sendable (WiFiApplyStep) async -> Void) async -> Step {
         let touchesNetworks = plan.steps.contains { $0.before != nil || $0.radioBefore != nil }
         let touchesOptions = plan.steps.contains { !$0.optionsBefore.isEmpty }
+        let mloBefore = plan.steps.lazy.compactMap(\.mloBefore).first
         var calls = plan.calls
         do {
             let wireless = touchesNetworks ? try await transport.readWireless() : nil
             let subnets = plan.subnetBefore != nil || Self.touchesRules(plan.calls) ? try await transport.readSubnets() : nil
             let options = touchesOptions ? try await transport.readOptions() : nil
-            let current = Self.state(plan, wireless: wireless, subnets: subnets, options: options)
+            let mlo = mloBefore == nil ? nil : try await transport.readMLO()
+            let current = Self.state(plan, wireless: wireless, subnets: subnets, options: options, mlo: mlo)
+            if let mloBefore, mlo?.networks.first(where: { $0.name == mloBefore.name })?.sent != mloBefore.sent {
+                return (.conflictingExternalEdit(actual: current), false, nil)
+            }
             if let wireless {
                 let slots = WiFiSlotState.slots(wireless)
                 for step in plan.steps {
@@ -227,6 +238,7 @@ public struct WiFiApplyExecutor: WiFiControl {
         let staysOn = Set(plan.steps.flatMap { step -> [WirelessBand] in
             switch step.call {
             case .network(let slot, _, let radio): slot.enabled == true || radio != nil ? step.scopes.compactMap(\.band) : []
+            case .mlo(let network): network.enabled == .value(true) ? step.scopes.compactMap(\.band) : []
             case .subnet, .rules, .options: []
             }
         })
@@ -240,7 +252,8 @@ public struct WiFiApplyExecutor: WiFiControl {
                 let wireless = readsWireless ? try await transport.readWireless() : nil
                 let subnets = expected.isolate == nil && expected.rules.isEmpty ? nil : try await transport.readSubnets()
                 let options = expected.options.isEmpty ? nil : try await transport.readOptions()
-                var actual = Self.state(plan, wireless: wireless, subnets: subnets, options: options)
+                let mlo = expected.mlo == nil ? nil : try await transport.readMLO()
+                var actual = Self.state(plan, wireless: wireless, subnets: subnets, options: options, mlo: mlo)
                 let radar = bands.filter { wireless?.radio($0)?.state == .conflict }.sorted()
                 if !radar.isEmpty {
                     actual.radar = radar
@@ -276,13 +289,16 @@ public struct WiFiApplyExecutor: WiFiControl {
     /// The touched slots, radios and options as the router has them, in plan
     /// order.
     static func state(_ plan: WiFiApplyPlan, wireless: WirelessStatus?, subnets: [SubnetPolicy]?,
-                      options: [WirelessSectionOptions]? = nil) -> WiFiApplyState {
+                      options: [WirelessSectionOptions]? = nil, mlo: MLOConfiguration? = nil) -> WiFiApplyState {
         let slots = wireless.map(WiFiSlotState.slots) ?? [:]
         var radios: [WiFiRadioSettings] = []
         var writes: [WiFiOptionWrite] = []
         var rules: [WiFiSubnetRules] = []
+        var network: MLONetwork?
         for call in plan.calls {
             switch call {
+            case .mlo(let sent):
+                network = mlo?.networks.first { $0.name == sent.name }?.sent
             case .rules(let subnet, let sent):
                 guard let subnets else { continue }
                 rules.append(WiFiSubnetRules(kind: sent.kind, subnet: subnets.first { $0.name == subnet.name }))
@@ -300,7 +316,7 @@ public struct WiFiApplyExecutor: WiFiControl {
         return WiFiApplyState(
             slots: plan.steps.compactMap { $0.before.flatMap { slots[$0.interface] } },
             isolate: plan.subnetBefore == nil ? nil : subnets?.first { $0.name == "main" }?.isolate,
-            rules: rules, radios: radios, options: writes)
+            rules: rules, radios: radios, options: writes, mlo: network)
     }
 
     static func expected(_ calls: [WiFiCall]) -> WiFiApplyState {
@@ -313,6 +329,7 @@ public struct WiFiApplyExecutor: WiFiControl {
             case .subnet(_, let isolate): state.isolate = isolate
             case .rules(_, let rules): state.rules.append(rules)
             case .options(let writes): state.options += writes
+            case .mlo(let network): state.mlo = network.sent
             }
         }
         return state
@@ -391,6 +408,11 @@ public struct LiveWiFiApplyTransport: WiFiApplyTransport {
         return subnets
     }
 
+    public func readMLO() async throws -> MLOConfiguration {
+        guard let mlo = MLOParser.parse(try await rpc.call(LiveWiFiService.mlo)) else { throw GLiNetRPCError.malformedResponse }
+        return mlo
+    }
+
     public func readRadioStates() async throws -> [WirelessBand: RadioState] {
         let status = try await rpc.call(LiveWiFiService.status)
         var states: [WirelessBand: RadioState] = [:]
@@ -424,6 +446,7 @@ public struct LiveWiFiApplyTransport: WiFiApplyTransport {
         return switch call {
         case .network: GLiNetRPCCall(object: "wifi", method: "set_config", params: params)
         case .subnet, .rules: GLiNetRPCCall(object: "vlan_subnet", method: "set_fixed_subnet", params: params)
+        case .mlo: GLiNetRPCCall(object: "wifi", method: "set_mlo_config", params: params)
         case .options: nil
         }
     }
