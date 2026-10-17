@@ -98,7 +98,7 @@ struct WiFiOverviewPresentation {
     struct Sector: Equatable {
         let band: WirelessBand
         let count: Int
-        var label: String { count == 0 ? "Not used" : "\(count)" }
+        var label: String { "\(count)" }
     }
 
     struct Dot: Equatable, Identifiable {
@@ -233,12 +233,15 @@ struct WiFiOverviewPresentation {
 
     static func radius(dBm: Int) -> Double { min(240, max(30, 30 + Double(-dBm - 40) * 5.6)) }
 
-    static func tooltip(_ device: WiFiDevice) -> String {
-        let line1 = [device.network ?? WiFiFormat.dash, WiFiFormat.band(device.band), WiFiFormat.generation(device.generation, band: device.band)]
+    /// The hover card's lines; parts the router did not report are left out.
+    static func tooltip(_ device: WiFiDevice) -> [String] {
+        let place = [device.network, device.band.map(WiFiFormat.band), WiFiFormat.generation(device.generation, band: device.band)]
             .compactMap { $0 }.joined(separator: " · ")
-        var line2 = device.signal.map { dBm in "\(WiFiFormat.strength(SignalStrength(dBm: dBm))) signal (\(dBm) dBm)" } ?? "Signal \(WiFiFormat.dash)"
-        if device.canUseFasterBand { line2 += " · can use a faster band" }
-        return [WiFiFormat.deviceName(device), line1, line2].joined(separator: "\n")
+        let signal = [
+            device.signal.map { dBm in "\(WiFiFormat.strength(SignalStrength(dBm: dBm))) signal (\(dBm < 0 ? "−\(-dBm)" : "\(dBm)") dBm)" },
+            device.canUseFasterBand ? "can use a faster band" : nil,
+        ].compactMap { $0 }.joined(separator: " · ")
+        return [WiFiFormat.deviceName(device), place, signal.prefix(1).uppercased() + signal.dropFirst()].filter { !$0.isEmpty }
     }
 
     static func accessibilityLabel(_ device: WiFiDevice) -> String {
