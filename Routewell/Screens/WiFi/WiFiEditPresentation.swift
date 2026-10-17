@@ -46,6 +46,7 @@ enum WiFiEditFormat {
         case .passwordLength: "The password needs 8 to 63 characters."
         case .noBand: "Choose at least one band."
         case .wpa3With6GHz: "6 GHz allows only WPA3."
+        case .oneBand: WiFiMLOFormat.twoBands
         }
     }
 
@@ -184,6 +185,7 @@ struct WiFiReviewPresentation: Equatable {
         changes += Self.ruleLines(plan)
         changes += Self.radioLines(change.radios, wireless: wireless)
         changes += Self.optionLines(change.options, wireless: wireless, sections: sections)
+        changes += Self.mloLines(plan)
         self.changes = changes
         let count = max(1, changes.count)
         title = count == 1 ? "Apply 1 change?" : "Apply \(count) changes?"
@@ -274,6 +276,24 @@ struct WiFiReviewPresentation: Equatable {
                 line = "\(name) \(what): \(WiFiEditFormat.onOff(on))"
             }
             if !lines.contains(line) { lines.append(line) }
+        }
+        return lines
+    }
+
+    /// The multi-link network's changes.
+    static func mloLines(_ plan: WiFiApplyPlan) -> [String] {
+        guard let step = plan.steps.first(where: { $0.mloBefore != nil }), let before = step.mloBefore, case .mlo(let after) = step.call else { return [] }
+        let name = after.ssid ?? WiFiFormat.dash
+        guard after.enabled == .value(true) else { return ["Turn off \(before.ssid ?? "multi-link")"] }
+        guard before.isOn else { return ["Turn on multi-link as \(name) on \(WiFiEditFormat.bandList(after.bands))"] }
+        var lines: [String] = []
+        if before.ssid != after.ssid { lines.append("Multi-link name: \(before.ssid ?? WiFiFormat.dash) → \(name)") }
+        if before.password != after.password { lines.append("\(name): new password") }
+        if before.encryption != after.encryption {
+            lines.append("\(name) security: \(WiFiFormat.security(before.encryption)) → \(WiFiFormat.security(after.encryption))")
+        }
+        if before.bands.sorted() != after.bands {
+            lines.append("\(name) bands: \(WiFiEditFormat.bandList(before.bands)) → \(WiFiEditFormat.bandList(after.bands))")
         }
         return lines
     }
@@ -482,4 +502,63 @@ enum WiFiGuestFormat {
     ]
 
     static let printerWarning = "This Mac cannot find a printer on another network. Keep printers on the main network."
+}
+
+/// Texts for the multi-link setup sheet and the Multi-link tab.
+enum WiFiMLOFormat {
+    static let twoBands = "Multi-link needs at least 2 bands."
+
+    /// "5 and 6 GHz", "2.4 and 5 and 6 GHz".
+    static func bands<S: Sequence>(_ bands: S) -> String where S.Element == WirelessBand {
+        let shorts = bands.sorted().map(WiFiFormat.short)
+        return shorts.isEmpty ? WiFiFormat.dash : "\(shorts.joined(separator: " and ")) GHz"
+    }
+
+    /// No scan says which band is busy, so the tiles name what each band is good at.
+    static func bandTile(_ band: WirelessBand) -> String {
+        switch band {
+        case .ghz2_4: "Reaches far"
+        case .ghz5: "Faster"
+        case .ghz6: "Fastest"
+        }
+    }
+
+    /// The apply bar's message on the Multi-link tab.
+    static func applyBar(_ draft: WiFiMLODraft) -> String {
+        if !draft.enabled { return "Turn off multi-link" }
+        if draft.bands != Set(draft.original.bands) { return "Use \(bands(draft.bands))" }
+        return "Change multi-link"
+    }
+
+    /// The setup review's three tiles and its footer line, from the plan.
+    struct Review: Equatable {
+        let restartBold: String
+        let restartRest: String
+        let devicesBold: String
+        let devicesRest: String
+        let mac: String
+        let note: String
+
+        init(plan: WiFiApplyPlan) {
+            let restarts = plan.restarts.filter { $0.band != nil }
+            let bands = WiFiMLOFormat.bands(restarts.compactMap(\.band))
+            restartBold = bands
+            let added = restarts.allSatisfy { if case .added = $0 { true } else { false } }
+            let radio = restarts.contains { if case .radio = $0 { true } else { false } }
+            restartRest = added ? "new network starts, \(WiFiReviewPresentation.newNetworks)"
+                : radio ? "restart, \(WiFiReviewPresentation.radioRestart)" : "restart, \(WiFiReviewPresentation.networkRestart)"
+            let count = plan.mustJoin.count + plan.reconnect.count
+            devicesBold = count == 0 ? "No devices" : WiFiFormat.devices(count)
+            devicesRest = count == 0 ? "drop" : plan.mustJoin.isEmpty ? "drop and come back" : "must join again"
+            mac = WiFiReviewPresentation.macLine(plan.thisMac)
+            note = added ? "The new network on \(bands) starts, \(WiFiReviewPresentation.newNetworks)." : "\(bands) \(restartRest)."
+        }
+    }
+
+    /// The done screen's line under "Multi-link is on".
+    static func doneLine(name: String, sameName: Bool, devices: [String]) -> String {
+        let who = WiFiFormat.names(devices)
+        if sameName { return devices.isEmpty ? "Wi-Fi 7 devices use it the next time they join." : "\(who) use it the next time they join." }
+        return devices.isEmpty ? "Join \(name) on each Wi-Fi 7 device." : "Join \(name) on \(who)."
+    }
 }

@@ -14,11 +14,12 @@ struct WiFiSheetHost: View {
             case .network: WiFiNetworkSheet()
             case .useOneName: WiFiUseOneNameSheet()
             case .guestIoT: WiFiGuestSheet()
+            case .multiLink: WiFiMultiLinkSheet()
             case .review: WiFiApplySheet()
             }
         }
         .padding(20)
-        .frame(width: 480)
+        .frame(width: sheet == .multiLink ? 620 : 480)
         .interactiveDismissDisabled(environment.wifi.isApplying)
     }
 }

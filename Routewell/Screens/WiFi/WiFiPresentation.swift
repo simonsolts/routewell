@@ -551,16 +551,17 @@ struct WiFiMultiLinkPresentation: Equatable {
             let megabits = device.rate?.megabitsPerSecond
             let rate = megabits.map { String(format: "%.1f", $0 / 1000) } ?? WiFiFormat.dash
             let signal = device.strength.map(WiFiFormat.strength) ?? WiFiFormat.dash
+            // The router reports one rate per device, not one per link.
             return Card(mac: device.mac, name: WiFiFormat.deviceName(device),
-                        sub: on ? WiFiFormat.band(device.band) : "Wi-Fi 7 · one band now", rate: rate, band: device.band,
+                        sub: on ? "Multi-link · \(signal)" : "Wi-Fi 7 · one band now", rate: rate, band: on ? nil : device.band,
                         fraction: min(1, (megabits ?? 0) / Self.scale),
-                        legend: "\(WiFiFormat.band(device.band)) · \(rate) Gbps · \(signal)")
+                        legend: on ? "Per band not reported" : "\(WiFiFormat.band(device.band)) · \(rate) Gbps · \(signal)")
         }
         others = max(0, devices.count - members.count)
         let count = members.count
         subtitle = on
             ? "Multi-link on \(bands.map(WiFiFormat.band).joined(separator: " + ")) · \(WiFiFormat.devices(count))"
-            : (count == 0 ? "No device uses Wi-Fi 7 now." : "\(count) of your devices can use two bands at the same time.")
+            : (count == 0 ? "No device uses Wi-Fi 7 now." : "\(count) of your devices can use \(WiFiMLOFormat.bands(mlo.supportedBands.filter { $0 != .ghz2_4 })) at the same time.")
         let interfaceModes = air?.sections?.compactMap(\.emlMode) ?? []
         linkMode = interfaceModes.first.map { $0.uppercased() } ?? WiFiFormat.dash
     }

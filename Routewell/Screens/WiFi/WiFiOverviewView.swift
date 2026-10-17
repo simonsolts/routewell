@@ -402,7 +402,9 @@ struct WiFiSuggestions: View {
                         Button(action.label) {
                             switch action.target {
                             case .radios: controller.openRadios(.ghz5)
-                            case .multiLink: controller.openMultiLink()
+                            case .multiLink:
+                                controller.openMultiLink()
+                                controller.openMultiLinkSetup()
                             case .useOneName: controller.openUseOneName()
                             case .iot: controller.openGuest(.iot)
                             }
