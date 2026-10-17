@@ -159,7 +159,7 @@ struct WiFiAirMap: View {
                         .animation(reduceMotion ? nil : .easeOut(duration: 0.4), value: dot.x)
                 }
                 if let dot = page.dots.first(where: { $0.device.mac == environment.wifi.hovered }) {
-                    let x = dot.x * scale, width = proxy.size.width
+                    let x = dot.x * scale, y = dot.y * scale, width = proxy.size.width
                     Color.clear.frame(width: 0, height: 0)
                         .overlay(alignment: .bottom) {
                             WiFiDotCard(lines: WiFiOverviewPresentation.tooltip(dot.device))
@@ -167,9 +167,12 @@ struct WiFiAirMap: View {
                                 .alignmentGuide(HorizontalAlignment.center) { card in
                                     min(max(card.width / 2, card.width - (width - x)), x)
                                 }
-                                .offset(y: -12)
+                                // 12 pt above the dot, or 12 pt below it when the top of the map is too close.
+                                .alignmentGuide(VerticalAlignment.bottom) { card in
+                                    y - card.height - 12 < 0 ? -12 : card.height + 12
+                                }
                         }
-                        .position(x: x, y: dot.y * scale)
+                        .position(x: x, y: y)
                         .allowsHitTesting(false)
                         .accessibilityHidden(true)
                 }
