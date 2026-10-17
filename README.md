@@ -16,8 +16,8 @@
 </div>
 
 Routewell shows you what your GL.iNet router is doing, in real time. See the health
-of your network at a glance. Find every device on your network. See every DNS
-request, and control AdGuard Home from your Mac.
+of your network at a glance. Find every device on your network. Set up and tune
+your Wi‑Fi, see every DNS request, and control AdGuard Home from your Mac.
 
 Routewell talks directly to your router on your local network. It has no
 account and no cloud service.
@@ -36,6 +36,14 @@ account and no cloud service.
 - **See everything at a glance.** The Overview shows your router, internet
   connection, AdGuard Home, and connected devices. It also shows load, memory,
   temperature, and uptime.
+- **See your Wi‑Fi.** A map shows each Wi‑Fi device by band and signal
+  strength. Routewell suggests changes, for example a faster band for a
+  device, or a separate network for smart home devices.
+- **Change your Wi‑Fi safely.** Edit names, passwords, security, and bands.
+  Set the channel, width, and power of each radio. Before you apply a change,
+  Routewell tells you which radios restart and which devices must join again.
+- **Add guest, IoT, and multi-link networks.** Choose what each network can
+  reach, and share it with a QR code. Turn on multi-link for Wi‑Fi 7 devices.
 - **Know every device.** The Clients screen lists each device with its IP
   address, connection, Wi‑Fi signal, and DNS queries. Routewell tells you when
   a new device joins.
@@ -48,22 +56,29 @@ account and no cloud service.
 - **Watch every DNS request.** Read the query log live. Search it, filter it by
   device, and block or unblock a domain from a request.
 - **Keep AdGuard Home safe.** With SSH on, back up and restore its settings.
-- **Check your router.** See performance, DNS, Wi‑Fi, SQM, and firmware
-  updates. With SSH on, you can also see ports, storage, and system logs.
+- **Check your router.** See performance, DNS, SQM, and firmware updates. With SSH on, you can also see ports, storage, and system logs.
 - **Stay in the menu bar.** Check your network status without opening the main
   window.
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/simonsolts/routewell/main/images/adguard-overview.png" alt="The AdGuard Home screen, with protection status, a 24-hour activity chart, protection switches, and the top blocked domains, queried domains, and devices" width="900">
+  <img src="https://raw.githubusercontent.com/simonsolts/routewell/main/images/wifi-overview.png" alt="The Wi-Fi screen, with a map of Wi-Fi devices by band and signal, the networks, suggestions, and the three radios" width="900">
 </p>
 
 <table>
   <tr>
+    <td width="50%"><img src="https://raw.githubusercontent.com/simonsolts/routewell/main/images/wifi-iot-network.png" alt="The IoT network setup sheet, with name, password, bands, devices to move, and what the network can reach"></td>
     <td width="50%"><img src="https://raw.githubusercontent.com/simonsolts/routewell/main/images/clients-screen.png" alt="The Clients screen with a device's overview in the details pane"></td>
+  </tr>
+  <tr>
+    <td align="center"><sub>A separate network for smart home devices, with the access you choose</sub></td>
+    <td align="center"><sub>Every device on your network, with signal and DNS counts</sub></td>
+  </tr>
+  <tr>
+    <td width="50%"><img src="https://raw.githubusercontent.com/simonsolts/routewell/main/images/adguard-overview.png" alt="The AdGuard Home screen, with protection status, a 24-hour activity chart, protection switches, and the top blocked domains, queried domains, and devices"></td>
     <td width="50%"><img src="https://raw.githubusercontent.com/simonsolts/routewell/main/images/adguard-query-log.png" alt="The AdGuard Home Query Log, with one request open in the inspector"></td>
   </tr>
   <tr>
-    <td align="center"><sub>Every device on your network, with signal and DNS counts</sub></td>
+    <td align="center"><sub>AdGuard Home activity, protection, and top domains</sub></td>
     <td align="center"><sub>Every DNS request, live, with the reason it was blocked or allowed</sub></td>
   </tr>
 </table>
