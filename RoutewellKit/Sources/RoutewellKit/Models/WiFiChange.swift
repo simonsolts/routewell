@@ -2,10 +2,13 @@ import Foundation
 
 // MARK: - Change set
 
-/// The edit of one main network name from the network sheet or Use One Name.
-/// `interfaces` are the slots the network had when the sheet opened; `bands`
-/// are the bands it should have. A band another name holds moves to this one.
+/// The edit of one network name from the network sheet, Use One Name, or the
+/// guest and IoT sheets. `interfaces` are the slots the network had when the
+/// sheet opened; `bands` are the bands it should have. A main band another
+/// name holds moves to this one. A guest or IoT edit with no band turns the
+/// network off.
 public struct WiFiNetworkEdit: Sendable, Equatable {
+    public var kind: WiFiNetworkKind
     public var interfaces: [String]
     public var name: String
     public var password: WiFiPassword?
@@ -17,8 +20,9 @@ public struct WiFiNetworkEdit: Sendable, Equatable {
     /// network's own bands that had others.
     public var sameOnEveryBand: Bool
 
-    public init(interfaces: [String], name: String, password: WiFiPassword?, security: WiFiSecurity, hidden: Bool,
-                randomBSSID: Bool, bands: [WirelessBand], sameOnEveryBand: Bool = false) {
+    public init(kind: WiFiNetworkKind = .main, interfaces: [String], name: String, password: WiFiPassword?, security: WiFiSecurity,
+                hidden: Bool, randomBSSID: Bool, bands: [WirelessBand], sameOnEveryBand: Bool = false) {
+        self.kind = kind
         self.interfaces = interfaces
         self.name = name
         self.password = password
@@ -130,20 +134,79 @@ public struct WiFiOptionWrite: Sendable, Equatable, Hashable {
     }
 }
 
+/// The "can reach" rules of the guest or IoT subnet that can change. `nil`
+/// is unknown or unchanged.
+public struct WiFiSubnetRules: Sendable, Equatable {
+    public var kind: WiFiNetworkKind
+    /// AP isolation off.
+    public var eachOther: Bool?
+    /// `wan_access_mode` 0 (on) or 1 (off). Routewell never sends 2, which
+    /// blocks the internet.
+    public var reachesModem: Bool?
+
+    public init(kind: WiFiNetworkKind, eachOther: Bool?, reachesModem: Bool?) {
+        self.kind = kind
+        self.eachOther = eachOther
+        self.reachesModem = reachesModem
+    }
+
+    /// The rules a subnet has now.
+    public init(kind: WiFiNetworkKind, subnet: SubnetPolicy?) {
+        let modem: Bool? = switch subnet?.wanAccess {
+        case .unrestricted?: true
+        case .blockWANSubnet?: false
+        default: nil
+        }
+        self.init(kind: kind, eachOther: subnet?.isolate.map { !$0 }, reachesModem: modem)
+    }
+
+    /// `display_name` of the subnet.
+    public static func subnetName(_ kind: WiFiNetworkKind) -> String {
+        switch kind {
+        case .main: "main"
+        case .guest: "guest"
+        case .iot: "iot"
+        }
+    }
+}
+
 /// What the person staged. `isolate` is the main subnet's AP isolation; it
-/// covers every main network name at once. `radios` hold each changed
-/// band's whole radio state.
+/// covers every main network name at once. `rules` are the guest and IoT
+/// subnets' rules. `radios` hold each changed band's whole radio state.
 public struct WiFiChangeSet: Sendable, Equatable {
     public var networks: [WiFiNetworkEdit]
     public var isolate: Bool?
+    public var rules: [WiFiSubnetRules]
     public var radios: [WiFiRadioSettings]
     public var options: [WiFiOptionEdit]
 
-    public init(networks: [WiFiNetworkEdit] = [], isolate: Bool? = nil, radios: [WiFiRadioSettings] = [], options: [WiFiOptionEdit] = []) {
+    public init(networks: [WiFiNetworkEdit] = [], isolate: Bool? = nil, rules: [WiFiSubnetRules] = [], radios: [WiFiRadioSettings] = [],
+                options: [WiFiOptionEdit] = []) {
         self.networks = networks
         self.isolate = isolate
+        self.rules = rules
         self.radios = radios
         self.options = options
+    }
+}
+
+public extension SubnetPolicy {
+    /// True when `ip` is an IPv4 address in this subnet.
+    func contains(ip: String?) -> Bool {
+        func value(_ text: String?) -> UInt32? {
+            let parts = text?.split(separator: ".", omittingEmptySubsequences: false).compactMap { UInt8($0) } ?? []
+            guard parts.count == 4 else { return nil }
+            return parts.reduce(0) { $0 << 8 | UInt32($1) }
+        }
+        guard let ip = value(ip), let address = value(address), let mask = value(netmask) else { return false }
+        return ip & mask == address & mask
+    }
+
+    /// "192.168.9.1/24".
+    var range: String? {
+        guard let address, let netmask else { return nil }
+        let bits = netmask.split(separator: ".").compactMap { UInt8($0) }.map(\.nonzeroBitCount).reduce(0, +)
+        return "\(address)/\(bits)"
     }
 }
 
@@ -185,9 +248,12 @@ public struct WiFiSlotState: Sendable, Equatable {
     public var hidden: Bool?
     public var randomBSSID: Bool?
     public var enabled: Bool?
+    /// Sent only when a guest or IoT network is added. The driver can give a
+    /// new one, so it is not compared.
+    public var bssid: String?
 
     public init(interface: String, band: WirelessBand? = nil, ssid: String? = nil, security: WiFiSecurity? = nil,
-                password: WiFiPassword? = nil, hidden: Bool? = nil, randomBSSID: Bool? = nil, enabled: Bool? = nil) {
+                password: WiFiPassword? = nil, hidden: Bool? = nil, randomBSSID: Bool? = nil, enabled: Bool? = nil, bssid: String? = nil) {
         self.interface = interface
         self.band = band
         self.ssid = ssid
@@ -196,6 +262,12 @@ public struct WiFiSlotState: Sendable, Equatable {
         self.hidden = hidden
         self.randomBSSID = randomBSSID
         self.enabled = enabled
+        self.bssid = bssid
+    }
+
+    public static func == (lhs: Self, rhs: Self) -> Bool {
+        lhs.interface == rhs.interface && lhs.band == rhs.band && lhs.ssid == rhs.ssid && lhs.security == rhs.security
+            && lhs.password == rhs.password && lhs.hidden == rhs.hidden && lhs.randomBSSID == rhs.randomBSSID && lhs.enabled == rhs.enabled
     }
 
     init(_ network: WirelessNetwork, band: WirelessBand?) {
@@ -223,13 +295,17 @@ public enum WiFiRestartScope: Sendable, Equatable, Hashable {
     case network(WirelessBand)
     /// Any other change on the radio: the whole band.
     case radio(WirelessBand)
+    /// A guest or IoT network starts on the band; the others stay up.
+    case added(WirelessBand)
     /// The main subnet's settings reload.
     case subnet
+    /// The guest or IoT subnet's settings reload while its network is on.
+    case rules(WiFiNetworkKind)
 
     public var band: WirelessBand? {
         switch self {
-        case .network(let band), .radio(let band): band
-        case .subnet: nil
+        case .network(let band), .radio(let band), .added(let band): band
+        case .subnet, .rules: nil
         }
     }
 }
@@ -243,13 +319,16 @@ public enum WiFiCall: Sendable, Equatable, CustomStringConvertible {
     /// `vlan_subnet set_fixed_subnet` with every field as read and `isolate`
     /// changed.
     case subnet(SubnetPolicy, isolate: Bool)
+    /// `vlan_subnet set_fixed_subnet` for the guest or IoT subnet, every
+    /// field as read and the rules changed.
+    case rules(SubnetPolicy, WiFiSubnetRules)
     /// One SSH command: `uci set` per option, `uci commit`, `wifi reload`.
     case options([WiFiOptionWrite])
 
     public var description: String {
         switch self {
         case .network(let slot, _, let radio): "wifi set_config \(slot.interface)\(radio == nil ? "" : " with radio")"
-        case .subnet(let subnet, _): "vlan_subnet set_fixed_subnet \(subnet.name ?? "—")"
+        case .subnet(let subnet, _), .rules(let subnet, _): "vlan_subnet set_fixed_subnet \(subnet.name ?? "—")"
         case .options(let writes): "uci wireless \(Set(writes.map(\.section.description)).sorted().joined(separator: " "))"
         }
     }
@@ -269,16 +348,25 @@ public enum WiFiCall: Sendable, Equatable, CustomStringConvertible {
                 "random_bssid": .bool(slot.randomBSSID ?? false),
             ]
             if let enabled = slot.enabled { params["enabled"] = .bool(enabled) }
+            if let bssid = slot.bssid { params["bssid"] = .string(bssid) }
             if let radio { params.merge(radio.params) { _, new in new } }
             return .object(params)
         case .subnet(let subnet, let isolate):
-            var params = subnet.fields.filter { Self.subnetKeys.contains($0.key) || (subnet.name != "main" && Self.vlanKeys.contains($0.key)) }
-            // The value keeps the type the router sent.
-            params["isolate"] = if case .number? = subnet.fields["isolate"] { .number(isolate ? 1 : 0) } else { .bool(isolate) }
+            return .object(Self.subnetParams(subnet, isolate: isolate))
+        case .rules(let subnet, let rules):
+            var params = Self.subnetParams(subnet, isolate: rules.eachOther.map { !$0 } ?? subnet.isolate ?? true)
+            if let modem = rules.reachesModem { params["wan_access_mode"] = .number(modem ? 0 : 1) }
             return .object(params)
         case .options:
             return nil
         }
+    }
+
+    private static func subnetParams(_ subnet: SubnetPolicy, isolate: Bool) -> [String: JSONValue] {
+        var params = subnet.fields.filter { subnetKeys.contains($0.key) || (subnet.name != "main" && vlanKeys.contains($0.key)) }
+        // The value keeps the type the router sent.
+        params["isolate"] = if case .number? = subnet.fields["isolate"] { .number(isolate ? 1 : 0) } else { .bool(isolate) }
+        return params
     }
 
     static let subnetKeys: Set<String> = ["display_name", "ip", "gateway", "netmask", "dhcp_enable", "leasetime", "isolate", "dns", "lpr",
@@ -401,16 +489,27 @@ public struct WiFiApplyPlan: Sendable, Equatable {
     public var isEmpty: Bool { steps.isEmpty }
     public var calls: [WiFiCall] { steps.map(\.call) }
 
-    /// The restart scopes, one per band, a radio restart over a network one.
+    /// The restart scopes, one per band (a radio restart over a new network
+    /// over a network one), then the subnet reloads.
     public var restarts: [WiFiRestartScope] {
+        func rank(_ scope: WiFiRestartScope) -> Int {
+            switch scope {
+            case .radio: 2
+            case .added: 1
+            default: 0
+            }
+        }
         var byBand: [WirelessBand: WiFiRestartScope] = [:]
-        var subnet = false
+        var others: [WiFiRestartScope] = []
         for scope in steps.flatMap(\.scopes) {
-            guard let band = scope.band else { subnet = true; continue }
-            if case .radio = byBand[band] { continue }
+            guard let band = scope.band else {
+                if !others.contains(scope) { others.append(scope) }
+                continue
+            }
+            if let kept = byBand[band], rank(kept) >= rank(scope) { continue }
             byBand[band] = scope
         }
-        return byBand.keys.sorted().compactMap { byBand[$0] } + (subnet ? [.subnet] : [])
+        return byBand.keys.sorted().compactMap { byBand[$0] } + others
     }
 
     /// `options` are the `wireless` sections read over SSH.
@@ -450,6 +549,15 @@ public struct WiFiApplyPlan: Sendable, Equatable {
         } else {
             subnetBefore = nil
         }
+        for rule in change.rules {
+            guard let subnet = subnets?.first(where: { $0.name == WiFiSubnetRules.subnetName(rule.kind) }) else { continue }
+            let now = WiFiSubnetRules(kind: rule.kind, subnet: subnet)
+            let after = WiFiSubnetRules(kind: rule.kind, eachOther: rule.eachOther ?? now.eachOther, reachesModem: rule.reachesModem ?? now.reachesModem)
+            guard after != now else { continue }
+            // An off network's subnet is not active, so nothing reloads.
+            let on = wireless.radios.contains { $0.network(rule.kind)?.isOn == true }
+            steps.append(Step(call: .rules(subnet, after), scopes: on ? [.rules(rule.kind)] : []))
+        }
 
         var radios: [WirelessBand: (after: WiFiRadioSettings, before: WiFiRadioSettings)] = [:]
         for radio in change.radios {
@@ -457,13 +565,13 @@ public struct WiFiApplyPlan: Sendable, Equatable {
             radios[radio.band] = (radio, read)
         }
 
-        var targets: [(slot: WiFiSlotState, initialised: Bool, name: String)] = []
+        var targets: [(slot: WiFiSlotState, initialised: Bool, name: String, kind: WiFiNetworkKind, turnsOff: Bool)] = []
         for edit in change.networks {
             // The edit's fields come from its first slot. Its other slots can
             // differ; they keep each field the edit leaves as that slot had it.
             let read = edit.interfaces.first.flatMap { slots[$0] }
             for band in edit.bands.sorted() {
-                guard let radio = wireless.radio(band), let network = radio.mainNetwork, let interface = network.interface,
+                guard let radio = wireless.radio(band), let network = radio.network(edit.kind), let interface = network.interface,
                       let before = slots[interface] else { continue }
                 let own = edit.interfaces.contains(interface) ? read : nil
                 let key = edit.sameOnEveryBand ? nil : own
@@ -474,23 +582,27 @@ public struct WiFiApplyPlan: Sendable, Equatable {
                 if own == nil || own?.hidden != edit.hidden { after.hidden = edit.hidden }
                 if own == nil || own?.randomBSSID != edit.randomBSSID { after.randomBSSID = edit.randomBSSID }
                 after.enabled = true
-                targets.append((after, network.initialised ?? true, edit.name))
+                // A guest or IoT network that is off is added: `init` true and the BSSID as read.
+                let adds = edit.kind != .main && before.enabled != true
+                if adds { after.bssid = network.bssid }
+                targets.append((after, adds || (network.initialised ?? true), edit.name, edit.kind, false))
             }
             for interface in edit.interfaces where !targets.contains(where: { $0.slot.interface == interface }) {
                 guard var after = slots[interface] else { continue }
                 after.enabled = false
-                targets.append((after, wireless.networks.first { $0.interface == interface }?.initialised ?? true, edit.name))
+                targets.append((after, wireless.networks.first { $0.interface == interface }?.initialised ?? true, edit.name, edit.kind,
+                                edit.kind != .main && edit.bands.isEmpty))
             }
         }
         // Radio fields ride on the band's main network call.
         for band in radios.keys.sorted() {
             guard let network = wireless.radio(band)?.mainNetwork, let interface = network.interface, let slot = slots[interface],
                   !targets.contains(where: { $0.slot.interface == interface }) else { continue }
-            targets.append((slot, network.initialised ?? true, slot.ssid ?? ""))
+            targets.append((slot, network.initialised ?? true, slot.ssid ?? "", .main, false))
         }
 
         var radioSent: Set<WirelessBand> = []
-        for (after, initialised, editName) in targets {
+        for (after, initialised, editName, kind, turnsOff) in targets {
             guard let before = slots[after.interface] else { continue }
             let band = after.band ?? before.band ?? .ghz2_4
             let radio = wireless.radio(band)?.mainNetwork?.interface == after.interface ? radios[band] : nil
@@ -499,12 +611,14 @@ public struct WiFiApplyPlan: Sendable, Equatable {
             let renamed = before.ssid != after.ssid || before.password != after.password || before.security != after.security
             let quick = renamed || before.enabled != after.enabled || before.randomBSSID != after.randomBSSID
             let radioWide = before.hidden != after.hidden || radio != nil
-            let scope: WiFiRestartScope = radioWide || !quick ? .radio(band) : .network(band)
+            let added = kind != .main && before.enabled != true && after.enabled == true
+            let scope: WiFiRestartScope = radioWide || !quick ? .radio(band) : added ? .added(band) : .network(band)
             steps.append(Step(call: .network(after, initialised: initialised, radio: radio?.after), scopes: [scope], before: before,
                               radioBefore: radio?.before))
 
             let affected = scope == .radio(band) ? devices.filter { $0.band == band } : onSlot(after.interface, band: band)
-            for device in onSlot(after.interface, band: band) where renamed && before.enabled == true && after.enabled == true {
+            // A guest or IoT network that turns off leaves its devices to join another network.
+            for device in onSlot(after.interface, band: band) where before.enabled == true && (renamed && after.enabled == true || turnsOff) {
                 mustJoin.insert(device.mac)
             }
             for device in affected where !mustJoin.contains(device.mac) { reconnect.insert(device.mac) }

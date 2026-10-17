@@ -106,6 +106,11 @@ private actor FakeRouter: WiFiApplyTransport {
             }
         case .subnet(let subnet, let isolate):
             for index in subnets.indices where subnets[index].name == subnet.name { subnets[index].isolate = isolate }
+        case .rules(let subnet, let rules):
+            for index in subnets.indices where subnets[index].name == subnet.name {
+                if let eachOther = rules.eachOther { subnets[index].isolate = !eachOther }
+                if let modem = rules.reachesModem { subnets[index].wanAccess = modem ? .unrestricted : .blockWANSubnet }
+            }
         case .options(let writes):
             for write in writes {
                 guard let index = sections.firstIndex(where: { $0.section == write.section.description }) else { continue }
@@ -729,4 +734,158 @@ private actor StepLog {
 private actor BodyLog {
     private(set) var all: [JSONValue] = []
     func add(_ body: JSONValue) { all.append(body) }
+}
+
+@Suite struct WiFiGuestIoTTests {
+    private static func subnets() throws -> [SubnetPolicy] {
+        let url = try #require(Bundle.module.url(forResource: "vlan_subnet-get-subnets", withExtension: "json", subdirectory: "Fixtures/glinet/wifi"))
+        return try #require(SubnetParser.parse(try JSONDecoder().decode(JSONValue.self, from: Data(contentsOf: url))))
+    }
+
+    private static func turnOn(_ kind: WiFiNetworkKind, bands: [WirelessBand], security: WiFiSecurity = .wpa2WPA3) -> WiFiNetworkEdit {
+        WiFiNetworkEdit(kind: kind, interfaces: [], name: kind == .guest ? "Flint Guest" : "Flint IoT", password: WiFiPassword("new-guest-key"),
+                        security: security, hidden: false, randomBSSID: true, bands: bands)
+    }
+
+    private static func plan(_ change: WiFiChangeSet, wireless: WirelessStatus = Sample.wireless, subnets: [SubnetPolicy]) -> WiFiApplyPlan {
+        WiFiApplyPlan(change: change, wireless: wireless, subnets: subnets, devices: Sample.devices, thisMac: Sample.macOnFast)
+    }
+
+    private static func slots(_ plan: WiFiApplyPlan) -> [WiFiSlotState] {
+        plan.calls.compactMap { call in if case .network(let slot, _, _) = call { slot } else { nil } }
+    }
+
+    @Test func turnOnAddsOneNetworkPerBand() throws {
+        var wireless = Sample.wireless
+        for radio in wireless.radios.indices {
+            for index in wireless.radios[radio].networks.indices { wireless.radios[radio].networks[index].bssid = "" }
+        }
+        let rules = WiFiSubnetRules(kind: .guest, eachOther: false, reachesModem: false)
+        let plan = Self.plan(WiFiChangeSet(networks: [Self.turnOn(.guest, bands: [.ghz2_4, .ghz5])], rules: [rules]), wireless: wireless,
+                             subnets: try Self.subnets())
+        // The fixture already isolates guests and blocks the modem: no subnet call.
+        #expect(Self.slots(plan).map(\.interface) == ["ra1", "rai1"])
+        #expect(plan.steps.map(\.scopes) == [[.added(.ghz2_4)], [.added(.ghz5)]])
+        #expect(plan.restarts == [.added(.ghz2_4), .added(.ghz5)])
+        for call in plan.calls {
+            let params = try #require(call.params?.object)
+            #expect(Set(params.keys) == ["init", "iface_name", "ssid", "encryption", "key", "hidden", "random_bssid", "enabled", "bssid"])
+            #expect(params["init"] == .bool(true) && params["enabled"] == .bool(true) && params["ssid"] == .string("Flint Guest"))
+            #expect(params["encryption"] == .string("sae-mixed") && params["key"] == .string("new-guest-key"))
+        }
+        #expect(plan.mustJoin.isEmpty && plan.reconnect.isEmpty)
+        #expect(plan.thisMac == .staysConnected)
+
+        let six = Self.plan(WiFiChangeSet(networks: [Self.turnOn(.guest, bands: [.ghz2_4, .ghz5, .ghz6], security: .wpa3)]), subnets: try Self.subnets())
+        #expect(Self.slots(six).map(\.interface) == ["ra1", "rai1", "rax1"])
+        #expect(Self.slots(six).allSatisfy { $0.security == .wpa3 })
+        #expect(Self.turnOn(.guest, bands: [.ghz6]).problems == [.wpa3With6GHz])
+    }
+
+    @Test func iotRulesGoFirstWithTheOtherFieldsAsRead() throws {
+        let subnets = try Self.subnets()
+        let iot = try #require(subnets.first { $0.name == "iot" })
+        let rules = WiFiSubnetRules(kind: .iot, eachOther: true, reachesModem: false)
+        let plan = Self.plan(WiFiChangeSet(networks: [Self.turnOn(.iot, bands: [.ghz2_4], security: .wpa2)], rules: [rules]), subnets: subnets)
+        guard case .rules(_, let sent) = try #require(plan.calls.first) else { Issue.record("not the subnet call"); return }
+        #expect(sent == rules)
+        // The subnet is off until its Wi-Fi is on, so nothing reloads.
+        #expect(plan.steps.map(\.scopes) == [[], [.added(.ghz2_4)]])
+        #expect(Self.slots(plan).map(\.interface) == ["ra3"])
+        let params = try #require(plan.calls.first?.params?.object)
+        var expected = iot.fields
+        expected["isolate"] = .bool(false)
+        #expect(params == expected)
+        #expect(params["wan_access_mode"] == .number(1) && params["enabled"] == .bool(false) && params["vlan_id"] == .number(10))
+        // The IoT network has no 6 GHz slot.
+        #expect(Self.slots(Self.plan(WiFiChangeSet(networks: [Self.turnOn(.iot, bands: [.ghz2_4, .ghz6])]), subnets: subnets)).map(\.interface) == ["ra3"])
+    }
+
+    @Test func modemAccessIsNeverTwo() throws {
+        var subnets = try Self.subnets()
+        let index = try #require(subnets.firstIndex { $0.name == "guest" })
+        subnets[index].wanAccess = .blockInternet
+        subnets[index].fields["wan_access_mode"] = .number(2)
+        for modem in [true, false] {
+            for eachOther in [true, false] {
+                let plan = Self.plan(WiFiChangeSet(rules: [WiFiSubnetRules(kind: .guest, eachOther: eachOther, reachesModem: modem)]), subnets: subnets)
+                let params = try #require(plan.calls.first?.params?.object)
+                #expect(params["wan_access_mode"] == .number(modem ? 0 : 1))
+            }
+        }
+        // A rule left unknown keeps the value as read and sends no call for it.
+        #expect(Self.plan(WiFiChangeSet(rules: [WiFiSubnetRules(kind: .guest, eachOther: nil, reachesModem: nil)]), subnets: subnets).isEmpty)
+    }
+
+    @Test func rulesOfAnOnNetworkReloadItsSubnet() throws {
+        let subnets = try Self.subnets()
+        let plan = Self.plan(WiFiChangeSet(rules: [WiFiSubnetRules(kind: .guest, eachOther: true, reachesModem: false)]),
+                             wireless: MockWiFiService.wireless(.guestAndIoT), subnets: subnets)
+        #expect(plan.steps.map(\.scopes) == [[.rules(.guest)]])
+        #expect(plan.restarts == [.rules(.guest)])
+        #expect(plan.mustJoin.isEmpty && plan.reconnect.isEmpty)
+    }
+
+    @Test func turnOffSendsEnabledFalsePerBandAndItsDevicesJoinAnother() throws {
+        let wireless = MockWiFiService.wireless(.guestAndIoT)
+        let devices = WiFiOverview(wireless: wireless, mlo: nil, air: MockWiFiService.air(.guestAndIoT), clients: nil).devices
+        let off = WiFiNetworkEdit(kind: .iot, interfaces: ["ra3"], name: MockWiFiService.iot, password: Sample.password, security: .wpa2,
+                                  hidden: false, randomBSSID: true, bands: [])
+        let plan = WiFiApplyPlan(change: WiFiChangeSet(networks: [off]), wireless: wireless, subnets: try Self.subnets(), devices: devices,
+                                 thisMac: .ethernet)
+        let slots = Self.slots(plan)
+        #expect(slots.map(\.interface) == ["ra3"] && slots.allSatisfy { $0.enabled == false })
+        guard case .network(_, let initialised, _) = try #require(plan.calls.first) else { return }
+        #expect(initialised)
+        #expect(plan.mustJoin == [MACAddress("d8:1c:79:aa:04:53")!])
+        // The main networks are not touched.
+        #expect(!slots.contains { ["ra0", "rai0", "rax0"].contains($0.interface) })
+    }
+
+    @Test func subnetCodesHaveTheirOwnText() throws {
+        let rules = WiFiCall.rules(try #require(try Self.subnets().first { $0.name == "guest" }), WiFiSubnetRules(kind: .guest, eachOther: true, reachesModem: false))
+        #expect(WiFiApplyExecutor.refusedMessage(-9, call: rules).contains("overlaps another network"))
+        #expect(WiFiApplyExecutor.refusedMessage(-11, call: rules).contains("overlaps another network"))
+        #expect(WiFiApplyExecutor.refusedMessage(20_016_008, call: rules).contains("TAP site-to-site"))
+        #expect(WiFiApplyExecutor.refusedMessage(1003, call: rules).contains("address settings (code 1003)"))
+        let network = WiFiCall.network(WiFiSlotState(interface: "ra1"), initialised: true, radio: nil)
+        #expect(WiFiApplyExecutor.refusedMessage(-9, call: network) == WiFiApplyExecutor.refusedMessage(-9))
+    }
+
+    @Test func refusedSubnetCallSendsNothingElse() async throws {
+        let router = FakeRouter(subnets: try Self.subnets(), sends: [.errCode(-9)])
+        let plan = Self.plan(WiFiChangeSet(networks: [Self.turnOn(.iot, bands: [.ghz2_4])], rules: [WiFiSubnetRules(kind: .iot, eachOther: true, reachesModem: false)]),
+                             subnets: try Self.subnets())
+        let report = await Sample.executor(router).apply(plan)
+        guard case .rejected(.preconditionFailed(let message)) = report.outcome else { Issue.record("\(report.outcome)"); return }
+        #expect(message.contains("overlaps another network"))
+        #expect(await router.sent.count == 1)
+    }
+
+    @Test func turnOnVerifiesTheRulesAndTheNewNetworks() async throws {
+        let subnets = try Self.subnets()
+        let router = FakeRouter(subnets: subnets, sends: [.apply, .apply])
+        let log = SessionEventLog()
+        let plan = Self.plan(WiFiChangeSet(networks: [Self.turnOn(.iot, bands: [.ghz2_4])], rules: [WiFiSubnetRules(kind: .iot, eachOther: true, reachesModem: true)]),
+                             subnets: subnets)
+        let report = await Sample.executor(router, log: log).apply(plan)
+        guard case .verifiedSuccess(let state) = report.outcome else { Issue.record("\(report.outcome)"); return }
+        #expect(state.rules == [WiFiSubnetRules(kind: .iot, eachOther: true, reachesModem: true)])
+        #expect(state.slots.map(\.enabled) == [true])
+        let text = await log.events().map { "\($0)" }.joined() + plan.calls.map(\.description).joined() + String(reflecting: plan)
+        #expect(!text.contains("new-guest-key"))
+    }
+
+    @Test func joinedMeansOnlineInTheSubnet() throws {
+        let iot = try #require(try Self.subnets().first { $0.name == "iot" })
+        #expect(iot.range == "192.168.10.1/24")
+        let plug = MACAddress("00:17:88:4a:1e:2f")!, thermostat = MACAddress("d8:1c:79:aa:04:53")!, printer = MACAddress("3c:52:82:7a:0d:91")!
+        let clients = [
+            WiFiClientInfo(mac: plug, ip: "192.168.10.120"),
+            WiFiClientInfo(mac: thermostat, ip: "192.168.8.116"),
+            WiFiClientInfo(mac: printer, online: false, ip: "192.168.10.31"),
+        ]
+        #expect(WiFiClientInfo.joined([plug, thermostat, printer], clients: clients, subnet: iot) == [plug])
+        #expect(WiFiClientInfo.joined([plug], clients: clients, subnet: nil).isEmpty)
+    }
 }

@@ -137,6 +137,7 @@ struct WiFiReviewPresentation: Equatable {
     /// Estimated, not measured: a guide that the change is not instant.
     static let networkRestart = "about 5 s"
     static let radioRestart = "about 20 s"
+    static let newNetworks = "about 30 s"
 
     init(change: WiFiChangeSet, plan: WiFiApplyPlan, wireless: WirelessStatus, sections: [WirelessSectionOptions]? = nil) {
         let applied = Self.applied(plan, to: wireless)
@@ -149,6 +150,10 @@ struct WiFiReviewPresentation: Equatable {
         for edit in change.networks {
             guard let original = edit.interfaces.first.flatMap({ slots[$0]?.1 }) else { continue }
             let name = original.ssid ?? WiFiFormat.dash
+            if edit.kind != .main, edit.bands.isEmpty {
+                changes.append("Turn off \(name)")
+                continue
+            }
             if original.ssid != edit.name { changes.append("Name: \(name) → \(edit.name)") }
             if let password = edit.password, original.password != password { changes.append("\(edit.name): new password") }
             if original.encryption != edit.security {
@@ -167,7 +172,7 @@ struct WiFiReviewPresentation: Equatable {
             }
             let had = Set(edit.interfaces.compactMap { slots[$0]?.0 })
             for band in edit.bands where !had.contains(band) {
-                if let other = wireless.radio(band)?.mainNetwork, other.isOn, let otherName = other.ssid {
+                if edit.kind == .main, let other = wireless.radio(band)?.mainNetwork, other.isOn, let otherName = other.ssid {
                     changes.append("\(WiFiFormat.band(band)) moves from \(otherName) to \(edit.name)")
                 } else {
                     changes.append("\(edit.name) adds \(WiFiFormat.band(band))")
@@ -176,6 +181,7 @@ struct WiFiReviewPresentation: Equatable {
             for band in had.subtracting(edit.bands).sorted() { changes.append("\(edit.name) stops using \(WiFiFormat.band(band))") }
         }
         if let isolate = change.isolate { changes.append("Isolate devices: \(WiFiEditFormat.onOff(isolate)), on every main network") }
+        changes += Self.ruleLines(plan)
         changes += Self.radioLines(change.radios, wireless: wireless)
         changes += Self.optionLines(change.options, wireless: wireless, sections: sections)
         self.changes = changes
@@ -193,8 +199,14 @@ struct WiFiReviewPresentation: Equatable {
             impacts.append(Impact(kind: .restart, bold: "The network on \(WiFiEditFormat.bandList(networks))",
                                   rest: "restarts, \(Self.networkRestart); other networks there stay up"))
         }
+        if !plan.restarts.filter({ if case .added = $0 { true } else { false } }).isEmpty {
+            impacts.append(Impact(kind: .restart, bold: "New networks", rest: "start, \(Self.newNetworks)"))
+        }
         if plan.restarts.contains(.subnet) {
             impacts.append(Impact(kind: .restart, bold: "Main network settings", rest: "reload, \(Self.networkRestart)"))
+        }
+        for kind in [WiFiNetworkKind.guest, .iot] where plan.restarts.contains(.rules(kind)) {
+            impacts.append(Impact(kind: .restart, bold: "\(WiFiGuestFormat.title(kind)) settings", rest: "reload, \(Self.networkRestart)"))
         }
         if let check = plan.radarCheck {
             impacts.append(Impact(kind: .restart, bold: WiFiFormat.band(check.band),
@@ -213,6 +225,18 @@ struct WiFiReviewPresentation: Equatable {
         case .mustJoin, .mustEnterPassword: "Use Ethernet for this change if you can."
         default: nil
         }
+    }
+
+    /// One line per changed guest or IoT rule.
+    static func ruleLines(_ plan: WiFiApplyPlan) -> [String] {
+        var lines: [String] = []
+        for case .rules(let subnet, let rules) in plan.calls {
+            let now = WiFiSubnetRules(kind: rules.kind, subnet: subnet)
+            let who = WiFiGuestFormat.who(rules.kind)
+            if let on = rules.eachOther, on != now.eachOther { lines.append("\(who) can reach each other: \(WiFiEditFormat.onOff(on))") }
+            if let on = rules.reachesModem, on != now.reachesModem { lines.append("\(who) can reach your modem: \(WiFiEditFormat.onOff(on))") }
+        }
+        return lines
     }
 
     /// One line per changed radio field.
@@ -382,4 +406,80 @@ struct WiFiOutcomePresentation: Equatable {
             showsWiFiSettings = false
         }
     }
+}
+
+/// Texts for the guest and IoT sheets.
+enum WiFiGuestFormat {
+    static func title(_ kind: WiFiNetworkKind) -> String { kind == .iot ? "IoT network" : "Guest network" }
+    static func who(_ kind: WiFiNetworkKind) -> String { kind == .iot ? "IoT devices" : "Guests" }
+
+    static func subtitle(_ kind: WiFiNetworkKind, ready: Bool) -> String {
+        switch (kind, ready) {
+        case (.iot, false): "A separate network for smart home devices"
+        case (.iot, true): "Now join your devices to it"
+        case (_, false): "Internet for visitors, kept apart from your devices"
+        case (_, true): "Share it with your guests"
+        }
+    }
+
+    static func bandTile(_ band: WirelessBand, kind: WiFiNetworkKind) -> String {
+        switch (kind, band) {
+        case (.iot, .ghz2_4): "Most smart devices"
+        case (.iot, .ghz5): "Few smart devices"
+        case (.iot, .ghz6): "Not available"
+        case (_, .ghz2_4): "Reaches far"
+        case (_, .ghz5): "Faster"
+        case (_, .ghz6): "WPA3 only"
+        }
+    }
+
+    /// "On · 2.4 + 5 GHz".
+    static func onLine(_ bands: Set<WirelessBand>) -> String {
+        "On · " + bands.sorted().map(WiFiFormat.band).joined(separator: " + ")
+    }
+
+    /// "On · 1 of 2 devices joined", or "On" with nothing to join.
+    static func joinedLine(joined: Int, of total: Int) -> String {
+        total == 0 ? "On" : "On · \(joined) of \(total) \(total == 1 ? "device" : "devices") joined"
+    }
+
+    struct Reach: Equatable, Identifiable {
+        enum Row: Equatable { case internet, eachOther, modem, devices, router, intoFromDevices, intoFromGuests }
+        let row: Row
+        let title: String
+        let help: String?
+        /// `nil` shows "—".
+        let on: Bool?
+        let locked: Bool
+        var id: Row { row }
+    }
+
+    /// The "can reach" rows. Only Each other and Your modem can change.
+    static func reach(_ draft: WiFiGuestDraft) -> [Reach] {
+        let mains = WiFiFormat.names(draft.mainNames)
+        let iot = draft.kind == .iot
+        let who = self.who(draft.kind)
+        return [
+            Reach(row: .internet, title: "Internet", help: "\(iot ? "An IoT" : "A guest") network always has internet.", on: true, locked: true),
+            Reach(row: .eachOther, title: "Each other",
+                  help: iot ? "Some devices talk to a hub or to each other. Leave on unless you know they do not." : nil,
+                  on: draft.eachOther, locked: draft.eachOther == nil),
+            Reach(row: .modem, title: "Your modem", help: "The network that the router is plugged into, for example your modem and its settings page.",
+                  on: draft.reachesModem, locked: draft.reachesModem == nil),
+            Reach(row: .devices, title: "Your devices",
+                  help: iot ? "IoT devices can never start a connection to devices on \(mains)." : "Guests can never reach devices on \(mains).",
+                  on: false, locked: true),
+            Reach(row: .router, title: "Router settings", help: "\(who) only get an address and name lookups from the router.", on: false, locked: true),
+        ]
+    }
+
+    /// IoT only: who can reach the IoT devices. Both stay off.
+    static let into: [Reach] = [
+        Reach(row: .intoFromDevices, title: "Your devices",
+              help: "Routewell cannot turn this on yet. The router has no setting for it, and Routewell has not checked that a rule stays.",
+              on: false, locked: true),
+        Reach(row: .intoFromGuests, title: "Guests", help: "Guests can never reach IoT devices.", on: false, locked: true),
+    ]
+
+    static let printerWarning = "This Mac cannot find a printer on another network. Keep printers on the main network."
 }

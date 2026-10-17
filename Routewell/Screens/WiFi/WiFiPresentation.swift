@@ -116,7 +116,7 @@ struct WiFiOverviewPresentation {
         let secured: Bool
         let bands: [WirelessBand]
         let count: String
-        /// The main network the card opens in the network sheet.
+        /// The network the card opens: the network sheet, or the guest or IoT sheet.
         var group: WiFiNetworkGroup?
         var id: String { "\(kind)-\(multiLink)-\(name)" }
     }
@@ -132,7 +132,7 @@ struct WiFiOverviewPresentation {
     }
 
     struct SuggestionLine: Equatable, Identifiable {
-        enum Action: Equatable { case radios, multiLink, useOneName }
+        enum Action: Equatable { case radios, multiLink, useOneName, iot }
         let suggestion: WiFiSuggestion
         let title: String
         let action: (label: String, target: Action)?
@@ -183,7 +183,7 @@ struct WiFiOverviewPresentation {
 
         var cards = overview.groups.map { group in
             NetworkCard(name: group.name, kind: group.kind, multiLink: false, secured: group.security?.isSecured ?? true, bands: group.bands,
-                        count: group.deviceCount.map(String.init) ?? WiFiFormat.dash, group: group.kind == .main ? group : nil)
+                        count: group.deviceCount.map(String.init) ?? WiFiFormat.dash, group: group)
         }
         if let link = overview.multiLink {
             let members = devices.filter(\.viaLink).count
@@ -207,7 +207,8 @@ struct WiFiOverviewPresentation {
                 SuggestionLine(suggestion: suggestion, title: "Multi-link is ready for \(macs.count) Wi-Fi 7 \(macs.count == 1 ? "device" : "devices")",
                                action: ("Set Up…", .multiLink))
             case .ownNetwork(let macs):
-                SuggestionLine(suggestion: suggestion, title: "\(who) can move to \(macs.count == 1 ? "its" : "their") own network", action: nil)
+                SuggestionLine(suggestion: suggestion, title: "\(who) can move to \(macs.count == 1 ? "its" : "their") own network",
+                               action: ("Set Up…", .iot))
             case .dfsChannels: SuggestionLine(suggestion: suggestion, title: "5 GHz can use more channels with DFS", action: ("Review", .radios))
             }
         }

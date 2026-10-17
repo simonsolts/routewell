@@ -39,6 +39,10 @@ public final class MockWiFiService: WiFiService, WiFiApplyTransport {
         case macOnEthernet
         /// A manual DFS channel finds radar during its check.
         case radarFound
+        /// The guest or IoT subnet call comes back with `-9`.
+        case subnetConflict
+        /// The guest or IoT subnet call comes back with the TAP-S2S code.
+        case tapS2S
     }
 
     private struct Edits {
@@ -48,10 +52,14 @@ public final class MockWiFiService: WiFiService, WiFiApplyTransport {
         /// The band whose radar check runs, and when it ends.
         var radarCheck: (band: WirelessBand, until: Date)?
         var radar: WirelessBand?
+        /// When the IoT network turned on.
+        var iotOn: Date?
     }
 
     /// How long a mock radar check takes.
     static let radarCheckTime: TimeInterval = 3
+    /// How long after the IoT network turns on the mock's Wi-Fi 4 device joins it.
+    public static let iotJoinTime: TimeInterval = 4
 
     private let selected = Mutex<Scenario>(.today)
     private let applySelected = Mutex<ApplyScenario>(.success)
@@ -122,6 +130,7 @@ public final class MockWiFiService: WiFiService, WiFiApplyTransport {
         try await Task.sleep(for: .milliseconds(300))
         let apply = applyScenario
         if apply == .refused { return -1 }
+        if case .rules = call, apply == .subnetConflict || apply == .tapS2S { return apply == .tapS2S ? 20_016_008 : -9 }
         if apply != .mismatch { store(call) }
         if apply == .replyLost { throw GLiNetRPCError.transport(.timedOut) }
         return nil
@@ -134,6 +143,7 @@ public final class MockWiFiService: WiFiService, WiFiApplyTransport {
         var sections = currentSections(scenario)
         var radarCheck = edits.withLock { $0.radarCheck }
         var radar = edits.withLock { $0.radar }
+        var iotOn = edits.withLock { $0.iotOn }
         switch call {
         case .network(let slot, _, let settings):
             if let settings, let index = wireless.radios.firstIndex(where: { $0.band == settings.band }) {
@@ -160,11 +170,17 @@ public final class MockWiFiService: WiFiService, WiFiApplyTransport {
                     network.hidden = slot.hidden
                     network.randomBSSID = slot.randomBSSID
                     if let enabled = slot.enabled { network.enabled = .value(enabled) }
+                    if network.kind == .iot { iotOn = network.isOn ? iotOn ?? Date() : nil }
                     wireless.radios[radio].networks[index] = network
                 }
             }
         case .subnet(let subnet, let isolate):
             for index in subnets.indices where subnets[index].name == subnet.name { subnets[index].isolate = isolate }
+        case .rules(let subnet, let rules):
+            for index in subnets.indices where subnets[index].name == subnet.name {
+                if let eachOther = rules.eachOther { subnets[index].isolate = !eachOther }
+                if let modem = rules.reachesModem { subnets[index].wanAccess = modem ? .unrestricted : .blockWANSubnet }
+            }
         case .options(let writes):
             for write in writes {
                 guard let index = sections.firstIndex(where: { $0.section == write.section.description }) else { continue }
@@ -177,7 +193,14 @@ public final class MockWiFiService: WiFiService, WiFiApplyTransport {
                 }
             }
         }
-        edits.withLock { $0 = Edits(wireless: wireless, subnets: subnets, sections: sections, radarCheck: radarCheck, radar: radar) }
+        edits.withLock { $0 = Edits(wireless: wireless, subnets: subnets, sections: sections, radarCheck: radarCheck, radar: radar, iotOn: iotOn) }
+    }
+
+    /// Client addresses that moved to the IoT network: the Wi-Fi 4 device
+    /// joins a few seconds after the network turns on.
+    public func movedClients() -> [MACAddress: String] {
+        guard let on = edits.withLock({ $0.iotOn }), Date().timeIntervalSince(on) >= Self.iotJoinTime else { return [:] }
+        return [Self.mac("d8:1c:79:aa:04:53"): "192.168.10.116"]
     }
 
     public func probe() async -> Capability {

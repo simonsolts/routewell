@@ -174,7 +174,9 @@ struct WiFiNetworkCards: View {
                         .buttonStyle(.plain)
                         .accessibilityHint("Opens Multi-link")
                 } else if let group = card.group {
-                    Button { environment.wifi.openNetwork(group) } label: { row(card, chevron: true) }
+                    Button {
+                        if group.kind == .main { environment.wifi.openNetwork(group) } else { environment.wifi.openGuest(group.kind, group: group) }
+                    } label: { row(card, chevron: true) }
                         .buttonStyle(.plain)
                         .disabled(!environment.wifi.canEdit)
                         .accessibilityHint("Opens the network's settings")
@@ -230,8 +232,7 @@ struct WiFiNetworkCards: View {
             .accessibilityHidden(true)
     }
 
-    /// Guest and IoT open their setup sheets in a later version; Multi-link
-    /// opens its tab.
+    /// Guest and IoT open their setup sheets; Multi-link opens its tab.
     @ViewBuilder private func addTile(_ missing: WiFiOverview.Missing) -> some View {
         let (title, symbol): (String, String) = switch missing {
         case .guest: ("Guest", "person")
@@ -242,17 +243,22 @@ struct WiFiNetworkCards: View {
             Image(systemName: symbol).accessibilityHidden(true)
             Text(title)
             Spacer(minLength: 0)
-            if missing == .multiLink { Image(systemName: "plus").foregroundStyle(.tertiary).accessibilityHidden(true) }
+            Image(systemName: "plus").foregroundStyle(.tertiary).accessibilityHidden(true)
         }
         .font(.callout).foregroundStyle(.secondary)
         .padding(.horizontal, 10).padding(.vertical, 7)
         .frame(maxWidth: .infinity)
         .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color(nsColor: .separatorColor), style: StrokeStyle(lineWidth: 1.5, dash: [4, 3])))
         .contentShape(Rectangle())
-        if missing == .multiLink {
+        switch missing {
+        case .multiLink:
             Button { environment.wifi.openMultiLink() } label: { content }.buttonStyle(.plain).accessibilityLabel("Multi-link, not set up")
-        } else {
-            content.accessibilityLabel("\(title) network, not set up")
+        case .guest, .iot:
+            Button { environment.wifi.openGuest(missing == .guest ? .guest : .iot) } label: { content }
+                .buttonStyle(.plain)
+                .disabled(!environment.wifi.canEdit)
+                .accessibilityLabel("\(title) network, not set up")
+                .accessibilityHint("Opens the setup")
         }
     }
 }
@@ -293,6 +299,7 @@ struct WiFiSuggestions: View {
                             case .radios: controller.openRadios(.ghz5)
                             case .multiLink: controller.openMultiLink()
                             case .useOneName: controller.openUseOneName()
+                            case .iot: controller.openGuest(.iot)
                             }
                         }
                         .controlSize(.small)
