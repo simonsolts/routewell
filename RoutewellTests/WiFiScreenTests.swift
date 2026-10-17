@@ -255,7 +255,8 @@ import RoutewellMock
     #expect(off.cards.map(\.sub) == ["Wi-Fi 7 · one band now", "Wi-Fi 7 · one band now"])
     #expect(off.cards.map(\.rate) == ["0.3", "2.2"])
     #expect(off.others == 3)
-    #expect(off.subtitle == "2 of your devices can use two bands at the same time.")
+    #expect(off.subtitle == "2 of your devices can use 5 and 6 GHz at the same time.")
+    #expect(off.cards.allSatisfy { !$0.legend.contains("+") && $0.band != nil })
 
     let on = await wifiEnvironment(.multiLinkOn, tab: .multiLink)
     let link = WiFiMultiLinkPresentation(mlo: try #require(try? on.model.wifi?.mlo.get()), devices: try #require(on.wifi.overview?.devices),
@@ -266,6 +267,8 @@ import RoutewellMock
     #expect(link.cards.count == 2)
     #expect(link.subtitle == "Multi-link on 5 GHz + 6 GHz · 2 devices")
     #expect(link.linkMode == "EMLSR")
+    // No invented per-band numbers: one total rate, and no band segment.
+    #expect(link.cards.allSatisfy { $0.legend == "Per band not reported" && $0.band == nil && $0.rate == "2.2" })
     #expect(link.others == 3)
 }
 
