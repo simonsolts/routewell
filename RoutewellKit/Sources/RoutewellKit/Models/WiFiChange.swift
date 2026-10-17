@@ -256,7 +256,7 @@ public extension MLONetwork {
     /// The fields `set_mlo_config` sends and verify compares.
     var sent: MLONetwork {
         MLONetwork(name: name, enabled: enabled, bands: bands.sorted(), ssid: ssid, encryption: encryption, hidden: hidden,
-                   randomBSSID: randomBSSID, password: password)
+                   randomBSSID: randomBSSID, initialised: initialised != false, password: password)
     }
 }
 
@@ -699,7 +699,7 @@ public struct WiFiApplyPlan: Sendable, Equatable {
         if var after = change.mlo, let before = mlo?.networks.first(where: { $0.name == after.name && after.name != nil }) {
             after.bands.sort()
             if after.bands.contains(.ghz6) { after.encryption = .wpa3 }
-            after.initialised = after.isOn ? true : before.initialised
+            after.initialised = after.enabled == .value(true) ? true : before.initialised
             if after.sent != before.sent {
                 let wasOn = before.isOn
                 let isOn = after.enabled == .value(true)

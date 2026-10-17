@@ -969,6 +969,20 @@ private actor BodyLog {
         #expect(state.mlo?.ssid == "Flint Home Link" && state.mlo?.encryption == .wpa3)
     }
 
+    @Test func turnOnSetsUpANetworkThatWasNeverSetUp() async throws {
+        let router = FakeRouter()
+        await router.editMLO { $0.networks[0].initialised = false }
+        var mlo = MockWiFiService.mlo(.today)
+        mlo.networks[0].initialised = false
+        var on = Self.turnOn()
+        on.initialised = false
+        let plan = Self.plan(on, mlo: mlo)
+        #expect(try #require(plan.calls.first?.params)["init"] == .bool(true))
+        let report = await Sample.executor(router).apply(plan)
+        guard case .verifiedSuccess = report.outcome else { Issue.record("\(report.outcome)"); return }
+        #expect(try await router.readMLO().main?.isOn == true)
+    }
+
     @Test func outsideChangeSendsNothing() async {
         let router = FakeRouter()
         await router.editMLO { $0.networks[0].ssid = "Flint Home Other" }

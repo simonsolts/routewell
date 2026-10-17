@@ -121,7 +121,10 @@ struct WiFiMultiLinkSheet: View {
                        note: "Join it on each Wi-Fi 7 device. Easy to undo.") { controller.mloDraft?.sameName = false }
                 choice(title: "Same as \(draft.fastName ?? WiFiFormat.dash)", selected: draft.sameName,
                        rows: mains.map { ($0, $0 == draft.fastName, $0 == draft.fastName ? "Multi-link" : nil) },
-                       note: "Nothing to join.") { controller.mloDraft?.sameName = true }
+                       note: "Nothing to join.") {
+                    controller.mloDraft?.sameName = true
+                    controller.mloDraft?.samePassword = true
+                }
                     .disabled(draft.fastName == nil)
             }
             WiFiBox {
@@ -136,7 +139,7 @@ struct WiFiMultiLinkSheet: View {
                     Divider().padding(.leading, 12)
                 }
                 WiFiMLOPasswordRows(fastName: draft.fastName, samePassword: draft.samePassword, password: draft.password,
-                                    editable: draft.fastName != nil) { same in
+                                    editable: draft.fastName != nil && !draft.sameName) { same in
                     controller.mloDraft?.samePassword = same
                     if !same, controller.mloDraft?.password.isEmpty == true { controller.mloDraft?.password = WiFiGuestDraft.newPassword() }
                 } setPassword: { controller.mloDraft?.password = $0 }

@@ -694,6 +694,7 @@ struct WiFiMLODraft: Equatable {
     var network: MLONetwork {
         var network = original
         network.enabled = .value(enabled)
+        if enabled { network.initialised = true }
         network.bands = bands.sorted()
         network.ssid = sameName ? fastName : name
         network.encryption = .wpa3
