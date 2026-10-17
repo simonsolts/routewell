@@ -12,6 +12,8 @@ final class WiFiController {
     private let refresh: RefreshController
     private var dismissed: (token: SessionToken?, kinds: Set<WiFiSuggestion.Kind>) = (nil, [])
     var highlighted: Set<MACAddress> = []
+    /// The air map dot under the pointer, which shows its card.
+    var hovered: MACAddress?
     var selectedBand: WirelessBand = .ghz5
     /// The open sheet; none once the session it opened in has ended.
     var sheet: WiFiSheet? {

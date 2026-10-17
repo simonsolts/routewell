@@ -117,7 +117,7 @@ import RoutewellMock
     #expect(today.radios[0].dfs == nil)
 
     let phone = try #require(today.dots.first { $0.device.generation == .wifi6 && $0.device.band == .ghz2_4 }?.device)
-    #expect(WiFiOverviewPresentation.tooltip(phone) == "iPhone\nFlint Home · 2.4 GHz · Wi-Fi 6\nFair signal (-61 dBm) · can use a faster band")
+    #expect(WiFiOverviewPresentation.tooltip(phone) == ["iPhone", "Flint Home · 2.4 GHz · Wi-Fi 6", "Fair signal (−61 dBm) · can use a faster band"])
     #expect(WiFiOverviewPresentation.accessibilityLabel(phone) == "iPhone, 2.4 GHz, -61 dBm")
 }
 
@@ -191,7 +191,8 @@ import RoutewellMock
     #expect(page.dots.allSatisfy { hypot($0.x - 250, $0.y - 248) - WiFiOverviewPresentation.unknownRadius < 0.001 })
     #expect(page.cards.map(\.count) == ["3", "2"])
     let device = try #require(page.dots.first?.device)
-    #expect(WiFiOverviewPresentation.tooltip(device).hasSuffix("Signal —"))
+    #expect(WiFiOverviewPresentation.tooltip(device).count == 2)
+    #expect(!WiFiOverviewPresentation.tooltip(device).joined().contains("signal"))
     #expect(WiFiNotes.sshNote(.notSetUp) == "Signal, Wi-Fi versions, and the channels Auto skips need SSH.")
     #expect(WiFiNotes.sshNote(.available) == nil)
 
@@ -268,6 +269,15 @@ import RoutewellMock
     #expect(link.others == 3)
 }
 
+@MainActor @Test func airMapRingsGrowAndFadeOverThreePointSixSeconds() {
+    let start = WiFiAirMap.wave(time: 0, delay: 0)
+    #expect(start.scale == 1 && start.opacity == 0.45)
+    let late = WiFiAirMap.wave(time: 3.6 - 1e-9, delay: 0)
+    #expect(abs(late.scale - 15) < 0.001 && late.opacity < 0.001)
+    let shifted = WiFiAirMap.wave(time: 2.0, delay: 1.2), base = WiFiAirMap.wave(time: 0.8, delay: 0)
+    #expect(abs(shifted.scale - base.scale) < 1e-9 && abs(shifted.opacity - base.opacity) < 1e-9)
+}
+
 // MARK: Snapshots
 
 /// Writes PNGs of each Wi-Fi tab in each scenario, light and dark, to the
@@ -303,4 +313,10 @@ import RoutewellMock
             write("\(scenario.rawValue)-\(tab.rawValue.lowercased())", environment)
         }
     }
+
+    let environment = await wifiEnvironment(.today)
+    environment.wifi.hovered = environment.wifi.overview?.devices.first { $0.canUseFasterBand }?.mac
+    write("today-overview-hover", environment)
+    environment.wifi.hovered = environment.wifi.overview?.devices.first { $0.band == .ghz6 }?.mac
+    write("today-overview-hover-6ghz", environment)
 }

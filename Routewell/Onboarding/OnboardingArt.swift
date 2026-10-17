@@ -88,13 +88,13 @@ enum OnboardingArtAnimation {
         return wrap(time, blinkDuration) < blinkDuration / 2 ? 1 : 0.35
     }
 
-    private static func wrap(_ t: TimeInterval, _ period: TimeInterval) -> TimeInterval {
+    static func wrap(_ t: TimeInterval, _ period: TimeInterval) -> TimeInterval {
         let r = t.truncatingRemainder(dividingBy: period)
         return r < 0 ? r + period : r
     }
 
     /// CSS `ease-out`, cubic-bezier(0, 0, .58, 1).
-    private static func easeOut(_ x: Double) -> Double {
+    static func easeOut(_ x: Double) -> Double {
         guard x > 0 else { return 0 }
         guard x < 1 else { return 1 }
         var lo = 0.0, hi = 1.0

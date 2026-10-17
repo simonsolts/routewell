@@ -48,30 +48,35 @@ struct WiFiAirMap: View {
 
     var body: some View {
         WiFiBox {
-            HStack(alignment: .firstTextBaseline, spacing: 8) {
-                Text("\(page.deviceCount)").font(.title.weight(.semibold)).monospacedDigit()
-                Text(page.deviceCount == 1 ? "device on Wi-Fi" : "devices on Wi-Fi").foregroundStyle(.secondary)
-                Spacer()
-                HStack(spacing: 6) {
-                    StatusDot(tone: page.signalLine == nil ? .unknown : page.hasWeak ? .degraded : .healthy)
-                    Text(page.signalLine ?? "Signal \(WiFiFormat.dash)")
-                }
-                .font(.subheadline).foregroundStyle(.secondary)
+            VStack(alignment: .leading, spacing: 0) { content }
+                .clipShape(RoundedRectangle(cornerRadius: 10))
+        }
+    }
+
+    @ViewBuilder private var content: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
+            Text("\(page.deviceCount)").font(.title.weight(.semibold)).monospacedDigit()
+            Text(page.deviceCount == 1 ? "device on Wi-Fi" : "devices on Wi-Fi").foregroundStyle(.secondary)
+            Spacer()
+            HStack(spacing: 6) {
+                StatusDot(tone: page.signalLine == nil ? .unknown : page.hasWeak ? .degraded : .healthy)
+                Text(page.signalLine ?? "Signal \(WiFiFormat.dash)")
             }
-            .padding(.horizontal, 14).padding(.top, 12)
-            fan
-                .aspectRatio(500 / 268, contentMode: .fit)
-                .padding(.horizontal, 14)
-            if page.showsRings {
-                HStack(spacing: 14) {
-                    Label { Text("Can use a faster band") } icon: { Circle().stroke(.orange, lineWidth: 1.5).frame(width: 9, height: 9) }
-                    Label { Text("Wi-Fi 7") } icon: { Circle().fill(.purple).frame(width: 5, height: 5) }
-                }
-                .font(.caption).foregroundStyle(.secondary).labelStyle(.titleAndIcon)
-                .padding(.horizontal, 14).padding(.bottom, 12)
-            } else {
-                Spacer().frame(height: 12)
+            .font(.subheadline).foregroundStyle(.secondary)
+        }
+        .padding(.horizontal, 14).padding(.top, 12)
+        fan
+            .aspectRatio(500 / 268, contentMode: .fit)
+            .padding(.horizontal, 14)
+        if page.showsRings {
+            HStack(spacing: 14) {
+                Label { Text("Can use a faster band") } icon: { Circle().stroke(.orange, lineWidth: 1.5).frame(width: 9, height: 9) }
+                Label { Text("Wi-Fi 7") } icon: { Circle().fill(.purple).frame(width: 5, height: 5) }
             }
+            .font(.caption).foregroundStyle(.secondary).labelStyle(.titleAndIcon)
+            .padding(.horizontal, 14).padding(.bottom, 12)
+        } else {
+            Spacer().frame(height: 12)
         }
     }
 
@@ -118,32 +123,106 @@ struct WiFiAirMap: View {
                     .font(.caption.weight(.medium))
                     .position(x: (250 + 214 * cos(angle)) * scale, y: (248 - 214 * sin(angle)) * scale)
                 }
-                Image(systemName: "wifi.router").font(.title3).foregroundStyle(.secondary)
-                    .position(x: 250 * scale, y: 248 * scale)
+                if !reduceMotion {
+                    TimelineView(.animation) { context in
+                        let time = context.date.timeIntervalSinceReferenceDate
+                        ZStack {
+                            ForEach([0.0, 1.2, 2.4], id: \.self) { delay in
+                                let wave = Self.wave(time: time, delay: delay)
+                                Circle().stroke(Self.blue, lineWidth: 1.5 * scale).frame(width: 30 * scale, height: 30 * scale)
+                                    .scaleEffect(wave.scale).opacity(wave.opacity)
+                            }
+                        }
+                        .position(x: 250 * scale, y: 248 * scale)
+                    }
+                    .allowsHitTesting(false)
                     .accessibilityHidden(true)
+                }
+                WiFiHub().position(x: 250 * scale, y: 248 * scale)
                 ForEach(page.dots) { dot in
-                    WiFiDeviceDot(device: dot.device, highlighted: environment.wifi.highlighted.contains(dot.device.mac))
+                    WiFiDeviceDot(device: dot.device, highlighted: environment.wifi.highlighted.contains(dot.device.mac),
+                                  hovered: environment.wifi.hovered == dot.device.mac)
+                        .onHover { inside in if inside { environment.wifi.hovered = dot.device.mac } }
                         .position(x: dot.x * scale, y: dot.y * scale)
                         .animation(reduceMotion ? nil : .easeOut(duration: 0.4), value: dot.x)
                 }
+                if let dot = page.dots.first(where: { $0.device.mac == environment.wifi.hovered }) {
+                    Color.clear.frame(width: 0, height: 0)
+                        .overlay(alignment: .bottom) { WiFiDotCard(lines: WiFiOverviewPresentation.tooltip(dot.device)).offset(y: -12) }
+                        .position(x: dot.x * scale, y: dot.y * scale)
+                        .allowsHitTesting(false)
+                        .accessibilityHidden(true)
+                }
             }
+            .onHover { inside in if !inside { environment.wifi.hovered = nil } }
         }
         .accessibilityElement(children: .contain)
         .accessibilityLabel("Wi-Fi devices by band and signal")
+    }
+
+    private static let blue = Color(red: 0, green: 0x7A / 255, blue: 1)
+
+    /// One ring: from the hub's size to 15 times it, fading from .45 to 0, eased out over 3.6 s.
+    static func wave(time: TimeInterval, delay: TimeInterval) -> (scale: Double, opacity: Double) {
+        let eased = OnboardingArtAnimation.easeOut(OnboardingArtAnimation.wrap(time - delay, 3.6) / 3.6)
+        return (1 + 14 * eased, 0.45 * (1 - eased))
+    }
+}
+
+/// The router at the centre of the fan.
+struct WiFiHub: View {
+    var body: some View {
+        SVGPathParser.parse("M2.5 7a8 8 0 0 1 11 0M4.6 9.2a5 5 0 0 1 6.8 0M6.7 11.4a2 2 0 0 1 2.6 0")
+            .stroke(.white, lineWidth: 1.6)
+            .frame(width: 16, height: 16)
+            .frame(width: 30, height: 30)
+            .background(LinearGradient(colors: [Color(red: 0x5A / 255, green: 0xB0 / 255, blue: 1), Color(red: 0x0A / 255, green: 0x7C / 255, blue: 1)],
+                                       startPoint: .top, endPoint: .bottom), in: RoundedRectangle(cornerRadius: 9))
+            .padding(4)
+            .background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: 13))
+            .shadow(color: Color(red: 0x0A / 255, green: 0x7C / 255, blue: 1).opacity(0.35), radius: 5, y: 4)
+            .accessibilityHidden(true)
+    }
+}
+
+/// The card over a hovered dot.
+struct WiFiDotCard: View {
+    let lines: [String]
+    @Environment(\.colorScheme) private var colorScheme
+
+    var body: some View {
+        let dark = colorScheme == .dark
+        let ink: Color = dark ? .white : .black
+        VStack(alignment: .leading, spacing: 1) {
+            ForEach(Array(lines.enumerated()), id: \.offset) { index, line in
+                Text(line)
+                    .font(.system(size: index == 0 ? 12 : 11, weight: index == 0 ? .semibold : .regular))
+                    .foregroundStyle(ink.opacity(index == 0 ? 0.847 : dark ? 0.55 : 0.498))
+                    .frame(minHeight: 16)
+            }
+        }
+        .lineLimit(1)
+        .fixedSize()
+        .padding(.horizontal, 10).padding(.vertical, 7)
+        .background(dark ? Color(red: 0x2C / 255, green: 0x2C / 255, blue: 0x2E / 255) : .white, in: RoundedRectangle(cornerRadius: 8))
+        .overlay(RoundedRectangle(cornerRadius: 8.5).strokeBorder(dark ? .white.opacity(0.16) : .black.opacity(0.18), lineWidth: 0.5).padding(-0.5))
+        .shadow(color: .black.opacity(dark ? 0.55 : 0.18), radius: dark ? 20 : 17, y: dark ? 14 : 10)
     }
 }
 
 struct WiFiDeviceDot: View {
     let device: WiFiDevice
     let highlighted: Bool
+    let hovered: Bool
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         ZStack {
             if device.canUseFasterBand {
-                Circle().stroke(.orange, lineWidth: 1.5).frame(width: 18, height: 18)
+                Circle().strokeBorder(.orange, lineWidth: 2).frame(width: 18, height: 18)
             }
-            Circle().fill(device.band?.color ?? .secondary).frame(width: 11, height: 11)
-                .overlay(Circle().stroke(Color(nsColor: .controlBackgroundColor), lineWidth: 1.5))
+            Circle().fill(device.band?.color ?? .secondary).frame(width: 14, height: 14)
+                .overlay(Circle().strokeBorder(Color(nsColor: .controlBackgroundColor), lineWidth: 2))
             if device.generation == .wifi7 {
                 Circle().fill(.white).frame(width: 4, height: 4)
             }
@@ -151,9 +230,10 @@ struct WiFiDeviceDot: View {
                 Circle().stroke(Color.accentColor, lineWidth: 2).frame(width: 22, height: 22)
             }
         }
+        .scaleEffect(hovered ? 1.35 : 1)
+        .animation(reduceMotion ? nil : .easeInOut(duration: 0.15), value: hovered)
         .frame(width: 24, height: 24)
         .contentShape(Circle())
-        .help(WiFiOverviewPresentation.tooltip(device))
         .accessibilityElement()
         .accessibilityLabel(WiFiOverviewPresentation.accessibilityLabel(device))
     }
