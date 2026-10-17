@@ -173,20 +173,23 @@ public struct WiFiSubnetRules: Sendable, Equatable {
 /// What the person staged. `isolate` is the main subnet's AP isolation; it
 /// covers every main network name at once. `rules` are the guest and IoT
 /// subnets' rules. `radios` hold each changed band's whole radio state.
+/// `mlo` is the multi-link network as it should be.
 public struct WiFiChangeSet: Sendable, Equatable {
     public var networks: [WiFiNetworkEdit]
     public var isolate: Bool?
     public var rules: [WiFiSubnetRules]
     public var radios: [WiFiRadioSettings]
     public var options: [WiFiOptionEdit]
+    public var mlo: MLONetwork?
 
     public init(networks: [WiFiNetworkEdit] = [], isolate: Bool? = nil, rules: [WiFiSubnetRules] = [], radios: [WiFiRadioSettings] = [],
-                options: [WiFiOptionEdit] = []) {
+                options: [WiFiOptionEdit] = [], mlo: MLONetwork? = nil) {
         self.networks = networks
         self.isolate = isolate
         self.rules = rules
         self.radios = radios
         self.options = options
+        self.mlo = mlo
     }
 }
 
@@ -213,6 +216,8 @@ public extension SubnetPolicy {
 /// Why a staged network edit cannot be sent.
 public enum WiFiEditProblem: Sendable, Equatable {
     case emptyName, nameTooLong, passwordLength, noBand, wpa3With6GHz
+    /// Multi-link needs two bands or more.
+    case oneBand
 }
 
 public extension WiFiNetworkEdit {
@@ -232,6 +237,26 @@ public extension WiFiNetworkEdit {
     static func validPassword(_ text: String) -> Bool {
         if (8...63).contains(text.count) { return true }
         return text.count == 64 && text.allSatisfy(\.isHexDigit)
+    }
+}
+
+public extension MLONetwork {
+    /// GL's limits for a network, and two bands or more. The plan sends
+    /// WPA3 with 6 GHz.
+    var problems: [WiFiEditProblem] {
+        let security = bands.contains(.ghz6) ? .wpa3 : encryption ?? .wpa3
+        var edit = WiFiNetworkEdit(interfaces: [], name: ssid ?? "", password: password, security: security, hidden: hidden ?? false,
+                                   randomBSSID: randomBSSID ?? true, bands: bands)
+        if !isOn { edit.bands = [.ghz2_4] }
+        var problems = edit.problems
+        if isOn, bands.count == 1 { problems.append(.oneBand) }
+        return problems
+    }
+
+    /// The fields `set_mlo_config` sends and verify compares.
+    var sent: MLONetwork {
+        MLONetwork(name: name, enabled: enabled, bands: bands.sorted(), ssid: ssid, encryption: encryption, hidden: hidden,
+                   randomBSSID: randomBSSID, password: password)
     }
 }
 
@@ -324,12 +349,15 @@ public enum WiFiCall: Sendable, Equatable, CustomStringConvertible {
     case rules(SubnetPolicy, WiFiSubnetRules)
     /// One SSH command: `uci set` per option, `uci commit`, `wifi reload`.
     case options([WiFiOptionWrite])
+    /// `wifi set_mlo_config` with the whole state of the multi-link network.
+    case mlo(MLONetwork)
 
     public var description: String {
         switch self {
         case .network(let slot, _, let radio): "wifi set_config \(slot.interface)\(radio == nil ? "" : " with radio")"
         case .subnet(let subnet, _), .rules(let subnet, _): "vlan_subnet set_fixed_subnet \(subnet.name ?? "—")"
         case .options(let writes): "uci wireless \(Set(writes.map(\.section.description)).sorted().joined(separator: " "))"
+        case .mlo(let network): "wifi set_mlo_config \(network.name ?? "—")"
         }
     }
 
@@ -359,6 +387,20 @@ public enum WiFiCall: Sendable, Equatable, CustomStringConvertible {
             return .object(params)
         case .options:
             return nil
+        case .mlo(let network):
+            let bands = network.bands.sorted()
+            return .object([
+                "init": .bool(network.initialised ?? true),
+                "name": .string(network.name ?? ""),
+                "mlo_enable": .bool(network.enabled == .value(true)),
+                "mlo_band": .array(bands.map { .string($0.rawValue) }),
+                "ssid": .string(network.ssid ?? ""),
+                // 6 GHz allows only WPA3.
+                "encryption": .string(bands.contains(.ghz6) ? "sae" : network.encryption.map(WiFiSecurity.wire) ?? "sae"),
+                "key": .string(network.password?.value ?? ""),
+                "hidden": .bool(network.hidden ?? false),
+                "random_bssid": .bool(network.randomBSSID ?? false),
+            ])
         }
     }
 
@@ -464,14 +506,17 @@ public struct WiFiApplyPlan: Sendable, Equatable {
         public var radioBefore: WiFiRadioSettings?
         /// The sections the options call writes, as the sheet showed them.
         public var optionsBefore: [WirelessSectionOptions]
+        /// The multi-link network as the sheet showed it.
+        public var mloBefore: MLONetwork?
 
         public init(call: WiFiCall, scopes: [WiFiRestartScope], before: WiFiSlotState? = nil, radioBefore: WiFiRadioSettings? = nil,
-                    optionsBefore: [WirelessSectionOptions] = []) {
+                    optionsBefore: [WirelessSectionOptions] = [], mloBefore: MLONetwork? = nil) {
             self.call = call
             self.scopes = scopes
             self.before = before
             self.radioBefore = radioBefore
             self.optionsBefore = optionsBefore
+            self.mloBefore = mloBefore
         }
     }
 
@@ -512,9 +557,10 @@ public struct WiFiApplyPlan: Sendable, Equatable {
         return byBand.keys.sorted().compactMap { byBand[$0] } + others
     }
 
-    /// `options` are the `wireless` sections read over SSH.
+    /// `options` are the `wireless` sections read over SSH; `mlo` is the
+    /// `get_mlo_config` read.
     public init(change: WiFiChangeSet, wireless: WirelessStatus, subnets: [SubnetPolicy]?, options: [WirelessSectionOptions]? = nil,
-                devices: [WiFiDevice], thisMac: ThisMacLink) {
+                mlo: MLOConfiguration? = nil, devices: [WiFiDevice], thisMac: ThisMacLink) {
         let slots = WiFiSlotState.slots(wireless)
         var steps: [Step] = []
         var mustJoin: Set<MACAddress> = []
@@ -650,6 +696,45 @@ public struct WiFiApplyPlan: Sendable, Equatable {
             return WiFiRadarCheck(band: band, channel: after.channel)
         }.first
 
+        if var after = change.mlo, let before = mlo?.networks.first(where: { $0.name == after.name && after.name != nil }) {
+            after.bands.sort()
+            if after.bands.contains(.ghz6) { after.encryption = .wpa3 }
+            after.initialised = after.isOn ? true : before.initialised
+            if after.sent != before.sent {
+                let wasOn = before.isOn
+                let isOn = after.enabled == .value(true)
+                let renamed = before.ssid != after.ssid || before.password != after.password || before.encryption != after.encryption
+                let radioWide = wasOn && isOn && before.hidden != after.hidden
+                let bands = Set(wasOn ? before.bands : []).union(isOn ? after.bands : []).sorted()
+                let scopes = bands.map { band -> WiFiRestartScope in
+                    if radioWide { return .radio(band) }
+                    return isOn && !(wasOn && before.bands.contains(band)) ? .added(band) : .network(band)
+                }
+                steps.append(Step(call: .mlo(after), scopes: scopes, mloBefore: before))
+
+                let members = devices.filter(\.viaLink)
+                if wasOn {
+                    for device in members {
+                        if renamed || !isOn { mustJoin.insert(device.mac) } else { reconnect.insert(device.mac) }
+                    }
+                }
+                if radioWide {
+                    for device in devices where device.band.map(bands.contains) == true && !mustJoin.contains(device.mac) { reconnect.insert(device.mac) }
+                }
+                let macDevice: WiFiDevice? = if case .wifi(_, let interface?) = mac { devices.first { $0.interface == interface } } else { nil }
+                if wasOn, macDevice?.viaLink == true {
+                    let name = after.ssid ?? before.ssid ?? ""
+                    let impact: ThisMacImpact = if !isOn { .unknown }
+                        else if before.ssid != after.ssid { .mustJoin(name) }
+                        else if renamed { .mustEnterPassword(name) }
+                        else { .dropsThenJoins(name) }
+                    macImpact = Self.stronger(macImpact, impact)
+                } else if radioWide, case .wifi(let band, _) = mac, bands.contains(band) {
+                    macImpact = Self.stronger(macImpact, macStays)
+                }
+            }
+        }
+
         var writes: [WiFiOptionWrite] = []
         var optionsBefore: [WirelessSectionOptions] = []
         for edit in change.options {
@@ -672,7 +757,7 @@ public struct WiFiApplyPlan: Sendable, Equatable {
             }
         }
 
-        // Subnet first, then networks and radios, then the SSH options.
+        // Subnet first, then networks and radios, then multi-link, then the SSH options.
         self.steps = steps
         self.mustJoin = Array(mustJoin).sorted { $0.description < $1.description }
         self.reconnect = Array(reconnect.subtracting(mustJoin)).sorted { $0.description < $1.description }

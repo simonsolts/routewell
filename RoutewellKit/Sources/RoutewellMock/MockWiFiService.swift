@@ -48,6 +48,7 @@ public final class MockWiFiService: WiFiService, WiFiApplyTransport {
     private struct Edits {
         var wireless: WirelessStatus?
         var subnets: [SubnetPolicy]?
+        var mlo: MLOConfiguration?
         var sections: [WirelessSectionOptions]?
         /// The band whose radar check runs, and when it ends.
         var radarCheck: (band: WirelessBand, until: Date)?
@@ -114,6 +115,15 @@ public final class MockWiFiService: WiFiService, WiFiApplyTransport {
         return currentSubnets(scenario)
     }
 
+    public func readMLO() async throws -> MLOConfiguration {
+        try Task.checkCancellation()
+        return currentMLO(scenario)
+    }
+
+    private func currentMLO(_ scenario: Scenario) -> MLOConfiguration {
+        edits.withLock { $0.mlo } ?? Self.mlo(scenario)
+    }
+
     public func readRadioStates() async throws -> [WirelessBand: RadioState] {
         if applyScenario == .macNotBack { throw GLiNetRPCError.transport(.unreachable(code: -1004)) }
         return Dictionary(currentWireless(scenario).radios.compactMap { radio in radio.band.map { ($0, radio.state ?? .ready) } },
@@ -140,6 +150,7 @@ public final class MockWiFiService: WiFiService, WiFiApplyTransport {
         let scenario = scenario
         var wireless = edits.withLock { $0.wireless } ?? Self.wireless(scenario)
         var subnets = currentSubnets(scenario)
+        var mlo = currentMLO(scenario)
         var sections = currentSections(scenario)
         var radarCheck = edits.withLock { $0.radarCheck }
         var radar = edits.withLock { $0.radar }
@@ -181,6 +192,11 @@ public final class MockWiFiService: WiFiService, WiFiApplyTransport {
                 if let eachOther = rules.eachOther { subnets[index].isolate = !eachOther }
                 if let modem = rules.reachesModem { subnets[index].wanAccess = modem ? .unrestricted : .blockWANSubnet }
             }
+        case .mlo(let network):
+            for index in mlo.networks.indices where mlo.networks[index].name == network.name {
+                mlo.networks[index] = network
+                mlo.networks[index].guest = false
+            }
         case .options(let writes):
             for write in writes {
                 guard let index = sections.firstIndex(where: { $0.section == write.section.description }) else { continue }
@@ -193,7 +209,7 @@ public final class MockWiFiService: WiFiService, WiFiApplyTransport {
                 }
             }
         }
-        edits.withLock { $0 = Edits(wireless: wireless, subnets: subnets, sections: sections, radarCheck: radarCheck, radar: radar, iotOn: iotOn) }
+        edits.withLock { $0 = Edits(wireless: wireless, subnets: subnets, mlo: mlo, sections: sections, radarCheck: radarCheck, radar: radar, iotOn: iotOn) }
     }
 
     /// Client addresses that moved to the IoT network: the Wi-Fi 4 device
@@ -219,7 +235,7 @@ public final class MockWiFiService: WiFiService, WiFiApplyTransport {
         }
         let snapshot = WiFiSnapshot(
             wireless: .success(currentWireless(scenario)),
-            mlo: scenario == .multiLinkFails ? .failure(.timeout) : .success(Self.mlo(scenario)),
+            mlo: scenario == .multiLinkFails ? .failure(.timeout) : .success(currentMLO(scenario)),
             subnets: .success(currentSubnets(scenario)))
         return WiFiSnapshotResult(area: .success(snapshot, observedAt: now, source: .mock),
                                   capability: Capability(.supported, evidence: .mockScenario(scenario.rawValue), observedAt: now))
@@ -229,7 +245,7 @@ public final class MockWiFiService: WiFiService, WiFiApplyTransport {
         try Task.checkCancellation()
         let scenario = scenario
         guard scenario != .sshOff, scenario != .methodNotFound else { return .failure(.unavailable, attemptedAt: Date()) }
-        var air = Self.air(scenario)
+        var air = Self.air(scenario, multiLinkOn: currentMLO(scenario).main?.isOn == true)
         air.sections = currentSections(scenario)
         return .success(air, observedAt: Date(), source: .mock)
     }
@@ -305,7 +321,8 @@ public final class MockWiFiService: WiFiService, WiFiApplyTransport {
 
     private static func mac(_ text: String) -> MACAddress { MACAddress(text)! }
 
-    public static func air(_ scenario: Scenario) -> WiFiAir {
+    /// With multi-link on, the Wi-Fi 7 devices use it.
+    public static func air(_ scenario: Scenario, multiLinkOn linked: Bool? = nil) -> WiFiAir {
         let he = WiFiRate(megabitsPerSecond: 286.8, widthMHz: 20, mcs: 11, spatialStreams: 2, generation: .wifi6)
         let eht24 = WiFiRate(megabitsPerSecond: 344.1, widthMHz: 20, mcs: 13, spatialStreams: 2, generation: .wifi7)
         let ht = WiFiRate(megabitsPerSecond: 65, widthMHz: 20, mcs: 7, generation: .wifi4)
@@ -313,7 +330,7 @@ public final class MockWiFiService: WiFiService, WiFiApplyTransport {
         let he6 = WiFiRate(megabitsPerSecond: 1200.9, widthMHz: 160, mcs: 11, spatialStreams: 1, generation: .wifi6)
         let he5 = WiFiRate(megabitsPerSecond: 1201, widthMHz: 80, mcs: 11, spatialStreams: 2, generation: .wifi6)
         let after = scenario == .afterSuggestions
-        let multiLinkOn = after || scenario == .multiLinkOn
+        let multiLinkOn = linked ?? (after || scenario == .multiLinkOn)
         let stations = [
             WiFiStation(interface: after ? "rai0" : "ra0", band: after ? .ghz5 : .ghz2_4, mac: mac("66:29:ea:33:fb:78"), signal: after ? -58 : -61,
                         txRate: after ? he5 : he, connectedSeconds: 7_200, inactiveMilliseconds: 40),

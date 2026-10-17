@@ -61,6 +61,10 @@ private actor FakeRouter: WiFiApplyTransport {
 
     func readSubnets() async throws -> [SubnetPolicy] { subnets }
 
+    var mlo = MockWiFiService.mlo(.today)
+    func readMLO() async throws -> MLOConfiguration { mlo }
+    func editMLO(_ change: (inout MLOConfiguration) -> Void) { change(&mlo) }
+
     func readOptions() async throws -> [WirelessSectionOptions] { sections }
 
     func editSections(_ change: (inout [WirelessSectionOptions]) -> Void) { change(&sections) }
@@ -111,6 +115,8 @@ private actor FakeRouter: WiFiApplyTransport {
                 if let eachOther = rules.eachOther { subnets[index].isolate = !eachOther }
                 if let modem = rules.reachesModem { subnets[index].wanAccess = modem ? .unrestricted : .blockWANSubnet }
             }
+        case .mlo(let network):
+            for index in mlo.networks.indices where mlo.networks[index].name == network.name { mlo.networks[index] = network }
         case .options(let writes):
             for write in writes {
                 guard let index = sections.firstIndex(where: { $0.section == write.section.description }) else { continue }
@@ -887,5 +893,87 @@ private actor BodyLog {
         ]
         #expect(WiFiClientInfo.joined([plug, thermostat, printer], clients: clients, subnet: iot) == [plug])
         #expect(WiFiClientInfo.joined([plug], clients: clients, subnet: nil).isEmpty)
+    }
+}
+
+@Suite struct WiFiMultiLinkPlanTests {
+    static func turnOn(name: String = "Flint Home Link", bands: [WirelessBand] = [.ghz6, .ghz5]) -> MLONetwork {
+        var network = MockWiFiService.mlo(.today).main!
+        network.enabled = .value(true)
+        network.ssid = name
+        network.bands = bands
+        network.encryption = .wpa2WPA3
+        return network
+    }
+
+    static func plan(_ network: MLONetwork, mlo: MLOConfiguration = MockWiFiService.mlo(.today), devices: [WiFiDevice] = Sample.devices,
+                     mac: ThisMacLink = Sample.macOnFast) -> WiFiApplyPlan {
+        WiFiApplyPlan(change: WiFiChangeSet(mlo: network), wireless: Sample.wireless, subnets: nil, mlo: mlo, devices: devices, thisMac: mac)
+    }
+
+    @Test func turnOnSendsSortedBandsAndWPA3With6GHz() throws {
+        let plan = Self.plan(Self.turnOn())
+        let call = try #require(plan.calls.first)
+        let rpc = try #require(LiveWiFiApplyTransport.rpcCall(call))
+        #expect(rpc.object == "wifi" && rpc.method == "set_mlo_config")
+        let params = try #require(call.params)
+        #expect(params["mlo_band"]?.array?.compactMap(\.string) == ["5g", "6g"])
+        #expect(params["encryption"]?.string == "sae")
+        #expect(params["mlo_enable"] == .bool(true) && params["init"] == .bool(true))
+        #expect(params["name"]?.string == "mld0" && params["ssid"]?.string == "Flint Home Link")
+        #expect(!call.description.contains("example-password"))
+    }
+
+    @Test func turnOnStartsNewNetworksAndDropsNothing() {
+        let plan = Self.plan(Self.turnOn())
+        #expect(plan.restarts == [.added(.ghz5), .added(.ghz6)])
+        #expect(plan.mustJoin.isEmpty && plan.reconnect.isEmpty)
+        #expect(plan.thisMac == .staysConnected)
+    }
+
+    @Test func bothNameChoicesAreSent() throws {
+        for name in ["Flint Home Link", MockWiFiService.fast] {
+            let params = try #require(Self.plan(Self.turnOn(name: name)).calls.first?.params)
+            #expect(params["ssid"]?.string == name)
+        }
+    }
+
+    @Test func oneBandIsAProblem() {
+        #expect(Self.turnOn(bands: [.ghz6]).problems == [.oneBand])
+        #expect(Self.turnOn().problems.isEmpty)
+        var off = Self.turnOn(bands: [.ghz6])
+        off.enabled = .value(false)
+        #expect(off.problems.isEmpty)
+    }
+
+    @Test func turningOffMakesItsDevicesJoinAgain() {
+        let mlo = MockWiFiService.mlo(.multiLinkOn)
+        let devices = WiFiOverview(wireless: Sample.wireless, mlo: mlo, air: MockWiFiService.air(.multiLinkOn), clients: nil).devices
+        var off = mlo.main!
+        off.enabled = .value(false)
+        let plan = Self.plan(off, mlo: mlo, devices: devices)
+        #expect(plan.restarts == [.network(.ghz5), .network(.ghz6)])
+        #expect(Set(plan.mustJoin) == Set(devices.filter(\.viaLink).map(\.mac)) && plan.mustJoin.count == 2)
+        guard case .mlo(let sent)? = plan.calls.first else { Issue.record("no call"); return }
+        #expect(sent.initialised == true && sent.enabled == .value(false))
+    }
+
+    @Test func unchangedNetworkSendsNothing() {
+        #expect(Self.plan(MockWiFiService.mlo(.today).main!).isEmpty)
+    }
+
+    @Test func applyVerifiesTheMultiLinkNetwork() async {
+        let router = FakeRouter()
+        let report = await Sample.executor(router).apply(Self.plan(Self.turnOn()))
+        guard case .verifiedSuccess(let state) = report.outcome else { Issue.record("\(report.outcome)"); return }
+        #expect(state.mlo?.ssid == "Flint Home Link" && state.mlo?.encryption == .wpa3)
+    }
+
+    @Test func outsideChangeSendsNothing() async {
+        let router = FakeRouter()
+        await router.editMLO { $0.networks[0].ssid = "Flint Home Other" }
+        let report = await Sample.executor(router).apply(Self.plan(Self.turnOn()))
+        guard case .conflictingExternalEdit = report.outcome else { Issue.record("\(report.outcome)"); return }
+        #expect(await router.sent.isEmpty)
     }
 }
