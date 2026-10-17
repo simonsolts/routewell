@@ -98,7 +98,7 @@ struct WiFiOverviewPresentation {
     struct Sector: Equatable {
         let band: WirelessBand
         let count: Int
-        var label: String { count == 0 ? "Not used" : "\(count)" }
+        var label: String { "\(count)" }
     }
 
     struct Dot: Equatable, Identifiable {

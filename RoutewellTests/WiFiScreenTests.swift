@@ -99,7 +99,7 @@ import RoutewellMock
     #expect(today.deviceCount == 5)
     #expect(today.signalLine == "No weak signals")
     #expect(today.showsRings)
-    #expect(today.sectorLabels.map(\.label) == ["3", "Not used", "2"])
+    #expect(today.sectorLabels.map(\.label) == ["3", "0", "2"])
     #expect(today.dots.count == 5)
     #expect(today.cards.map(\.name) == ["Flint Home", "Flint Home Fast"])
     #expect(today.cards.map(\.count) == ["3", "2"])

@@ -69,12 +69,20 @@ struct WiFiAirMap: View {
             .aspectRatio(500 / 268, contentMode: .fit)
             .padding(.horizontal, 14)
         if page.showsRings {
-            HStack(spacing: 14) {
-                Label { Text("Can use a faster band") } icon: { Circle().stroke(.orange, lineWidth: 1.5).frame(width: 9, height: 9) }
-                Label { Text("Wi-Fi 7") } icon: { Circle().fill(.purple).frame(width: 5, height: 5) }
+            HStack(spacing: 16) {
+                HStack(spacing: 5) {
+                    Circle().fill(.quaternary).frame(width: 10, height: 10)
+                        .overlay(Circle().strokeBorder(.orange, lineWidth: 2).frame(width: 14, height: 14))
+                    Text("Can use a faster band")
+                }
+                HStack(spacing: 5) {
+                    Circle().strokeBorder(WirelessBand.ghz6.color, lineWidth: 1.5).frame(width: 7, height: 7)
+                    Text("Wi-Fi 7")
+                }
             }
-            .font(.caption).foregroundStyle(.secondary).labelStyle(.titleAndIcon)
-            .padding(.horizontal, 14).padding(.bottom, 12)
+            .font(.system(size: 11)).foregroundStyle(.secondary)
+            .frame(maxWidth: .infinity)
+            .padding(.top, 10).padding(.bottom, 12)
         } else {
             Spacer().frame(height: 12)
         }
@@ -122,6 +130,10 @@ struct WiFiAirMap: View {
                     }
                     .font(.caption.weight(.medium))
                     .position(x: (250 + 214 * cos(angle)) * scale, y: (248 - 214 * sin(angle)) * scale)
+                    if sector.count == 0 {
+                        Text("Not used").font(.system(size: 11)).foregroundStyle(.tertiary)
+                            .position(x: (250 + 114 * cos(angle)) * scale, y: (248 - 114 * sin(angle)) * scale)
+                    }
                 }
                 if !reduceMotion {
                     TimelineView(.animation) { context in
@@ -224,7 +236,9 @@ struct WiFiDeviceDot: View {
             Circle().fill(device.band?.color ?? .secondary).frame(width: 14, height: 14)
                 .overlay(Circle().strokeBorder(Color(nsColor: .controlBackgroundColor), lineWidth: 2))
             if device.generation == .wifi7 {
-                Circle().fill(.white).frame(width: 4, height: 4)
+                Circle().fill(Color(nsColor: .controlBackgroundColor)).frame(width: 6, height: 6)
+                    .overlay(Circle().strokeBorder(WirelessBand.ghz6.color, lineWidth: 1.5))
+                    .offset(x: 8, y: -8)
             }
             if highlighted {
                 Circle().stroke(Color.accentColor, lineWidth: 2).frame(width: 22, height: 22)
